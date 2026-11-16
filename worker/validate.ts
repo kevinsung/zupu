@@ -7,6 +7,8 @@ export class BadRequest extends Error {}
 const MAX_OPS = 1000
 const ID_RE = /^[a-z0-9_-]{1,64}$/i
 const MAX_LEN: Partial<Record<string, number>> = { notes: 5000, address: 500 }
+// Fields that no longer exist; still present in history snapshots (revert) and stale browser tabs.
+const REMOVED_FIELDS = ['whatsapp']
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v)
 
 function check(cond: unknown, msg: string): asserts cond {
@@ -27,6 +29,7 @@ function fields(v: unknown, partial: boolean): Partial<PersonFields> {
   check(isObj(v), 'invalid fields')
   const out: Record<string, string> = {}
   for (const [k, val] of Object.entries(v)) {
+    if (REMOVED_FIELDS.includes(k)) continue
     check((FIELD_KEYS as string[]).includes(k), `unknown field ${k}`)
     check(typeof val === 'string' && val.length <= (MAX_LEN[k] ?? 200), `invalid ${k}`)
     out[k] = val

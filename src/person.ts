@@ -73,8 +73,8 @@ export function renderPerson(cont: HTMLElement, ctx: AppCtx, id: string, opts: P
   const contact: [string, string | Node][] = [
     [t.email, p.email && h('a', { href: `mailto:${p.email}` }, p.email)],
     [t.phone, p.phone && h('a', { href: `tel:${p.phone}` }, formatPhone(p.phone))],
+    [t.line, p.line], [t.signal, p.signal],
     [t.address, p.address && h('span', { class: 'address' }, p.address)],
-    [t.line, p.line], [t.signal, p.signal], [t.whatsapp, p.whatsapp],
   ]
   const factList = (items: [string, string | Node | false][]) =>
     h('dl', { class: 'facts' }, ...items.filter(([, v]) => v).flatMap(([k, v]) => [h('dt', {}, k), h('dd', {}, v as string | Node)]))

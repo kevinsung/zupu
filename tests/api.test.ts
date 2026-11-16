@@ -112,10 +112,17 @@ describe('data', () => {
   })
 
   it('accepts people without contact fields (history snapshots from before they existed)', async () => {
-    const { email, phone, address, line, signal, whatsapp, ...old } = person('old', { nameZh: '舊' })
+    const { email, phone, address, line, signal, ...old } = person('old', { nameZh: '舊' })
     expect((await commit([{ type: 'set', person: old }])).status).toBe(200)
     const { people } = await (await w.call('/api/people')).json() as { people: Person[] }
     expect(people.find(p => p.id === 'old')).toEqual(person('old', { nameZh: '舊' }))
+  })
+
+  it('ignores the removed WhatsApp field (old history snapshots and browser tabs)', async () => {
+    expect((await commit([{ type: 'set', person: { ...person('wa', { nameZh: '舊' }), whatsapp: '+886912345678' } }])).status).toBe(200)
+    expect((await commit([{ type: 'update', id: 'wa', fields: { whatsapp: 'x', nameZh: '新' } }])).status).toBe(200)
+    const { people } = await (await w.call('/api/people')).json() as { people: Person[] }
+    expect(people.find(p => p.id === 'wa')).toEqual(person('wa', { nameZh: '新' }))
   })
 
   it('refuses to update someone who was deleted meanwhile', async () => {

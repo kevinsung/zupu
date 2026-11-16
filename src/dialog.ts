@@ -106,12 +106,11 @@ export function personForm(initial: PersonFields = emptyFields()) {
   const birthDate = text('birthDate', { placeholder: 'YYYY-MM-DD', inputmode: 'numeric' })
   const deathDate = text('deathDate', { placeholder: 'YYYY-MM-DD', inputmode: 'numeric' })
   const email = text('email', { type: 'email', inputmode: 'email' })
-  const phone = text('phone', { type: 'tel', placeholder: '+1 201 555 0123 / +886 912 345 678' })
+  const phone = text('phone', { type: 'tel', placeholder: '+886 912 345 678' })
   const address = h('textarea', { name: 'address', rows: '2' })
   address.value = initial.address
   const line = text('line')
   const signal = text('signal')
-  const whatsapp = text('whatsapp')
   const notes = h('textarea', { name: 'notes', rows: '3' })
   notes.value = initial.notes
   const radio = (value: string, label: string) =>
@@ -126,8 +125,9 @@ export function personForm(initial: PersonFields = emptyFields()) {
     h('div', { class: 'row' }, field(t.birthDate, birthDate, t.dateHint), field(t.deathDate, deathDate)),
     h('h3', { class: 'form-section' }, t.contact),
     h('div', { class: 'row' }, field(t.email, email), field(t.phone, phone, t.phoneHint)),
+    field(t.line, line, t.lineHint),
+    field(t.signal, signal, t.signalHint),
     field(t.address, address),
-    h('div', { class: 'row' }, field(t.line, line), field(t.signal, signal), field(t.whatsapp, whatsapp)),
     field(t.notes, notes),
   )
 
@@ -146,7 +146,6 @@ export function personForm(initial: PersonFields = emptyFields()) {
       address: address.value.trim(),
       line: line.value.trim(),
       signal: signal.value.trim(),
-      whatsapp: whatsapp.value.trim(),
     }
     if (!isValidPartialDate(fields.birthDate) || !isValidPartialDate(fields.deathDate)) throw new Error(t.badDate)
     if (!isValidEmail(fields.email)) throw new Error(t.badEmail)

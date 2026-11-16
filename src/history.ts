@@ -8,7 +8,7 @@ import type { AppCtx } from './actions'
 const FIELD_LABELS: Record<string, string> = {
   nameZh: t.nameZh, nameEn: t.nameEn, otherNames: t.otherNames, gender: t.gender,
   birthDate: t.birthDate, deathDate: t.deathDate, notes: t.notes,
-  email: t.email, phone: t.phone, address: t.address, line: t.line, signal: t.signal, whatsapp: t.whatsapp,
+  email: t.email, phone: t.phone, address: t.address, line: t.line, signal: t.signal,
   parents: t.parents, spouses: t.spouses,
 }
 

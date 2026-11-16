@@ -15,7 +15,6 @@ export interface SeedEntry {
   address?: string
   line?: string
   signal?: string
-  whatsapp?: string
   parents?: string[]
   spouses?: string[]
 }

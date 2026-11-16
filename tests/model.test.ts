@@ -168,7 +168,7 @@ describe('seed format', () => {
 describe('contact fields', () => {
   it('fills in missing contact fields on old data', () => {
     const p = normalizePerson('x', { nameZh: '甲', parents: [] })
-    expect([p.email, p.phone, p.address, p.line, p.signal, p.whatsapp]).toEqual(['', '', '', '', '', ''])
+    expect([p.email, p.phone, p.address, p.line, p.signal]).toEqual(['', '', '', '', ''])
   })
 
   it('validates emails loosely', () => {

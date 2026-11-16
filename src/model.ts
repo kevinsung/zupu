@@ -15,7 +15,6 @@ export interface PersonFields {
   address: string
   line: string
   signal: string
-  whatsapp: string
 }
 
 export interface Person extends PersonFields {
@@ -29,7 +28,7 @@ export type People = Map<string, Person>
 
 export const FIELD_KEYS: (keyof PersonFields)[] = [
   'nameZh', 'nameEn', 'otherNames', 'gender', 'birthDate', 'deathDate', 'notes',
-  'email', 'phone', 'address', 'line', 'signal', 'whatsapp',
+  'email', 'phone', 'address', 'line', 'signal',
 ]
 
 export const UNKNOWN = '？？？'
@@ -37,7 +36,7 @@ export const UNKNOWN = '？？？'
 export function emptyFields(): PersonFields {
   return {
     nameZh: '', nameEn: '', otherNames: '', gender: '', birthDate: '', deathDate: '', notes: '',
-    email: '', phone: '', address: '', line: '', signal: '', whatsapp: '',
+    email: '', phone: '', address: '', line: '', signal: '',
   }
 }
 
@@ -60,7 +59,6 @@ export function normalizePerson(id: string, raw: Record<string, unknown>): Perso
     address: str(raw.address),
     line: str(raw.line),
     signal: str(raw.signal),
-    whatsapp: str(raw.whatsapp),
     parents: ids(raw.parents),
     spouses: ids(raw.spouses),
     order: typeof raw.order === 'number' ? raw.order : 0,
