@@ -42,8 +42,14 @@ export class TreeChart {
     if (!this.chart) {
       this.chart = f3.createChart(this.cont, data)
         .setTransitionTime(600)
-        .setCardXSpacing(this.compact ? 132 : 190)
-        .setCardYSpacing(this.compact ? 110 : 140)
+      if (this.compact) {
+        // Generations run left to right on phones: siblings and cousins stack down the tall screen
+        // instead of spreading across the narrow one. Spacings keep their screen axes.
+        this.chart.setOrientationHorizontal().setCardXSpacing(140).setCardYSpacing(72)
+      } else {
+        this.chart.setCardXSpacing(190).setCardYSpacing(140)
+      }
+      this.chart
         .setSingleParentEmptyCard(false)
         .setShowSiblingsOfMain(true)
         .setSortChildrenFunction((a, b) => {
