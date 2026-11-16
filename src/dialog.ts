@@ -1,6 +1,7 @@
 import { h } from './dom'
 import { t } from './i18n'
-import { type Person, type PersonFields, displayName, emptyFields, isValidEmail, isValidPartialDate, searchPeople, type People, lifespan, allNames } from './model'
+import { type Person, type PersonFields, emptyFields, isValidEmail, isValidPartialDate, searchPeople, type People } from './model'
+import { personCard } from './cards'
 
 export interface DialogAction {
   label: string
@@ -10,13 +11,19 @@ export interface DialogAction {
   run?: () => Promise<boolean | void> | boolean | void
 }
 
-export function openDialog(title: string, body: Node, actions: DialogAction[], onDismiss?: () => void): () => void {
+/**
+ * Modal dialog: a centered card on wide screens, a bottom sheet on phones. The body scrolls
+ * between a fixed title bar and action bar. Returns a function that closes it.
+ */
+export function openDialog(title: string, body: Node, actions: DialogAction[], onDismiss?: () => void, cls = ''): () => void {
   const error = h('p', { class: 'dlg-error', role: 'alert' })
-  const dlg = h('dialog', { class: 'dlg' },
-    h('h2', {}, title),
-    body,
-    error,
-    h('div', { class: 'dlg-actions' }, ...actions.map(a => {
+  const dismiss = () => { onDismiss?.(); close() }
+  const dlg = h('dialog', { class: `dlg ${cls}`.trim() },
+    h('div', { class: 'dlg-head' },
+      h('h2', {}, title),
+      h('button', { type: 'button', class: 'icon dlg-x', 'aria-label': t.close, title: t.close, onclick: dismiss }, '✕')),
+    h('div', { class: 'dlg-body' }, body, error),
+    actions.length ? h('div', { class: 'dlg-actions' }, ...actions.map(a => {
       const btn = h('button', { type: 'button', class: [a.primary && 'primary', a.danger && 'danger'].filter(Boolean).join(' ') }, a.label)
       btn.addEventListener('click', async () => {
         error.textContent = ''
@@ -25,15 +32,18 @@ export function openDialog(title: string, body: Node, actions: DialogAction[], o
           if ((await a.run?.()) !== false) close()
         } catch (e) {
           error.textContent = `${t.saveFailed}: ${(e as Error).message}`
+          error.scrollIntoView?.({ block: 'nearest' })
         } finally {
           btn.disabled = false
         }
       })
       return btn
-    })),
+    })) : null,
   )
   const close = () => { dlg.close(); dlg.remove() }
-  dlg.addEventListener('cancel', () => { onDismiss?.(); close() })
+  dlg.addEventListener('cancel', e => { e.preventDefault(); dismiss() })
+  // Tapping the backdrop (outside the dialog box) dismisses it.
+  dlg.addEventListener('click', e => { if (e.target === dlg) dismiss() })
   document.body.append(dlg)
   dlg.showModal()
   return close
@@ -44,8 +54,42 @@ export function confirmDialog(message: string, label: string, danger = false): P
     openDialog(message, h('div'), [
       { label: t.cancel, run: () => resolve(false) },
       { label, primary: !danger, danger, run: () => resolve(true) },
-    ], () => resolve(false))
+    ], () => resolve(false), 'confirm')
   })
+}
+
+export interface MenuItem {
+  icon: string
+  label: string
+  run: () => void
+  danger?: boolean
+  disabled?: string
+}
+
+/** A list of large tappable actions (the phone "more" menu). */
+export function actionSheet(title: string, items: (MenuItem | null)[]) {
+  let close = () => {}
+  const list = h('div', { class: 'menu' }, ...items.filter((x): x is MenuItem => !!x).map(item =>
+    h('button', {
+      type: 'button', class: item.danger ? 'menu-item danger' : 'menu-item', disabled: !!item.disabled,
+      onclick: () => { close(); item.run() },
+    }, h('span', { class: 'menu-icon', 'aria-hidden': 'true' }, item.icon),
+    h('span', {}, item.label, item.disabled ? h('small', {}, item.disabled) : null))))
+  close = openDialog(title, list, [], undefined, 'sheet-menu')
+}
+
+let toastTimer: ReturnType<typeof setTimeout> | undefined
+/** Brief message at the bottom of the screen. */
+export function toast(message: string) {
+  let el = document.querySelector<HTMLElement>('.toast')
+  if (!el) {
+    el = h('div', { class: 'toast', role: 'status' })
+    document.body.append(el)
+  }
+  el.textContent = message
+  el.classList.add('show')
+  clearTimeout(toastTimer)
+  toastTimer = setTimeout(() => el.classList.remove('show'), 2500)
 }
 
 function field(label: string, input: HTMLElement, hint?: string) {
@@ -112,23 +156,29 @@ export function personForm(initial: PersonFields = emptyFields()) {
   return { el, read, focus: () => nameZh.focus() }
 }
 
-/** Search box with a result list; calls onPick with the chosen person. */
-export function personPicker(people: () => People, onPick: (p: Person) => void, opts: { placeholder?: string; exclude?: string } = {}) {
-  const input = h('input', { type: 'search', placeholder: opts.placeholder ?? t.search, autocomplete: 'off' })
-  const list = h('ul', { class: 'picker-results' })
+/** Search box with a result list; calls onPick with the chosen person. `idle` fills the list while the box is empty. */
+export function personPicker(
+  people: () => People,
+  onPick: (p: Person) => void,
+  opts: { placeholder?: string; exclude?: string; idle?: () => Node[] } = {},
+) {
+  const input = h('input', { type: 'search', placeholder: opts.placeholder ?? t.search, autocomplete: 'off', enterkeyhint: 'go', 'aria-label': opts.placeholder ?? t.search })
+  const list = h('div', { class: 'picker-results' })
+  const pick = (p: Person) => { onPick(p); input.value = ''; update() }
   const update = () => {
-    list.replaceChildren()
     const q = input.value
-    if (!q.trim()) return
+    if (!q.trim()) { list.replaceChildren(...(opts.idle?.() ?? [])); return }
     const results = searchPeople(people(), q).filter(p => p.id !== opts.exclude)
-    if (results.length === 0) list.append(h('li', { class: 'muted' }, t.noResults))
-    for (const p of results) {
-      const extra = [allNames(p).filter(n => n !== displayName(p)).join(' · '), lifespan(p)].filter(Boolean).join(' · ')
-      list.append(h('li', {},
-        h('button', { type: 'button', onclick: () => { onPick(p); input.value = ''; update() } },
-          h('strong', {}, displayName(p)), extra ? h('span', { class: 'muted' }, ` ${extra}`) : null)))
-    }
+    list.replaceChildren(results.length
+      ? h('div', { class: 'cards' }, ...results.map(p => personCard(p, () => pick(p))))
+      : h('p', { class: 'muted pad' }, t.noResults))
   }
   input.addEventListener('input', update)
-  return { el: h('div', { class: 'picker' }, input, list), input }
+  input.addEventListener('keydown', e => {
+    if (e.key !== 'Enter') return
+    const first = searchPeople(people(), input.value).find(p => p.id !== opts.exclude)
+    if (first) { e.preventDefault(); pick(first) }
+  })
+  update()
+  return { el: h('div', { class: 'picker' }, input, list), input, refresh: update }
 }

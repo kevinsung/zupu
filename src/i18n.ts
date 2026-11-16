@@ -72,10 +72,38 @@ export const t = {
   saveFailed: '儲存失敗 / Save failed',
 
   historyEmpty: '尚無修改 / No changes yet',
-  details: '詳細 / Details',
+  historyDetails: '詳細 / Details',
   revert: '還原 / Revert',
   confirmRevert: '將這些人恢復到此修改之前的狀態？之後對他們的修改也會被覆蓋。 / Restore these people to how they were before this change? Later edits to them will be overwritten too.',
   created: '新增 / Created',
   deleted: '刪除 / Deleted',
   loadFailed: '無法載入資料 / Could not load data',
+
+  more: '更多 / More',
+  menu: '選單 / Menu',
+  share: '分享 / Share',
+  familyLines: '家族 / Family lines',
+  recent: '最近查看 / Recently viewed',
+  searchHint: '輸入中文、英文或小名 / Type a Chinese, English or nickname',
+  spousesChildren: '配偶與子女 / Spouses & children',
+  childrenWith: '子女 / Children',
+  noSpouse: '配偶不詳 / No spouse recorded',
+  removeRelationship: '移除關係 / Remove a relationship',
+  noRelationships: '沒有可移除的關係 / No relationships to remove',
+  remove: '移除 / Remove',
+  showInTree: '在族譜中查看 / Show in tree',
+  viewPerson: '查看 / View',
+  center: '回到此人 / Back to selected person',
+  zoomIn: '放大 / Zoom in',
+  zoomOut: '縮小 / Zoom out',
+  details: '詳細資料 / Details',
+  changeEditor: '更改名字 / Change name',
+} as const
+
+/** Short two-part labels for the phone tab bar: [中文, English]. */
+export const tabs = {
+  person: ['人物', 'Person'],
+  tree: ['族譜', 'Tree'],
+  search: ['搜尋', 'Search'],
+  menu: ['選單', 'Menu'],
 } as const

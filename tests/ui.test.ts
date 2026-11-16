@@ -21,6 +21,7 @@ afterAll(() => w?.dispose())
 
 const tick = (ms = 50) => new Promise(r => setTimeout(r, ms))
 const $ = <T extends Element = HTMLElement>(sel: string) => document.querySelector<T>(sel)!
+const topDialog = () => [...document.querySelectorAll<HTMLElement>('dialog[open]')].at(-1)!
 const buttonWith = (text: string, root: ParentNode = document) =>
   [...root.querySelectorAll('button')].find(b => b.textContent!.includes(text))!
 
@@ -54,19 +55,28 @@ describe('app', () => {
   })
 
   it('starts at a root ancestor and renders cards', async () => {
-    expect($('#panel h2').textContent).toBe('祖父')
+    expect($('#person h2').textContent).toBe('祖父')
     expect(location.hash).toMatch(/^#\/p\//)
     expect(document.querySelectorAll('.ft-card').length).toBeGreaterThanOrEqual(4)
-    expect([...document.querySelectorAll('header select option')].map(o => o.textContent)).toContain('祖父 & 祖母')
   })
 
-  it('navigates via search', async () => {
-    const input = $<HTMLInputElement>('.header-search input')
+  it('navigates via search, which lists family lines and recent people', async () => {
+    $('.search-trigger').click()
+    const dlg = $('dialog[open]')
+    expect([...dlg.querySelectorAll('.pcard-name')].map(e => e.textContent)).toContain('祖父 & 祖母')
+    const input = dlg.querySelector<HTMLInputElement>('input[type=search]')!
     input.value = 'alice'
     input.dispatchEvent(new Event('input'))
-    buttonWith('甲', $('.header-search')).click()
+    buttonWith('甲', dlg).click()
     await tick(100)
-    expect($('#panel h2').textContent).toBe('甲')
+    expect(dlg.isConnected).toBe(false)
+    expect($('#person h2').textContent).toBe('甲')
+    expect($('#person .pv-parents').textContent).toContain('祖父')
+    expect($('#person .pv-siblings').textContent).toContain('乙')
+    $('.search-trigger').click()
+    const again = $('dialog[open]')
+    expect(again.textContent).toContain('祖父')
+    again.querySelector<HTMLButtonElement>('.dlg-x')!.click()
   })
 
   it('adds a spouse, asking for the editor name first', async () => {
@@ -81,12 +91,12 @@ describe('app', () => {
     buttonWith('儲存', nameDlg).click()
     await tick(300)
     expect(document.querySelectorAll('dialog[open]').length).toBe(0)
-    expect($('#panel').textContent).toContain('丈夫')
+    expect($('#person').textContent).toContain('丈夫')
     expect(document.querySelector('header')!.textContent).toContain('Tester')
   })
 
   it('rejects bad dates in the edit form', async () => {
-    buttonWith('編輯 / Edit', $('#panel')).click()
+    buttonWith('編輯 / Edit', $('#person')).click()
     const dlg = $('dialog[open]')
     dlg.querySelector<HTMLInputElement>('input[name=birthDate]')!.value = '60'
     buttonWith('儲存', dlg).click()
@@ -95,7 +105,7 @@ describe('app', () => {
     dlg.querySelector<HTMLInputElement>('input[name=birthDate]')!.value = '1960-03'
     buttonWith('儲存', dlg).click()
     await tick(300)
-    expect($('#panel .facts').textContent).toContain('1960-03')
+    expect($('#person .facts').textContent).toContain('1960-03')
   })
 
   it('logs changes in history and can revert', async () => {
@@ -110,11 +120,25 @@ describe('app', () => {
     await tick()
     buttonWith('還原', [...document.querySelectorAll('dialog[open]')].at(-1)!).click()
     await tick(300)
-    expect($('#panel .facts').textContent).not.toContain('1960-03')
+    expect($('#person .facts').textContent).not.toContain('1960-03')
+  })
+
+  it('removes a relationship from the more menu', async () => {
+    $<HTMLButtonElement>('#person .pv-actions .more').click()
+    buttonWith('移除關係', topDialog()).click()
+    const dlg = topDialog()
+    expect(dlg.textContent).toContain('丈夫')
+    const row = [...dlg.querySelectorAll('.pcard')].find(c => c.textContent!.includes('丈夫'))!
+    buttonWith('移除', row).click()
+    await tick()
+    buttonWith('移除', topDialog()).click()
+    await tick(300)
+    expect(dlg.isConnected).toBe(false)
+    expect($('#person .pv-families').textContent).not.toContain('丈夫')
   })
 
   it('edits contact info and shows email and phone as links', async () => {
-    buttonWith('編輯 / Edit', $('#panel')).click()
+    buttonWith('編輯 / Edit', $('#person')).click()
     const dlg = [...document.querySelectorAll<HTMLElement>('dialog[open]')].at(-1)!
     const set = (name: string, value: string) => { dlg.querySelector<HTMLInputElement>(`[name=${name}]`)!.value = value }
     set('email', 'alice@')
@@ -127,7 +151,7 @@ describe('app', () => {
     buttonWith('儲存', dlg).click()
     await tick(300)
     expect(dlg.isConnected).toBe(false)
-    const contact = $('#panel .contact')
+    const contact = $('#person .contact')
     expect(contact.querySelector('a[href="mailto:alice@example.com"]')).toBeTruthy()
     expect(contact.querySelector('a[href="tel:+15550100000"]')!.textContent).toBe('+1 (555) 010-0000')
     expect(contact.textContent).toContain('alice_line')

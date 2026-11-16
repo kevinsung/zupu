@@ -1,9 +1,9 @@
 import { h } from './dom'
 import { t } from './i18n'
-import { confirmDialog, openDialog } from './dialog'
+import { confirmDialog, openDialog, toast } from './dialog'
 import { FIELD_KEYS, type Person, displayName } from './model'
 import type { Backend, ChangeRecord, PersonDiff } from './store'
-import type { AppCtx } from './panel'
+import type { AppCtx } from './actions'
 
 const FIELD_LABELS: Record<string, string> = {
   nameZh: t.nameZh, nameEn: t.nameEn, otherNames: t.otherNames, gender: t.gender,
@@ -46,13 +46,13 @@ export function openHistory(ctx: AppCtx, backend: Backend) {
           h('strong', {}, c.editor),
         ),
         h('div', {}, c.summary),
-        h('details', {}, h('summary', {}, t.details), ...people,
+        h('details', {}, h('summary', {}, t.historyDetails), ...people,
           h('button', {
             type: 'button', class: 'danger small', onclick: async () => {
               if (!(await confirmDialog(t.confirmRevert, t.revert, true))) return
               const editor = await ctx.editorName()
               if (!editor) return
-              await ctx.store.revert(editor, c).catch(e => alert(e.message))
+              await ctx.store.revert(editor, c).catch(e => toast(`${t.saveFailed}: ${e.message}`))
             },
           }, t.revert)),
       ))
@@ -61,5 +61,5 @@ export function openHistory(ctx: AppCtx, backend: Backend) {
   const unsubscribe = backend.subscribeChanges(render, e => {
     list.replaceChildren(h('li', { class: 'dlg-error' }, `${t.loadFailed}: ${e.message}`))
   })
-  openDialog(t.history, list, [{ label: t.close, run: () => { unsubscribe() } }], unsubscribe)
+  openDialog(t.history, list, [], unsubscribe, 'tall')
 }

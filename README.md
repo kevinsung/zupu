@@ -3,7 +3,7 @@
 A password-protected family tree that relatives can view and edit. It runs on Cloudflare's free tier:
 one Worker serves the site and a small API, and the data lives in a D1 (SQLite) database.
 
-- **Interactive chart:** click anyone to center them, search by Chinese, English or nicknames, and share a link to a person (`#/p/<id>`).
+- **Built for phones:** each person has a page showing their parents, spouses with the children they had together, and siblings, and you tap anyone to go to their page. A full interactive tree sits beside it on wide screens and in its own tab on phones. Search works on Chinese, English or nicknames, and links to a person (`#/p/<id>`) can be shared.
 - **Extend anywhere:** add a parent, spouse, child or sibling to any person, or link two people already in the tree.
 - **Change history:** every edit records who made it (the name they type once) and what changed, and any change can be reverted.
 - **Privacy:** the password is checked by the Worker. Sessions are signed HttpOnly cookies, and failed logins are rate limited per IP. The data is only reachable through the API. `seed/` and `backups/` are gitignored, so no family data is in the repo.
@@ -58,5 +58,7 @@ Code map:
 - `src/store.ts`: turns every edit into ops plus a change-log entry.
 - `src/backend.ts`: the API client and polling.
 - `src/chart.ts`: family-chart adapter.
-- `src/panel.ts`, `src/history.ts`: the UI.
+- `src/main.ts`: app shell (top bar, phone tab bar, tree/person panes, routing).
+- `src/person.ts`: the person page; `src/actions.ts`: edit/add/link/remove/delete flows.
+- `src/dialog.ts`, `src/cards.ts`, `src/search.ts`, `src/history.ts`: dialogs/sheets, person cards, search, change log.
 - `src/i18n.ts`: all labels.
