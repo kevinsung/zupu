@@ -1,6 +1,6 @@
 import { h } from './dom'
 import { t } from './i18n'
-import { type Person, type PersonFields, emptyFields, isValidEmail, isValidPartialDate, searchPeople, type People } from './model'
+import { type Person, type PersonFields, emptyFields, isValidEmail, isValidPartialDate, normalizePhone, searchPeople, type People } from './model'
 import { personCard } from './cards'
 
 export interface DialogAction {
@@ -106,7 +106,7 @@ export function personForm(initial: PersonFields = emptyFields()) {
   const birthDate = text('birthDate', { placeholder: 'YYYY-MM-DD', inputmode: 'numeric' })
   const deathDate = text('deathDate', { placeholder: 'YYYY-MM-DD', inputmode: 'numeric' })
   const email = text('email', { type: 'email', inputmode: 'email' })
-  const phone = text('phone', { type: 'tel' })
+  const phone = text('phone', { type: 'tel', placeholder: '+1 201 555 0123 / +886 912 345 678' })
   const address = h('textarea', { name: 'address', rows: '2' })
   address.value = initial.address
   const line = text('line')
@@ -125,7 +125,7 @@ export function personForm(initial: PersonFields = emptyFields()) {
     h('div', { class: 'field' }, h('span', {}, t.gender), gender),
     h('div', { class: 'row' }, field(t.birthDate, birthDate, t.dateHint), field(t.deathDate, deathDate)),
     h('h3', { class: 'form-section' }, t.contact),
-    h('div', { class: 'row' }, field(t.email, email), field(t.phone, phone)),
+    h('div', { class: 'row' }, field(t.email, email), field(t.phone, phone, t.phoneHint)),
     field(t.address, address),
     h('div', { class: 'row' }, field(t.line, line), field(t.signal, signal), field(t.whatsapp, whatsapp)),
     field(t.notes, notes),
@@ -150,7 +150,9 @@ export function personForm(initial: PersonFields = emptyFields()) {
     }
     if (!isValidPartialDate(fields.birthDate) || !isValidPartialDate(fields.deathDate)) throw new Error(t.badDate)
     if (!isValidEmail(fields.email)) throw new Error(t.badEmail)
-    return fields
+    const phoneE164 = normalizePhone(fields.phone)
+    if (phoneE164 === null) throw new Error(t.badPhone)
+    return { ...fields, phone: phoneE164 }
   }
 
   return { el, read, focus: () => nameZh.focus() }

@@ -3,7 +3,7 @@ import { t } from './i18n'
 import { actionSheet, toast } from './dialog'
 import { personCard } from './cards'
 import { type AppCtx, addRelative, deletePerson, editPerson, linkExisting, removeRelationship } from './actions'
-import { type Person, allNames, childrenByCoParent, displayName, lifespan, siblingsOf } from './model'
+import { type Person, allNames, childrenByCoParent, displayName, formatPhone, lifespan, siblingsOf } from './model'
 
 export interface PersonViewOpts {
   /** Shown in the "more" menu on phones, where the tree is a separate tab. */
@@ -72,7 +72,7 @@ export function renderPerson(cont: HTMLElement, ctx: AppCtx, id: string, opts: P
   ]
   const contact: [string, string | Node][] = [
     [t.email, p.email && h('a', { href: `mailto:${p.email}` }, p.email)],
-    [t.phone, p.phone && h('a', { href: `tel:${p.phone.replace(/[^\d+]/g, '')}` }, p.phone)],
+    [t.phone, p.phone && h('a', { href: `tel:${p.phone}` }, formatPhone(p.phone))],
     [t.address, p.address && h('span', { class: 'address' }, p.address)],
     [t.line, p.line], [t.signal, p.signal], [t.whatsapp, p.whatsapp],
   ]

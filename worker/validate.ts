@@ -1,5 +1,5 @@
 // Strict checks on everything the browser sends, since anyone with the password can call the API.
-import { FIELD_KEYS, type Person, type PersonFields, emptyFields, isValidEmail, isValidPartialDate } from '../src/model'
+import { FIELD_KEYS, type Person, type PersonFields, emptyFields, isValidEmail, isValidPartialDate, isValidPhone } from '../src/model'
 import type { NewChange, Op, RelList } from '../src/store'
 
 export class BadRequest extends Error {}
@@ -36,6 +36,7 @@ function fields(v: unknown, partial: boolean): Partial<PersonFields> {
   if ('gender' in out) check(['M', 'F', ''].includes(out.gender), 'invalid gender')
   for (const k of ['birthDate', 'deathDate']) if (k in out) check(isValidPartialDate(out[k]), `invalid ${k}`)
   if ('email' in out) check(isValidEmail(out.email), 'invalid email')
+  if ('phone' in out) check(isValidPhone(out.phone), 'invalid phone')
   return result
 }
 

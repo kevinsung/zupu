@@ -1,3 +1,5 @@
+import { parsePhoneNumberFromString } from 'libphonenumber-js/min'
+
 export type Gender = 'M' | 'F' | ''
 
 export interface PersonFields {
@@ -77,6 +79,22 @@ export function isValidPartialDate(s: string): boolean {
 
 export function isValidEmail(s: string): boolean {
   return s === '' || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s)
+}
+
+/** E.164 ('+' and digits) for a valid number with a country code, '' for blank, null otherwise. */
+export function normalizePhone(s: string): string | null {
+  if (s.trim() === '') return ''
+  const n = parsePhoneNumberFromString(s)
+  return n?.isValid() ? n.number : null
+}
+
+/** Phones are stored as E.164, e.g. +886912345678. */
+export function isValidPhone(s: string): boolean {
+  return s === '' || normalizePhone(s) === s
+}
+
+export function formatPhone(s: string): string {
+  return parsePhoneNumberFromString(s)?.formatInternational() ?? s
 }
 
 export function displayName(p: Person | undefined): string {

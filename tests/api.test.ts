@@ -93,6 +93,8 @@ describe('data', () => {
       [{ type: 'set', person: { ...person('x'), address: 'a'.repeat(501) } }],
       [{ type: 'set', person: { ...person('x'), email: 'not an email' } }],
       [{ type: 'update', id: 'kid', fields: { email: 'kid@' } }],
+      [{ type: 'update', id: 'kid', fields: { phone: '+1 201 555 0123' } }], // must be E.164
+      [{ type: 'update', id: 'kid', fields: { phone: '2015550123' } }],
       [{ type: 'update', id: 'kid', add: { parents: ['zzz'] } }], // would be three parents
       [{ type: 'update', id: 'kid', add: { spouses: ['kid'] } }], // self
       [{ type: 'update', id: 'kid', fields: { order: 3 } }],

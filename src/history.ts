@@ -1,7 +1,7 @@
 import { h } from './dom'
 import { t } from './i18n'
 import { confirmDialog, openDialog, toast } from './dialog'
-import { FIELD_KEYS, type Person, displayName } from './model'
+import { FIELD_KEYS, type Person, displayName, formatPhone } from './model'
 import type { Backend, ChangeRecord, PersonDiff } from './store'
 import type { AppCtx } from './actions'
 
@@ -21,7 +21,7 @@ function diffLines(ctx: AppCtx, d: PersonDiff): Node[] {
   for (const k of [...FIELD_KEYS, 'parents', 'spouses'] as (keyof Person)[]) {
     const [a, b] = [d.before[k], d.after[k]]
     if (JSON.stringify(a) === JSON.stringify(b)) continue
-    const fmt = (v: unknown) => (Array.isArray(v) ? ids(v) : String(v) || '—')
+    const fmt = (v: unknown) => (Array.isArray(v) ? ids(v) : (k === 'phone' ? formatPhone(String(v)) : String(v)) || '—')
     lines.push(h('li', {}, `${FIELD_LABELS[k] ?? k}: `, h('del', {}, fmt(a)), ' → ', h('ins', {}, fmt(b))))
   }
   return lines

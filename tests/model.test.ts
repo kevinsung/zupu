@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { type People, type Person, childrenByCoParent, emptyFields, isValidEmail, isValidPartialDate, normalizePerson, rootAncestors, searchPeople, siblingsOf } from '../src/model'
+import { type People, type Person, childrenByCoParent, emptyFields, formatPhone, isValidEmail, isValidPartialDate, isValidPhone, normalizePerson, normalizePhone, rootAncestors, searchPeople, siblingsOf } from '../src/model'
 import { applyOp, FamilyStore, simulate, type Backend, type ChangeRecord, type NewChange, type Op } from '../src/store'
 import { seedToPeople } from '../src/seed-format'
 
@@ -174,5 +174,16 @@ describe('contact fields', () => {
   it('validates emails loosely', () => {
     for (const ok of ['', 'a@b.co', 'first.last+tag@mail.example.org']) expect(isValidEmail(ok), ok).toBe(true)
     for (const bad of ['a', 'a@b', '@b.co', 'a b@c.de', 'a@b.co ']) expect(isValidEmail(bad), bad).toBe(false)
+  })
+
+  it('normalizes phones to E.164 and formats them for display', () => {
+    expect(normalizePhone('')).toBe('')
+    expect(normalizePhone('+1 (201) 555-0123')).toBe('+12015550123')
+    expect(normalizePhone('+886 912-345-678')).toBe('+886912345678')
+    for (const bad of ['201-555-0123', '0912345678', '+1 555 010 0000', 'call me']) expect(normalizePhone(bad), bad).toBeNull()
+    expect(isValidPhone('+886912345678')).toBe(true)
+    expect(isValidPhone('+886 912 345 678')).toBe(false)
+    expect(formatPhone('+886912345678')).toBe('+886 912 345 678')
+    expect(formatPhone('+12015550123')).toBe('+1 201 555 0123')
   })
 })
