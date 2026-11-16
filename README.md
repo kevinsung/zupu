@@ -22,10 +22,10 @@ one Worker serves the site and a small API, and the data lives in a D1 (SQLite) 
    ```
 3. **Address:** the Worker has no public address until you give it one. In the Cloudflare dashboard → Workers → zupu → Settings → Domains & Routes, add a custom domain (its DNS must be on Cloudflare). Deploys leave it in place. Or set `"workers_dev": true` in `wrangler.jsonc` to use `https://zupu.<your-subdomain>.workers.dev`.
 
-### Optional: deploy on every push
-Push the repo to GitHub (it can be private), then go to Cloudflare dashboard → Workers → zupu → Settings → Builds → **Connect** and set:
-- **Build command:** `npm run build`
-- **Deploy command:** `npx wrangler d1 migrations apply zupu --remote && npx wrangler deploy`
+### Deploy on every push
+`.github/workflows/deploy.yml` runs the tests and then `npm run deploy` on every push to `main` (or manually from the Actions tab). It needs two repository secrets (GitHub → Settings → Secrets and variables → Actions):
+- **`CLOUDFLARE_API_TOKEN`:** Cloudflare dashboard → My Profile → API Tokens → Create Token → "Edit Cloudflare Workers" template, plus *Account → D1 → Edit*.
+- **`CLOUDFLARE_ACCOUNT_ID`:** shown by `npx wrangler whoami`.
 
 ## Day to day
 
