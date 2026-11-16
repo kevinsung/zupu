@@ -180,7 +180,8 @@ describe('contact fields', () => {
     expect(normalizePhone('')).toBe('')
     expect(normalizePhone('+1 (201) 555-0123')).toBe('+12015550123')
     expect(normalizePhone('+886 912-345-678')).toBe('+886912345678')
-    for (const bad of ['201-555-0123', '0912345678', '+1 555 010 0000', 'call me']) expect(normalizePhone(bad), bad).toBeNull()
+    expect(normalizePhone('＋８８６ ９１２ ３４５ ６７８')).toBe('+886912345678') // full-width
+    for (const bad of ['201-555-0123', '0912345678', '+1 555 010 0000', 'call me', '+886 912 345 678 #12', '+1 201 555 0123 ext. 4']) expect(normalizePhone(bad), bad).toBeNull()
     expect(isValidPhone('+886912345678')).toBe(true)
     expect(isValidPhone('+886 912 345 678')).toBe(false)
     expect(formatPhone('+886912345678')).toBe('+886 912 345 678')

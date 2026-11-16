@@ -35,7 +35,7 @@ export const t = {
   whatsapp: 'WhatsApp',
   phoneHint: '請加國碼 / Include the country code',
   badEmail: '電子郵件格式不正確 / Invalid email address',
-  badPhone: '電話號碼不正確，請加國碼 / Invalid phone number; include the country code',
+  badPhone: '電話號碼不正確：請加國碼，不要加分機 / Invalid phone number: include the country code, no extension',
   badDate: '日期格式應為 YYYY、YYYY-MM 或 YYYY-MM-DD / Dates must be YYYY, YYYY-MM or YYYY-MM-DD',
 
   parents: '父母 / Parents',

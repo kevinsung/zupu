@@ -81,11 +81,14 @@ export function isValidEmail(s: string): boolean {
   return s === '' || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s)
 }
 
-/** E.164 ('+' and digits) for a valid number with a country code, '' for blank, null otherwise. */
+/**
+ * E.164 ('+' and digits) for a valid number with a country code, '' for blank, null otherwise.
+ * Full-width input (from Chinese IMEs) is accepted; extensions are rejected since E.164 can't hold them.
+ */
 export function normalizePhone(s: string): string | null {
   if (s.trim() === '') return ''
-  const n = parsePhoneNumberFromString(s)
-  return n?.isValid() ? n.number : null
+  const n = parsePhoneNumberFromString(s.normalize('NFKC'))
+  return n?.isValid() && !n.ext ? n.number : null
 }
 
 /** Phones are stored as E.164, e.g. +886912345678. */
