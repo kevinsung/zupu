@@ -1,0 +1,24 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "zupu",
+  "main": "worker/index.ts",
+  "compatibility_date": "2026-11-01",
+  // No address is configured here: attach a custom domain to the Worker in the Cloudflare
+  // dashboard (deploys leave it in place). No *.workers.dev address or per-version preview URLs.
+  "workers_dev": false,
+  "preview_urls": false,
+  "assets": {
+    // Static files are served directly (free, not counted as Worker requests);
+    // only /api/* runs the Worker.
+    "run_worker_first": ["/api/*"]
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "zupu",
+      // No database_id: wrangler looks the database up by name (create it with `npx wrangler d1 create zupu`).
+      "migrations_dir": "migrations"
+    }
+  ],
+  "observability": { "enabled": true }
+}

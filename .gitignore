@@ -1,0 +1,10 @@
+node_modules/
+dist/
+# Personal family data must never be committed
+seed/
+*.log
+backups/
+.wrangler/
+.dev.vars
+# Screenshots may show family data
+*.png
