@@ -8,7 +8,7 @@ import { emptyFields } from '../src/model'
 import { startWorker } from './worker-env'
 
 const person = (id: string, extra: Record<string, unknown> = {}) =>
-  ({ ...emptyFields(), id, parents: [], spouses: [], order: 0, ...extra })
+  ({ ...emptyFields(), id, parents: [], spouses: [], marriages: {}, order: 0, ...extra })
 const seed = [
   person('gp', { nameZh: '祖父', gender: 'M', spouses: ['gm'] }),
   person('gm', { nameZh: '祖母', gender: 'F', spouses: ['gp'], order: 1 }),
@@ -156,6 +156,25 @@ describe('app', () => {
     await tick(300)
     expect(dlg.isConnected).toBe(false)
     expect($('#person .pv-families').textContent).toContain('丈夫')
+  })
+
+  it('adds marriage dates under a spouse and shows them in history', async () => {
+    const families = () => $('#person .pv-families')
+    buttonWith('新增結婚日期', families()).click()
+    const dlg = topDialog()
+    dlg.querySelector<HTMLInputElement>('input[name=married]')!.value = '85'
+    buttonWith('儲存', dlg).click()
+    await tick()
+    expect(dlg.querySelector('.dlg-error')!.textContent).toContain('YYYY')
+    dlg.querySelector<HTMLInputElement>('input[name=married]')!.value = '1985-10'
+    buttonWith('儲存', dlg).click()
+    await tick(300)
+    expect(dlg.isConnected).toBe(false)
+    expect(families().querySelector('.marriage')!.textContent).toContain('結婚 / Married 1985-10')
+    buttonWith('修改紀錄').click()
+    await tick(300)
+    expect(topDialog().querySelector('.history > li')!.textContent).toContain('婚姻 / Marriage (丈夫): —')
+    topDialog().querySelector<HTMLButtonElement>('.dlg-x')!.click()
   })
 
   it('edits contact info and shows email and phone as links', async () => {

@@ -8,7 +8,7 @@ beforeAll(async () => { w = await startWorker('correct horse') })
 afterAll(() => w.dispose())
 
 const person = (id: string, extra: Partial<Person> = {}): Person =>
-  ({ ...emptyFields(), id, parents: [], spouses: [], order: 0, ...extra })
+  ({ ...emptyFields(), id, parents: [], spouses: [], marriages: {}, order: 0, ...extra })
 const commit = (ops: unknown[], editor = 'Tester') => w.post('/api/commit', { ops, editor, summary: 's' })
 
 describe('auth', () => {
@@ -111,8 +111,8 @@ describe('data', () => {
     expect(people.find(p => p.id === 'kid')).toMatchObject({ email: 'kid@example.com', address: '1 Main St\nTown' })
   })
 
-  it('accepts people without contact fields (history snapshots from before they existed)', async () => {
-    const { email, phone, address, line, signal, ...old } = person('old', { nameZh: '舊' })
+  it('accepts people without contact fields or marriages (history snapshots from before they existed)', async () => {
+    const { email, phone, address, line, signal, marriages, ...old } = person('old', { nameZh: '舊' })
     expect((await commit([{ type: 'set', person: old }])).status).toBe(200)
     const { people } = await (await w.call('/api/people')).json() as { people: Person[] }
     expect(people.find(p => p.id === 'old')).toEqual(person('old', { nameZh: '舊' }))
@@ -123,6 +123,25 @@ describe('data', () => {
     expect((await commit([{ type: 'update', id: 'wa', fields: { whatsapp: 'x', nameZh: '新' } }])).status).toBe(200)
     const { people } = await (await w.call('/api/people')).json() as { people: Person[] }
     expect(people.find(p => p.id === 'wa')).toEqual(person('wa', { nameZh: '新' }))
+  })
+
+  it('saves marriages and rejects bad ones', async () => {
+    const m = { married: '1985-10', divorced: '' }
+    expect((await commit([{ type: 'update', id: 'dad', add: { spouses: ['mom'] } }, { type: 'update', id: 'mom', add: { spouses: ['dad'] } }])).status).toBe(200)
+    expect((await commit([{ type: 'update', id: 'dad', marriages: { mom: m } }, { type: 'update', id: 'mom', marriages: { dad: m } }])).status).toBe(200)
+    let { people } = await (await w.call('/api/people')).json() as { people: Person[] }
+    expect(people.find(p => p.id === 'mom')!.marriages).toEqual({ dad: m })
+    const bad: unknown[][] = [
+      [{ type: 'update', id: 'dad', marriages: { mom: { married: '85' } } }],
+      [{ type: 'update', id: 'dad', marriages: { mom: { married: '1985', place: 'x' } } }],
+      [{ type: 'update', id: 'dad', marriages: { 'bad id!': m } }],
+      [{ type: 'update', id: 'dad', marriages: [] }],
+      [{ type: 'set', person: person('x', { marriages: { mom: m } }) }], // not a spouse
+    ]
+    for (const ops of bad) expect((await commit(ops)).status, JSON.stringify(ops)).toBe(400)
+    expect((await commit([{ type: 'update', id: 'dad', marriages: { mom: null } }])).status).toBe(200)
+    ;({ people } = await (await w.call('/api/people')).json() as { people: Person[] })
+    expect(people.find(p => p.id === 'dad')!.marriages).toEqual({})
   })
 
   it('refuses to update someone who was deleted meanwhile', async () => {

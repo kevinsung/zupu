@@ -1,6 +1,7 @@
 import { h } from './dom'
 import { t } from './i18n'
 import { confirmDialog, openDialog, toast } from './dialog'
+import { marriageText } from './cards'
 import { FIELD_KEYS, type Person, displayName, formatPhone } from './model'
 import type { Backend, ChangeRecord, PersonDiff } from './store'
 import type { AppCtx } from './actions'
@@ -23,6 +24,13 @@ function diffLines(ctx: AppCtx, d: PersonDiff): Node[] {
     if (JSON.stringify(a) === JSON.stringify(b)) continue
     const fmt = (v: unknown) => (Array.isArray(v) ? ids(v) : (k === 'phone' ? formatPhone(String(v)) : String(v)) || '—')
     lines.push(h('li', {}, `${FIELD_LABELS[k] ?? k}: `, h('del', {}, fmt(a)), ' → ', h('ins', {}, fmt(b))))
+  }
+  // Snapshots from before marriages existed lack the field.
+  const [ma, mb] = [d.before.marriages ?? {}, d.after.marriages ?? {}]
+  for (const sid of new Set([...Object.keys(ma), ...Object.keys(mb)])) {
+    if (JSON.stringify(ma[sid]) === JSON.stringify(mb[sid])) continue
+    lines.push(h('li', {}, `${t.marriage} (${name(sid)}): `,
+      h('del', {}, marriageText(ma[sid]) || '—'), ' → ', h('ins', {}, marriageText(mb[sid]) || '—')))
   }
   return lines
 }

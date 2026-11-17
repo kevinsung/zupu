@@ -41,6 +41,13 @@ export const t = {
 
   parents: '父母 / Parents',
   spouses: '配偶 / Spouses',
+  marriage: '婚姻 / Marriage',
+  married: '結婚 / Married',
+  divorced: '離婚 / Divorced',
+  marriedDate: '結婚日期 / Marriage date',
+  divorcedDate: '離婚日期 / Divorce date',
+  addMarriage: '新增結婚日期 / Add marriage dates',
+  editMarriage: '編輯婚姻 / Edit marriage',
   children: '子女 / Children',
   siblings: '兄弟姊妹 / Siblings',
   with: '與 / with',

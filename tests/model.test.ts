@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { type People, type Person, childrenByCoParent, emptyFields, formatPhone, isValidEmail, isValidPartialDate, isValidPhone, normalizePerson, normalizePhone, rootAncestors, searchPeople, seniorAncestor, siblingsOf } from '../src/model'
+import { type People, type Person, childrenByCoParent, emptyFields, formatPhone, isValidEmail, isValidPartialDate, isValidPhone, normalizePerson, normalizePhone, rootAncestors, searchPeople, seniorAncestor, siblingsOf, spousesOf } from '../src/model'
 import { applyOp, FamilyStore, simulate, type Backend, type ChangeRecord, type NewChange, type Op } from '../src/store'
 import { seedToPeople } from '../src/seed-format'
 
@@ -26,7 +26,7 @@ function memoryStore(seed: Person[]) {
 }
 
 const person = (id: string, extra: Partial<Person> = {}): Person =>
-  ({ ...emptyFields(), id, parents: [], spouses: [], order: 0, ...extra })
+  ({ ...emptyFields(), id, parents: [], spouses: [], marriages: {}, order: 0, ...extra })
 
 function family() {
   return [
@@ -55,6 +55,24 @@ describe('model', () => {
   it('finds half siblings too', () => {
     const { store } = memoryStore(family())
     expect(siblingsOf(store.people, 'c').map(p => p.id).sort()).toEqual(['a', 'b'])
+  })
+
+  it('orders spouses by marriage date, leaving undated ones in place', () => {
+    const people: People = new Map([
+      person('p', { spouses: ['w1', 'w2', 'w3', 'w4'], marriages: {
+        w1: { married: '1970', divorced: '' }, w3: { married: '1960-05', divorced: '1968' }, w4: { married: '1960', divorced: '' },
+      } }),
+      ...['w1', 'w2', 'w3', 'w4'].map(id => person(id, { spouses: ['p'] })),
+    ].map(p => [p.id, p]))
+    expect(spousesOf(people, people.get('p')!).map(s => s.id)).toEqual(['w4', 'w2', 'w3', 'w1'])
+  })
+
+  it('drops empty marriages and marriages to non-spouses on load', () => {
+    const p = normalizePerson('p', { spouses: ['s'], marriages: {
+      s: { married: '1960' }, gone: { married: '1950', divorced: '' }, t: { married: '', divorced: '' },
+    } })
+    expect(p.marriages).toEqual({ s: { married: '1960', divorced: '' } })
+    expect(normalizePerson('p', {}).marriages).toEqual({})
   })
 
   it('searches across Chinese, English and other names', () => {
@@ -154,6 +172,29 @@ describe('store', () => {
     expect(store.people.get('mom2')!.spouses).toContain('mom')
     await store.unlink('K', 'spouse', 'mom2', 'mom')
     expect(store.people.get('mom')!.spouses).toEqual(['dad'])
+  })
+
+  it('sets marriage dates on both spouses, clears them, and drops them on unlink', async () => {
+    const { store, changes } = memoryStore(family())
+    const m = { married: '1980-06', divorced: '1988' }
+    await store.setMarriage('K', 'mom', 'dad', m)
+    expect(store.people.get('dad')!.marriages).toEqual({ mom: m })
+    expect(store.people.get('mom')!.marriages).toEqual({ dad: m })
+    expect(changes.at(-1)!.summary).toContain('媽 & 爸')
+    await store.setMarriage('K', 'mom', 'dad', m)
+    expect(changes.length).toBe(1) // unchanged: no commit
+    await expect(store.setMarriage('K', 'mom', 'mom2', m)).rejects.toThrow()
+
+    await store.setMarriage('K', 'dad', 'mom2', { married: '1990', divorced: '' })
+    await store.setMarriage('K', 'dad', 'mom2', { married: '', divorced: '' })
+    expect(store.people.get('dad')!.marriages).toEqual({ mom: m })
+    expect(store.people.get('mom2')!.marriages).toEqual({})
+
+    await store.unlink('K', 'spouse', 'dad', 'mom')
+    expect(store.people.get('dad')!.marriages).toEqual({})
+    expect(store.people.get('mom')!.marriages).toEqual({})
+    await store.revert('K', changes.at(-1)!)
+    expect(store.people.get('mom')!.marriages).toEqual({ dad: m })
   })
 
   it('delete strips references, and revert restores everything', async () => {

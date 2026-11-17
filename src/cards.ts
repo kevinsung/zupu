@@ -1,5 +1,12 @@
 import { h } from './dom'
-import { type Person, allNames, displayName, lifespan } from './model'
+import { t } from './i18n'
+import { type Marriage, type Person, allNames, displayName, lifespan } from './model'
+
+/** e.g. "結婚 / Married 1962 · 離婚 / Divorced 1975"; '' if nothing is recorded. */
+export function marriageText(m: Marriage | undefined): string {
+  if (!m) return ''
+  return [m.married && `${t.married} ${m.married}`, m.divorced && `${t.divorced} ${m.divorced}`].filter(Boolean).join(' · ')
+}
 
 /** Secondary line for a person: their other names and years. */
 export function personSubtitle(p: Person): string {

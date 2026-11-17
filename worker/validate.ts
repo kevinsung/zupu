@@ -1,5 +1,5 @@
 // Strict checks on everything the browser sends, since anyone with the password can call the API.
-import { FIELD_KEYS, type Person, type PersonFields, emptyFields, isValidEmail, isValidPartialDate, isValidPhone } from '../src/model'
+import { FIELD_KEYS, type Marriage, type Person, type PersonFields, emptyFields, isValidEmail, isValidPartialDate, isValidPhone } from '../src/model'
 import type { NewChange, Op, RelList } from '../src/store'
 
 export class BadRequest extends Error {}
@@ -54,11 +54,34 @@ function relLists(v: unknown): Partial<Record<RelList, string[]>> | undefined {
   return out
 }
 
+function marriage(v: unknown): Marriage {
+  check(isObj(v), 'invalid marriage')
+  const { married = '', divorced = '', ...rest } = v
+  check(Object.keys(rest).length === 0, 'unknown marriage field')
+  check(typeof married === 'string' && isValidPartialDate(married), 'invalid married')
+  check(typeof divorced === 'string' && isValidPartialDate(divorced), 'invalid divorced')
+  return { married, divorced }
+}
+
+/** Marriages keyed by spouse id; with `nullable`, null clears one (update patches). */
+function marriages(v: unknown, nullable: true): Record<string, Marriage | null>
+function marriages(v: unknown, nullable: false): Record<string, Marriage>
+function marriages(v: unknown, nullable: boolean): Record<string, Marriage | null> {
+  check(isObj(v) && Object.keys(v).length <= 50, 'invalid marriages')
+  const out: Record<string, Marriage | null> = {}
+  for (const [k, m] of Object.entries(v)) out[id(k)] = nullable && m === null ? null : marriage(m)
+  return out
+}
+
 function person(v: unknown): Person {
   check(isObj(v), 'invalid person')
-  const { id: pid, parents, spouses, order, ...rest } = v
+  // marriages is optional: history snapshots from before it existed lack it.
+  const { id: pid, parents, spouses, marriages: m = {}, order, ...rest } = v
   check(typeof order === 'number' && Number.isFinite(order), 'invalid order')
-  return { ...(fields(rest, false) as PersonFields), id: id(pid), parents: ids(parents), spouses: ids(spouses), order }
+  return {
+    ...(fields(rest, false) as PersonFields),
+    id: id(pid), parents: ids(parents), spouses: ids(spouses), marriages: marriages(m, false), order,
+  }
 }
 
 function op(v: unknown): Op {
@@ -72,6 +95,7 @@ function op(v: unknown): Op {
       fields: v.fields === undefined ? undefined : fields(v.fields, true),
       add: relLists(v.add),
       remove: relLists(v.remove),
+      marriages: v.marriages === undefined ? undefined : marriages(v.marriages, true),
     }
     default: throw new BadRequest('invalid op type')
   }
@@ -90,4 +114,5 @@ export function parseCommit(body: unknown): { ops: Op[]; change: NewChange } {
 export function checkResult(p: Person) {
   check(p.parents.length <= 2, 'a person can have at most two parents')
   check(!p.parents.includes(p.id) && !p.spouses.includes(p.id), 'a person cannot be related to themselves')
+  check(Object.keys(p.marriages).every(s => p.spouses.includes(s)), 'a marriage must be with a spouse')
 }

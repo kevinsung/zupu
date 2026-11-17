@@ -1,6 +1,6 @@
 import { h } from './dom'
 import { t } from './i18n'
-import { type Person, type PersonFields, emptyFields, isValidEmail, isValidPartialDate, normalizePhone, searchPeople, type People } from './model'
+import { type Marriage, type Person, type PersonFields, emptyFields, isValidEmail, isValidPartialDate, normalizePhone, searchPeople, type People } from './model'
 import { personCard } from './cards'
 
 export interface DialogAction {
@@ -155,6 +155,22 @@ export function personForm(initial: PersonFields = emptyFields()) {
   }
 
   return { el, read, focus: () => nameZh.focus() }
+}
+
+/** Marriage dates form. `read()` returns the dates, or throws a user-facing message. */
+export function marriageForm(initial: Marriage) {
+  const date = (name: keyof Marriage) =>
+    h('input', { type: 'text', name, value: initial[name], autocomplete: 'off', placeholder: 'YYYY-MM-DD', inputmode: 'numeric' })
+  const married = date('married')
+  const divorced = date('divorced')
+  const el = h('div', { class: 'form' },
+    h('div', { class: 'row' }, field(t.marriedDate, married, t.dateHint), field(t.divorcedDate, divorced)))
+  function read(): Marriage {
+    const m = { married: married.value.trim(), divorced: divorced.value.trim() }
+    if (!isValidPartialDate(m.married) || !isValidPartialDate(m.divorced)) throw new Error(t.badDate)
+    return m
+  }
+  return { el, read, focus: () => married.focus() }
 }
 
 /**

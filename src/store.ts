@@ -1,14 +1,21 @@
 import {
-  type People, type Person, type PersonFields,
-  FIELD_KEYS, childrenOf, displayName, emptyFields,
+  type Marriage, type People, type Person, type PersonFields,
+  FIELD_KEYS, childrenOf, displayName, emptyFields, isEmptyMarriage,
 } from './model'
 
 export type RelList = 'parents' | 'spouses'
 
-/** A single write. Updates use array add/remove so concurrent edits by different relatives merge. */
+/**
+ * A single write. Updates use array add/remove and per-spouse marriage patches (null clears one)
+ * so concurrent edits by different relatives merge.
+ */
 export type Op =
   | { type: 'set'; person: Person }
-  | { type: 'update'; id: string; fields?: Partial<PersonFields>; add?: Partial<Record<RelList, string[]>>; remove?: Partial<Record<RelList, string[]>> }
+  | {
+    type: 'update'; id: string; fields?: Partial<PersonFields>
+    add?: Partial<Record<RelList, string[]>>; remove?: Partial<Record<RelList, string[]>>
+    marriages?: Record<string, Marriage | null>
+  }
   | { type: 'delete'; id: string }
 
 export interface PersonDiff { id: string; before: Person | null; after: Person | null }
@@ -68,7 +75,7 @@ export class FamilyStore {
   /** Create a person with no relationships (only used to start an empty tree). */
   async createPerson(editor: string, fields: PersonFields): Promise<string> {
     const id = this.backend.newId()
-    const person: Person = { ...emptyFields(), ...fields, id, parents: [], spouses: [], order: Date.now() }
+    const person: Person = { ...emptyFields(), ...fields, id, parents: [], spouses: [], marriages: {}, order: Date.now() }
     await this.commit(editor, `新增 Added ${displayName(person)}`, [{ type: 'set', person }])
     return id
   }
@@ -87,7 +94,7 @@ export class FamilyStore {
   ): Promise<string> {
     const anchor = this.get(anchorId)
     const id = this.backend.newId()
-    const person: Person = { ...emptyFields(), ...fields, id, parents: [], spouses: [], order: Date.now() }
+    const person: Person = { ...emptyFields(), ...fields, id, parents: [], spouses: [], marriages: {}, order: Date.now() }
     const ops: Op[] = []
     let label: string
 
@@ -169,6 +176,19 @@ export class FamilyStore {
     await this.commit(editor, `${label}: ${this.name(otherId)} → ${this.name(anchorId)}`, ops)
   }
 
+  /** Set the marriage dates of two spouses, on both of them. */
+  async setMarriage(editor: string, aId: string, bId: string, marriage: Marriage) {
+    const a = this.get(aId)
+    if (!a.spouses.includes(bId)) throw new Error('不是配偶 Not spouses')
+    const cur = a.marriages[bId] ?? { married: '', divorced: '' }
+    if (cur.married === marriage.married && cur.divorced === marriage.divorced) return
+    const value = isEmptyMarriage(marriage) ? null : marriage
+    await this.commit(editor, `編輯婚姻 Edited marriage: ${this.name(aId)} & ${this.name(bId)}`, [
+      { type: 'update', id: aId, marriages: { [bId]: value } },
+      { type: 'update', id: bId, marriages: { [aId]: value } },
+    ])
+  }
+
   async unlink(editor: string, rel: LinkRelative, anchorId: string, otherId: string) {
     let ops: Op[]
     let label: string
@@ -229,11 +249,17 @@ export function applyOp(people: People, op: Op) {
   } else {
     const cur = people.get(op.id)
     if (!cur) return
-    const p: Person = { ...cur, ...op.fields, parents: [...cur.parents], spouses: [...cur.spouses] }
+    const p: Person = { ...cur, ...op.fields, parents: [...cur.parents], spouses: [...cur.spouses], marriages: { ...cur.marriages } }
     for (const key of ['parents', 'spouses'] as const) {
       for (const x of op.add?.[key] ?? []) if (!p[key].includes(x)) p[key].push(x)
       if (op.remove?.[key]) p[key] = p[key].filter(x => !op.remove![key]!.includes(x))
     }
+    for (const [sid, m] of Object.entries(op.marriages ?? {})) {
+      if (m && !isEmptyMarriage(m)) p.marriages[sid] = m
+      else delete p.marriages[sid]
+    }
+    // Unlinking a spouse (or deleting them) drops the marriage too.
+    for (const sid of Object.keys(p.marriages)) if (!p.spouses.includes(sid)) delete p.marriages[sid]
     people.set(op.id, p)
   }
 }

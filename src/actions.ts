@@ -1,6 +1,6 @@
 import { h } from './dom'
 import { t } from './i18n'
-import { confirmDialog, openDialog, personForm, personPicker, toast } from './dialog'
+import { confirmDialog, marriageForm, openDialog, personForm, personPicker, toast } from './dialog'
 import { personCard } from './cards'
 import { type Person, type PersonFields, childrenOf, displayName, emptyFields } from './model'
 import type { FamilyStore, LinkRelative, NewRelative } from './store'
@@ -22,6 +22,22 @@ export function editPerson(ctx: AppCtx, p: Person) {
         const editor = await ctx.editorName()
         if (!editor) return false
         await ctx.store.updateFields(editor, p.id, fields)
+      },
+    },
+  ])
+  form.focus()
+}
+
+export function editMarriage(ctx: AppCtx, p: Person, spouse: Person) {
+  const form = marriageForm(p.marriages[spouse.id] ?? { married: '', divorced: '' })
+  openDialog(`${t.editMarriage}: ${displayName(p)} & ${displayName(spouse)}`, form.el, [
+    { label: t.cancel },
+    {
+      label: t.save, primary: true, run: async () => {
+        const marriage = form.read()
+        const editor = await ctx.editorName()
+        if (!editor) return false
+        await ctx.store.setMarriage(editor, p.id, spouse.id, marriage)
       },
     },
   ])

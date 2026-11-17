@@ -1,9 +1,9 @@
 import { h } from './dom'
 import { t } from './i18n'
 import { actionSheet, toast } from './dialog'
-import { personCard } from './cards'
-import { type AppCtx, addRelative, deletePerson, editPerson, linkExisting, removeRelationship } from './actions'
-import { type Person, allNames, childrenByCoParent, displayName, formatPhone, lifespan, siblingsOf } from './model'
+import { marriageText, personCard } from './cards'
+import { type AppCtx, addRelative, deletePerson, editMarriage, editPerson, linkExisting, removeRelationship } from './actions'
+import { type Person, allNames, childrenByCoParent, displayName, formatPhone, lifespan, siblingsOf, spousesOf } from './model'
 
 export interface PersonViewOpts {
   /** Shown in the "more" menu on phones, where the tree is a separate tab. */
@@ -83,16 +83,25 @@ export function renderPerson(cont: HTMLElement, ctx: AppCtx, id: string, opts: P
     contact.some(([, v]) => v) ? h('div', { class: 'contact' }, h('h3', { class: 'section-title' }, t.contact), factList(contact)) : null,
     p.notes ? h('div', { class: 'notes-wrap' }, h('h3', { class: 'section-title' }, t.notes), h('p', { class: 'notes' }, p.notes)) : null)
 
-  // Spouses, each with the children they had together. Children whose other parent isn't a
-  // spouse (or isn't recorded) get their own group.
+  // Spouses in marriage order, each with their marriage dates and the children they had together.
+  // Children whose other parent isn't a spouse (or isn't recorded) get their own group.
   const childGroups = childrenByCoParent(people, p.id)
-  const spouses = get(p.spouses)
+  const spouses = spousesOf(people, p)
   const coParents = [...spouses.map(s => s.id), ...[...childGroups.keys()].filter(cp => !p.spouses.includes(cp))]
+  const marriageLine = (spouse: Person) => {
+    const text = marriageText(p.marriages[spouse.id])
+    const edit = () => editMarriage(ctx, p, spouse)
+    return text
+      ? h('div', { class: 'marriage' }, h('span', {}, text),
+        h('button', { type: 'button', class: 'link', onclick: edit, 'aria-label': t.editMarriage, title: t.editMarriage }, '✎'))
+      : h('div', { class: 'marriage' }, h('button', { type: 'button', class: 'link muted', onclick: edit }, t.addMarriage))
+  }
   const families = coParents.map(cpId => {
     const cp = people.get(cpId)
     const kids = childGroups.get(cpId) ?? []
     return h('div', { class: 'family' },
       cp ? card(cp) : h('div', { class: 'family-unknown muted' }, t.unknownOtherParent),
+      cp && p.spouses.includes(cpId) ? marriageLine(cp) : null,
       kids.length ? h('div', { class: 'family-kids' },
         h('div', { class: 'family-kids-label' }, t.childrenWith),
         h('div', { class: 'cards cols-2' }, ...kids.map(card))) : null)

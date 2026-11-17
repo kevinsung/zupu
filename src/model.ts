@@ -17,10 +17,18 @@ export interface PersonFields {
   signal: string
 }
 
+/** Dates are partial dates like birthDate; '' when unknown. */
+export interface Marriage {
+  married: string
+  divorced: string
+}
+
 export interface Person extends PersonFields {
   id: string
   parents: string[]
   spouses: string[]
+  /** Keyed by spouse id, stored on both spouses. Only spouses with some info have an entry. */
+  marriages: Record<string, Marriage>
   order: number
 }
 
@@ -40,11 +48,23 @@ export function emptyFields(): PersonFields {
   }
 }
 
+export function isEmptyMarriage(m: Marriage): boolean {
+  return !m.married && !m.divorced
+}
+
 /** Fill in missing fields so documents written by older versions (or by hand) are safe to use. */
 export function normalizePerson(id: string, raw: Record<string, unknown>): Person {
   const str = (v: unknown) => (typeof v === 'string' ? v : '')
   const ids = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [])
   const gender = raw.gender === 'M' || raw.gender === 'F' ? raw.gender : ''
+  const spouses = ids(raw.spouses)
+  const marriages: Record<string, Marriage> = {}
+  if (typeof raw.marriages === 'object' && raw.marriages !== null) {
+    for (const [sid, m] of Object.entries(raw.marriages as Record<string, Record<string, unknown>>)) {
+      const marriage = { married: str(m?.married), divorced: str(m?.divorced) }
+      if (spouses.includes(sid) && !isEmptyMarriage(marriage)) marriages[sid] = marriage
+    }
+  }
   return {
     id,
     nameZh: str(raw.nameZh),
@@ -60,7 +80,8 @@ export function normalizePerson(id: string, raw: Record<string, unknown>): Perso
     line: str(raw.line),
     signal: str(raw.signal),
     parents: ids(raw.parents),
-    spouses: ids(raw.spouses),
+    spouses,
+    marriages,
     order: typeof raw.order === 'number' ? raw.order : 0,
   }
 }
@@ -194,6 +215,15 @@ export function seniorAncestor(people: People): Person | undefined {
     (a.p.birthDate && b.p.birthDate && a.p.birthDate !== b.p.birthDate ? (a.p.birthDate < b.p.birthDate ? -1 : 1) : 0) ||
     a.p.order - b.p.order)
   return scored[0]?.p
+}
+
+/** Spouses in the order they were added, except that those with marriage dates are reordered among themselves by date. */
+export function spousesOf(people: People, p: Person): Person[] {
+  const date = (s: Person) => p.marriages[s.id]?.married ?? ''
+  const list = p.spouses.map(id => people.get(id)).filter((s): s is Person => !!s)
+  const dated = list.filter(date).sort((a, b) => (date(a) < date(b) ? -1 : date(a) > date(b) ? 1 : 0))
+  let i = 0
+  return list.map(s => (date(s) ? dated[i++] : s))
 }
 
 export function coupleLabel(people: People, p: Person): string {
