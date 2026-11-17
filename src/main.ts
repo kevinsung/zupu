@@ -69,7 +69,7 @@ function startApp(backend: Backend, authApi: AuthApi): () => void {
 
   function askEditor(): Promise<string | null> {
     return new Promise(resolve => {
-      const input = h('input', { type: 'text', value: editorName(), autocomplete: 'name', enterkeyhint: 'done' })
+      const input = h('input', { type: 'text', value: editorName(), autocomplete: 'off', enterkeyhint: 'done' })
       openDialog(t.editorPrompt, h('div', { class: 'form' }, input), [
         { label: t.cancel, run: () => resolve(null) },
         {
