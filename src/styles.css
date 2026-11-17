@@ -175,7 +175,8 @@ main[data-view="person"] .tree-pane, main[data-view="tree"] .person-pane { displ
 @media (width >= 700px) and (height >= 500px) {
   .topbar { display: flex; }
   .tabbar { display: none; }
-  main { display: grid; grid-template-columns: 1fr clamp(20rem, 38vw, 34rem); }
+  /* Never narrower than a small phone (360px), which the person page is laid out for. */
+  main { display: grid; grid-template-columns: 1fr clamp(22.5rem, 38vw, 34rem); }
   .pane { position: relative; inset: auto; min-height: 0; }
   main[data-view] .tree-pane, main[data-view] .person-pane { display: block; }
   .person-pane { border-left: 1px solid var(--line); background: var(--bg); }
