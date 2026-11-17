@@ -52,29 +52,31 @@ export function openSearch(people: () => People, select: (id: string) => void, c
 /**
  * The top-bar search on wide screens: a box whose results drop down under it. Focus or `/`
  * opens the list; arrow keys and Enter pick; Esc or a click elsewhere closes it.
+ * It's a plain search box, not an ARIA combobox: the results are ordinary buttons reached
+ * with the arrow keys or Tab, and the number of matches is announced as you type.
  */
 export function searchBox(people: () => People, select: (id: string) => void, currentId: () => string) {
   const input = h('input', {
     type: 'search', class: 'search-trigger', placeholder: t.search, 'aria-label': t.search,
-    autocomplete: 'off', role: 'combobox', 'aria-expanded': 'false', 'aria-controls': 'search-pop',
+    autocomplete: 'off', 'aria-controls': 'search-pop',
   })
   const pop = h('div', { class: 'search-pop', id: 'search-pop', hidden: true })
   const wrap = h('div', { class: 'search-box' }, input, h('kbd', { 'aria-hidden': 'true' }, '/'), pop)
   const go = (p: Person) => { hide(); input.blur(); select(p.id) }
   const picker = personPicker(people, go, { input, idle: idleLists(people, currentId, go) })
   pop.append(picker.list)
+  // Outside the drop-down, which is hidden at times.
+  wrap.append(picker.live)
 
   const show = () => {
     if (!pop.hidden) return
     closePopover()
     picker.refresh()
     pop.hidden = false
-    input.setAttribute('aria-expanded', 'true')
     document.addEventListener('pointerdown', onDown, true)
   }
   const hide = () => {
     pop.hidden = true
-    input.setAttribute('aria-expanded', 'false')
     document.removeEventListener('pointerdown', onDown, true)
   }
   const onDown = (e: Event) => { if (!wrap.contains(e.target as Node)) hide() }

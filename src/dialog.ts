@@ -1,5 +1,5 @@
 import { h, wide } from './dom'
-import { L, t } from './i18n'
+import { L, t, tn } from './i18n'
 import { type Marriage, type Person, type PersonFields, emptyFields, isValidEmail, isValidPartialDate, normalizePhone, searchPeople, type People } from './model'
 import { personCard } from './cards'
 import { type IconName, icon } from './icons'
@@ -173,11 +173,16 @@ export function actionSheet(title: string, items: (MenuItem | null)[], anchor?: 
   close = openMenu(title, menuList(items, () => close()), anchor)
 }
 
+/**
+ * Unavailable items stay focusable (aria-disabled rather than disabled) so keyboard and
+ * screen-reader users can reach them and hear why, from the `disabled` reason shown under the label.
+ */
 export function menuList(items: (MenuItem | null)[], close: () => void): HTMLElement {
   return h('div', { class: 'menu', role: 'menu' }, ...items.filter((x): x is MenuItem => !!x).map(item =>
     h('button', {
-      type: 'button', role: 'menuitem', class: item.danger ? 'menu-item danger' : 'menu-item', disabled: !!item.disabled,
-      onclick: () => { close(); item.run() },
+      type: 'button', role: 'menuitem', class: item.danger ? 'menu-item danger' : 'menu-item',
+      'aria-disabled': item.disabled ? 'true' : undefined,
+      onclick: () => { if (item.disabled) return; close(); item.run() },
     }, icon(item.icon, 'menu-icon'),
     h('span', { class: 'menu-label' }, item.label, item.disabled ? h('small', {}, item.disabled) : null))))
 }
@@ -328,6 +333,13 @@ export function personPicker(
   const placeholder = opts.placeholder ?? t.search
   const input = opts.input ?? h('input', { type: 'search', placeholder, autocomplete: 'off', enterkeyhint: 'go', 'aria-label': placeholder })
   const list = h('div', { class: 'picker-results' })
+  // Announces the number of matches once typing pauses.
+  const live = h('div', { class: 'sr-only', 'aria-live': 'polite' })
+  let announceTimer: ReturnType<typeof setTimeout> | undefined
+  const announce = (text: string) => {
+    clearTimeout(announceTimer)
+    announceTimer = setTimeout(() => { live.textContent = text }, 500)
+  }
   let selectedId: string | undefined
   const pick = (p: Person) => {
     if (opts.selectable) selectedId = p.id
@@ -347,8 +359,9 @@ export function personPicker(
   }
   const update = () => {
     const q = input.value
-    if (!q.trim()) { list.replaceChildren(...(opts.idle?.() ?? [])); return }
+    if (!q.trim()) { list.replaceChildren(...(opts.idle?.() ?? [])); announce(''); return }
     const results = searchPeople(people(), q).filter(p => p.id !== opts.exclude)
+    announce(results.length === 0 ? t.noResults : results.length === 1 ? t.resultOne : tn('resultCount', results.length))
     list.replaceChildren(results.length
       ? h('div', { class: 'cards' }, ...results.map(card))
       : h('p', { class: 'muted pad' }, t.noResults))
@@ -376,7 +389,7 @@ export function personPicker(
   })
   update()
   const selected = () => (selectedId ? people().get(selectedId) : undefined)
-  return { el: h('div', { class: 'picker' }, opts.input ? null : input, list), input, list, refresh: update, selected }
+  return { el: h('div', { class: 'picker' }, opts.input ? null : input, list, live), input, list, live, refresh: update, selected }
 }
 
 /** A small header label for a section, with an optional compact action button on the right. */

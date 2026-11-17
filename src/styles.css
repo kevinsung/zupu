@@ -367,7 +367,10 @@ main[data-view="person"] .tree-pane, main[data-view="tree"] .person-pane { displ
 .popover .menu-item { padding: .55rem 1rem; min-height: 2.6rem; gap: .75rem; }
 .menu-item + .menu-item { border-top: 1px solid var(--line); }
 .popover .menu-item + .menu-item { border-top: none; }
-.menu-item:hover:not(:disabled), .menu-item:focus-visible { background: var(--bg); outline-offset: -2px; }
+.menu-item:hover:not([aria-disabled="true"]), .menu-item:focus-visible { background: var(--bg); outline-offset: -2px; }
+/* Unavailable but focusable, so it stays readable (muted, not faded) to show the reason. */
+.menu-item[aria-disabled="true"] { color: var(--muted); cursor: not-allowed; }
+.menu-item[aria-disabled="true"] .menu-icon { opacity: .5; }
 .menu-item.danger { color: var(--danger); }
 .menu-label { display: block; min-width: 0; }
 .menu-item small { display: block; color: var(--muted); font-size: .78rem; }

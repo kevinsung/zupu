@@ -86,8 +86,10 @@ describe('app', () => {
     document.body.dispatchEvent(new KeyboardEvent('keydown', { key: '/', bubbles: true }))
     expect(pop.hidden).toBe(false)
     expect([...pop.querySelectorAll('.pcard-name')].map(e => e.textContent)).toContain('祖父 & 祖母')
+    expect(input.hasAttribute('role')).toBe(false)
     input.value = 'alice'
     input.dispatchEvent(new Event('input'))
+    await vi.waitFor(() => expect($('.search-box [aria-live]').textContent).toBe('1 筆結果 / 1 result'))
     buttonWith('甲', pop).click()
     await tick(100)
     expect(pop.hidden).toBe(true)
@@ -161,7 +163,17 @@ describe('app', () => {
   })
 
   it("shows one person's history from the more menu", async () => {
+    const dialogs = document.querySelectorAll('dialog[open]').length
     $<HTMLButtonElement>('#person .pv-actions .more').click()
+    // 甲 has two parents, so Add parent is unavailable but still reachable, with the reason.
+    const addParent = buttonWith('新增父母', popover())
+    expect(addParent.disabled).toBe(false)
+    expect(addParent.getAttribute('aria-disabled')).toBe('true')
+    expect(addParent.querySelector('small')!.textContent).toContain('Already has two parents')
+    expect(buttonWith('新增配偶', popover()).hasAttribute('aria-disabled')).toBe(false)
+    addParent.click()
+    expect(document.querySelector('.popover')).toBeTruthy()
+    expect(document.querySelectorAll('dialog[open]').length).toBe(dialogs)
     buttonWith('此人的修改紀錄', popover()).click()
     await tick(300)
     const dlg = topDialog()

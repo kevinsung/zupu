@@ -37,8 +37,11 @@ export function halfTag(parent: Person | undefined): string {
 /** A tappable row for one person; the colored edge shows gender. `extra` goes on the right (e.g. a remove button). */
 export function personCard(p: Person, onclick: () => void, extra?: Node): HTMLElement {
   const sub = personSubtitle(p)
+  // The colored edge shows gender; screen readers get it as a word.
+  const gender = p.gender === 'M' ? t.maleWord : p.gender === 'F' ? t.femaleWord : ''
   const main = h('button', { type: 'button', class: 'pcard-main', onclick },
     h('span', { class: 'pcard-name' }, displayName(p)),
+    gender ? h('span', { class: 'sr-only' }, `, ${gender}`) : null,
     sub ? h('span', { class: 'pcard-sub' }, sub) : null)
   return h('div', { class: `pcard g-${p.gender || 'U'}`, 'data-id': p.id }, main, extra ?? h('span', { class: 'pcard-chev', 'aria-hidden': 'true' }, icon('chevronRight')))
 }

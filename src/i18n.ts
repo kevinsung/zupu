@@ -28,6 +28,8 @@ const pairs = {
   loading: ['載入中…', 'Loading…'],
   search: ['搜尋姓名', 'Search names'],
   noResults: ['找不到', 'No matches'],
+  resultOne: ['1 筆結果', '1 result'],
+  resultCount: ['{n} 筆結果', '{n} results'],
   history: ['修改紀錄', 'History'],
   personHistory: ['此人的修改紀錄', 'History of this person'],
   editorLabel: ['編輯者', 'Editor'],
