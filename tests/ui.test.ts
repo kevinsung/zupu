@@ -137,6 +137,27 @@ describe('app', () => {
     expect($('#person .pv-families').textContent).not.toContain('丈夫')
   })
 
+  it('links an existing person only after Save', async () => {
+    $<HTMLButtonElement>('#person .pv-actions .more').click()
+    buttonWith('連結現有的人', topDialog()).click()
+    const dlg = topDialog()
+    buttonWith('儲存', dlg).click()
+    await tick()
+    expect(dlg.querySelector('.dlg-error')!.textContent).toContain('Choose a person')
+    const input = dlg.querySelector<HTMLInputElement>('input[type=search]')!
+    input.value = '丈夫'
+    input.dispatchEvent(new Event('input'))
+    buttonWith('丈夫', dlg).click()
+    await tick(100)
+    expect(dlg.isConnected).toBe(true)
+    expect(dlg.querySelector('.pcard.selected')!.textContent).toContain('丈夫')
+    expect($('#person .pv-families').textContent).not.toContain('丈夫')
+    buttonWith('儲存', dlg).click()
+    await tick(300)
+    expect(dlg.isConnected).toBe(false)
+    expect($('#person .pv-families').textContent).toContain('丈夫')
+  })
+
   it('edits contact info and shows email and phone as links', async () => {
     buttonWith('編輯 / Edit', $('#person')).click()
     const dlg = [...document.querySelectorAll<HTMLElement>('dialog[open]')].at(-1)!

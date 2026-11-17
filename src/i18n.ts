@@ -57,6 +57,7 @@ export const t = {
   parentsFull: '已有兩位父母 / Already has two parents',
   linkExisting: '連結現有的人 / Link an existing person',
   linkAs: '關係 / Relationship',
+  pickPerson: '請先選擇一個人 / Choose a person first',
   asParent: '是此人的父母 / is a parent of this person',
   asSpouse: '是此人的配偶 / is a spouse of this person',
   asChild: '是此人的子女 / is a child of this person',

@@ -166,6 +166,8 @@ main[data-view="person"] .tree-pane, main[data-view="tree"] .person-pane { displ
 .pcard-sub { font-size: .8rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pcard-chev { color: var(--muted); padding-right: .75rem; font-size: 1.3rem; pointer-events: none; }
 .pcard > button.small { margin-right: .5rem; }
+.pcard.selected { outline: 3px solid var(--accent); outline-offset: -1px; background: var(--accent-soft); }
+.pcard.selected .pcard-chev { color: var(--accent); }
 .add-slot {
   border: 1.5px dashed var(--line); background: transparent; color: var(--muted); border-radius: var(--radius);
   min-height: 3.25rem; text-align: center;

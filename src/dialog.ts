@@ -157,21 +157,41 @@ export function personForm(initial: PersonFields = emptyFields()) {
   return { el, read, focus: () => nameZh.focus() }
 }
 
-/** Search box with a result list; calls onPick with the chosen person. `idle` fills the list while the box is empty. */
+/**
+ * Search box with a result list; calls onPick with the chosen person. `idle` fills the list while the box is empty.
+ * With `selectable`, picking only highlights the person (read it back with `selected()`) and keeps the results.
+ */
 export function personPicker(
   people: () => People,
   onPick: (p: Person) => void,
-  opts: { placeholder?: string; exclude?: string; idle?: () => Node[] } = {},
+  opts: { placeholder?: string; exclude?: string; idle?: () => Node[]; selectable?: boolean } = {},
 ) {
   const input = h('input', { type: 'search', placeholder: opts.placeholder ?? t.search, autocomplete: 'off', enterkeyhint: 'go', 'aria-label': opts.placeholder ?? t.search })
   const list = h('div', { class: 'picker-results' })
-  const pick = (p: Person) => { onPick(p); input.value = ''; update() }
+  let selectedId: string | undefined
+  const pick = (p: Person) => {
+    if (opts.selectable) selectedId = p.id
+    else input.value = ''
+    onPick(p)
+    update()
+  }
+  const card = (p: Person) => {
+    const el = personCard(p, () => pick(p))
+    if (opts.selectable) {
+      const on = p.id === selectedId
+      el.classList.toggle('selected', on)
+      el.querySelector('.pcard-main')?.setAttribute('aria-pressed', String(on))
+      const chev = el.querySelector('.pcard-chev')
+      if (chev) chev.textContent = on ? '✓' : ''
+    }
+    return el
+  }
   const update = () => {
     const q = input.value
     if (!q.trim()) { list.replaceChildren(...(opts.idle?.() ?? [])); return }
     const results = searchPeople(people(), q).filter(p => p.id !== opts.exclude)
     list.replaceChildren(results.length
-      ? h('div', { class: 'cards' }, ...results.map(p => personCard(p, () => pick(p))))
+      ? h('div', { class: 'cards' }, ...results.map(card))
       : h('p', { class: 'muted pad' }, t.noResults))
   }
   input.addEventListener('input', update)
@@ -181,5 +201,6 @@ export function personPicker(
     if (first) { e.preventDefault(); pick(first) }
   })
   update()
-  return { el: h('div', { class: 'picker' }, input, list), input, refresh: update }
+  const selected = () => (selectedId ? people().get(selectedId) : undefined)
+  return { el: h('div', { class: 'picker' }, input, list), input, refresh: update, selected }
 }

@@ -78,24 +78,24 @@ export function linkExisting(ctx: AppCtx, p: Person) {
     h('option', { value: 'parent' }, t.asParent),
     h('option', { value: 'child' }, t.asChild),
   )
-  const status = h('p', { class: 'dlg-error' })
-  let close = () => {}
-  const picker = personPicker(() => ctx.store.people, async other => {
-    const r = rel.value as LinkRelative
-    const problem = ctx.store.linkProblem(r, p.id, other.id)
-    if (problem) { status.textContent = problem; return }
-    const editor = await ctx.editorName()
-    if (!editor) return
-    try {
-      await ctx.store.link(editor, r, p.id, other.id)
-      close()
-    } catch (e) {
-      status.textContent = `${t.saveFailed}: ${(e as Error).message}`
-    }
-  }, { exclude: p.id })
-  close = openDialog(`${t.linkExisting} → ${displayName(p)}`,
-    h('div', { class: 'form' }, picker.el, h('label', { class: 'field' }, h('span', {}, t.linkAs), rel), status),
-    [{ label: t.close }])
+  const picker = personPicker(() => ctx.store.people, () => {}, { exclude: p.id, selectable: true })
+  openDialog(`${t.linkExisting} → ${displayName(p)}`,
+    h('div', { class: 'form' }, picker.el, h('label', { class: 'field' }, h('span', {}, t.linkAs), rel)),
+    [
+      { label: t.cancel },
+      {
+        label: t.save, primary: true, run: async () => {
+          const other = picker.selected()
+          if (!other) throw new Error(t.pickPerson)
+          const r = rel.value as LinkRelative
+          const problem = ctx.store.linkProblem(r, p.id, other.id)
+          if (problem) throw new Error(problem)
+          const editor = await ctx.editorName()
+          if (!editor) return false
+          await ctx.store.link(editor, r, p.id, other.id)
+        },
+      },
+    ])
   picker.input.focus()
 }
 
