@@ -12,8 +12,9 @@ export interface DialogAction {
 }
 
 /**
- * Modal dialog: a centered card on wide screens, a bottom sheet on phones. The body scrolls
- * between a fixed title bar and action bar. Returns a function that closes it.
+ * Modal dialog: a centered card on wide screens, a bottom sheet on phones. The action bar sits
+ * under the title bar, above the scrolling body, so the buttons stay visible when the keyboard
+ * or a browser autofill bar covers the bottom of the screen. Returns a function that closes it.
  */
 export function openDialog(title: string, body: Node, actions: DialogAction[], onDismiss?: () => void, cls = ''): () => void {
   const error = h('p', { class: 'dlg-error', role: 'alert' })
@@ -22,7 +23,6 @@ export function openDialog(title: string, body: Node, actions: DialogAction[], o
     h('div', { class: 'dlg-head' },
       h('h2', {}, title),
       h('button', { type: 'button', class: 'icon dlg-x', 'aria-label': t.close, title: t.close, onclick: dismiss }, '✕')),
-    h('div', { class: 'dlg-body' }, body, error),
     actions.length ? h('div', { class: 'dlg-actions' }, ...actions.map(a => {
       const btn = h('button', { type: 'button', class: [a.primary && 'primary', a.danger && 'danger'].filter(Boolean).join(' ') }, a.label)
       btn.addEventListener('click', async () => {
@@ -39,6 +39,7 @@ export function openDialog(title: string, body: Node, actions: DialogAction[], o
       })
       return btn
     })) : null,
+    h('div', { class: 'dlg-body' }, error, body),
   )
   const close = () => { dlg.close(); dlg.remove() }
   dlg.addEventListener('cancel', e => { e.preventDefault(); dismiss() })

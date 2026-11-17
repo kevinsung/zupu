@@ -232,13 +232,14 @@ main[data-view="person"] .tree-pane, main[data-view="tree"] .person-pane { displ
 .dlg-body { padding: 1rem 1.1rem; overflow-y: auto; overscroll-behavior: contain; flex: 1; }
 .dlg-actions {
   display: flex; justify-content: flex-end; gap: .5rem; padding: .75rem 1.1rem;
-  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
 }
 .dlg.tall { height: 88dvh; }
 .dlg.confirm .dlg-head { border-bottom: none; padding-top: 1rem; }
+.dlg.confirm .dlg-actions { border-bottom: none; }
 .dlg.confirm .dlg-body { display: none; }
 .dlg.confirm .dlg-body:has(.dlg-error:not(:empty)) { display: block; }
-.dlg-error { color: var(--danger); margin: .75rem 0 0; }
+.dlg-error { color: var(--danger); margin: 0 0 .75rem; }
 .dlg-error:empty { display: none; }
 @media (max-width: 640px) {
   .dlg {

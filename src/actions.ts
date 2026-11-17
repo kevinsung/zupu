@@ -157,5 +157,5 @@ export function removeRelationship(ctx: AppCtx, p: Person) {
     section(t.children, 'child', childrenOf(people, p.id)),
   ].filter((x): x is HTMLElement => !!x)
   list.append(...(sections.length ? sections : [h('p', { class: 'muted' }, t.noRelationships)]))
-  close = openDialog(`${t.removeRelationship} — ${displayName(p)}`, list, [{ label: t.close }])
+  close = openDialog(`${t.removeRelationship} — ${displayName(p)}`, list, [])
 }
