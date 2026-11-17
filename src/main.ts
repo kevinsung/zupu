@@ -10,10 +10,9 @@ import { openHistory } from './history'
 import { openSearch, rememberRecent } from './search'
 import { personSubtitle } from './cards'
 import { actionSheet, openDialog, personForm } from './dialog'
-import { displayName, rootAncestors } from './model'
+import { displayName, seniorAncestor } from './model'
 import { getTheme, setTheme, type Theme } from './theme'
 
-const LAST_KEY = 'ft-last-person'
 const EDITOR_KEY = 'ft-editor'
 const themeLabels: Record<Theme, string> = { auto: t.themeAuto, light: t.themeLight, dark: t.themeDark }
 const root = document.getElementById('app')!
@@ -180,11 +179,10 @@ function startApp(backend: Backend, authApi: AuthApi): () => void {
       return
     }
     if (!people.has(selected)) {
-      const candidates = [idFromHash(), localStorage.getItem(LAST_KEY) ?? '', rootAncestors(people)[0]?.id, people.keys().next().value]
+      const candidates = [idFromHash(), seniorAncestor(people)?.id, people.keys().next().value]
       selected = candidates.find(id => id && people.has(id))!
       recenter = true
     }
-    localStorage.setItem(LAST_KEY, selected)
     rememberRecent(selected)
     if (idFromHash() !== selected) history.replaceState(null, '', `#/p/${selected}`)
     renderChart(recenter)

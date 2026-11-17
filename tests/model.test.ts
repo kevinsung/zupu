@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { type People, type Person, childrenByCoParent, emptyFields, formatPhone, isValidEmail, isValidPartialDate, isValidPhone, normalizePerson, normalizePhone, rootAncestors, searchPeople, siblingsOf } from '../src/model'
+import { type People, type Person, childrenByCoParent, emptyFields, formatPhone, isValidEmail, isValidPartialDate, isValidPhone, normalizePerson, normalizePhone, rootAncestors, searchPeople, seniorAncestor, siblingsOf } from '../src/model'
 import { applyOp, FamilyStore, simulate, type Backend, type ChangeRecord, type NewChange, type Op } from '../src/store'
 import { seedToPeople } from '../src/seed-format'
 
@@ -70,6 +70,31 @@ describe('model', () => {
     people.find(p => p.id === 'a')!.spouses.push('inlaw')
     const { store } = memoryStore(people)
     expect(rootAncestors(store.people).map(p => p.id)).toEqual(['dad'])
+  })
+
+  it('senior ancestor heads the most generations, then the most descendants, then is born first', () => {
+    // A deeper line beats a bigger, earlier-entered one.
+    const deep = [
+      person('x', { order: 0 }), person('x1', { parents: ['x'] }), person('x2', { parents: ['x'] }), person('x3', { parents: ['x'] }),
+      person('g', { order: 1 }), person('g1', { parents: ['g'] }), person('g2', { parents: ['g1'] }),
+    ]
+    expect(seniorAncestor(new Map(deep.map(p => [p.id, p])))?.id).toBe('g')
+
+    // Equal depth: more descendants wins.
+    const wide = [
+      person('x', { order: 0 }), person('x1', { parents: ['x'] }),
+      person('y', { order: 1 }), person('y1', { parents: ['y'] }), person('y2', { parents: ['y'] }),
+    ]
+    expect(seniorAncestor(new Map(wide.map(p => [p.id, p])))?.id).toBe('y')
+
+    // Same shape: earlier birth wins, then earlier entry.
+    const twins = [
+      person('x', { order: 0, birthDate: '1920' }), person('x1', { parents: ['x'] }),
+      person('y', { order: 1, birthDate: '1910' }), person('y1', { parents: ['y'] }),
+    ]
+    expect(seniorAncestor(new Map(twins.map(p => [p.id, p])))?.id).toBe('y')
+    twins[2].birthDate = ''
+    expect(seniorAncestor(new Map(twins.map(p => [p.id, p])))?.id).toBe('x')
   })
 })
 

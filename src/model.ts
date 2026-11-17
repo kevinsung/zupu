@@ -166,6 +166,36 @@ export function rootAncestors(people: People): Person[] {
   return roots
 }
 
+/**
+ * The most senior root ancestor: the one heading the most generations, then the most
+ * descendants, then born earliest, then entered first.
+ */
+export function seniorAncestor(people: People): Person | undefined {
+  const children = new Map<string, string[]>()
+  for (const p of people.values()) {
+    for (const parent of p.parents) children.set(parent, [...(children.get(parent) ?? []), p.id])
+  }
+  // Walk down a generation at a time; `seen` keeps cousin marriages (or bad data) from double counting.
+  const score = (root: Person) => {
+    const seen = new Set([root.id])
+    let generations = 0
+    let level = [root.id]
+    while (true) {
+      level = level.flatMap(id => children.get(id) ?? []).filter(id => !seen.has(id) && seen.add(id))
+      if (level.length === 0) break
+      generations++
+    }
+    return { generations, descendants: seen.size - 1 }
+  }
+  const scored = rootAncestors(people).map(p => ({ p, ...score(p) }))
+  scored.sort((a, b) =>
+    b.generations - a.generations ||
+    b.descendants - a.descendants ||
+    (a.p.birthDate && b.p.birthDate && a.p.birthDate !== b.p.birthDate ? (a.p.birthDate < b.p.birthDate ? -1 : 1) : 0) ||
+    a.p.order - b.p.order)
+  return scored[0]?.p
+}
+
 export function coupleLabel(people: People, p: Person): string {
   const partners = p.spouses.map(id => people.get(id)).filter((s): s is Person => !!s)
   return [p, ...partners].map(displayName).join(' & ')
