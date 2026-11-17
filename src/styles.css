@@ -5,14 +5,16 @@
   --surface: light-dark(#ffffff, #24211d);
   --surface-2: light-dark(#fbf9f5, #201d1a);
   --ink: light-dark(#23201b, #ece6dc);
-  --muted: light-dark(#6f685d, #a39a8c);
+  --muted: light-dark(#655e53, #a39a8c);
+  /* --line is for decorative dividers; --line-strong outlines form fields and other controls (3:1). */
   --line: light-dark(#e2dbcf, #3a352e);
+  --line-strong: light-dark(#8a8275, #7a7266);
   --accent: light-dark(#8a3b12, #e0915e);
   --accent-soft: light-dark(#f3e4d8, #3d2a1d);
   --on-accent: light-dark(#fff, #1a1815);
   --male: light-dark(#5b86ad, #7fa6cc);
-  --female: light-dark(#c0707f, #d98c9a);
-  --unknown: light-dark(#a39b8e, #8f877b);
+  --female: light-dark(#b35d6d, #d98c9a);
+  --unknown: light-dark(#857d70, #8f877b);
   --male-soft: light-dark(#e3edf6, #1f2a35);
   --female-soft: light-dark(#f8e6e9, #35232a);
   --unknown-soft: light-dark(#eeebe5, #2b2823);
@@ -62,7 +64,7 @@ button.small, .small { font-size: var(--fs-sm); }
 button.small { min-height: 2.25rem; padding: .25em .7em; }
 button.link { border: none; background: none; padding: 0; min-height: 0; color: var(--accent); text-decoration: underline; text-underline-offset: .15em; }
 input, select, textarea {
-  border: 1px solid var(--line); border-radius: 10px; padding: .6em .7em; background: var(--surface); width: 100%;
+  border: 1px solid var(--line-strong); border-radius: 10px; padding: .6em .7em; background: var(--surface); width: 100%;
   font-size: max(16px, 1rem); /* below 16px, iOS zooms the page on focus */
 }
 input:focus-visible, select:focus-visible, textarea:focus-visible { outline-offset: -1px; border-color: var(--accent); }
@@ -71,8 +73,9 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline-offs
 [hidden] { display: none !important; }
 .surface { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
 
-/* With both languages, English trails the Chinese, smaller and lighter. */
-.en { font-size: max(.85em, .72rem); font-weight: 400; opacity: .75; }
+/* With both languages, English trails the Chinese, smaller and lighter (in weight, not color,
+   which would fail contrast on muted text). */
+.en { font-size: max(.85em, .75rem); font-weight: 400; color: inherit; }
 h2 .en, .dlg-head h2 .en { font-weight: 500; }
 
 .brand { margin: 0; display: flex; align-items: baseline; gap: .4rem; white-space: nowrap; font-size: 1.2rem; }
@@ -119,7 +122,7 @@ h2 .en, .dlg-head h2 .en { font-weight: 500; }
 /* Top-bar search with results dropping down under it */
 .search-box { position: relative; flex: 1; max-width: 30rem; min-width: 12rem; }
 .search-trigger {
-  border-radius: 999px; background: var(--bg); border-color: transparent; padding-left: 1rem; padding-right: 2.5rem;
+  border-radius: 999px; background: var(--bg); padding-left: 1rem; padding-right: 2.5rem;
 }
 .search-trigger:focus { background: var(--surface); }
 .search-box kbd {
@@ -145,7 +148,7 @@ h2 .en, .dlg-head h2 .en { font-weight: 500; }
 }
 .tab-icon { font-size: 1.2rem; filter: grayscale(1); opacity: .7; }
 .tab-label { display: grid; justify-items: center; font-size: .78rem; font-weight: 600; }
-.tab-label .en { font-size: .68rem; }
+.tab-label .en { font-size: .72rem; }
 .tab[aria-current="page"] { color: var(--accent); }
 .tab[aria-current="page"] .tab-icon { filter: none; opacity: 1; }
 
@@ -379,7 +382,7 @@ main[data-view="person"] .tree-pane, main[data-view="tree"] .person-pane { displ
 .setting-value .chip { font-weight: 400; }
 
 /* Segmented control: buttons with aria-pressed, or radio labels */
-.seg { display: flex; gap: 2px; padding: 3px; border-radius: 11px; background: var(--bg); border: 1px solid var(--line); }
+.seg { display: flex; gap: 2px; padding: 3px; border-radius: 11px; background: var(--bg); border: 1px solid var(--line-strong); }
 .seg > button, .seg-option {
   flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: .3rem; text-align: center;
   border: none; border-radius: 8px; background: none; min-height: 2.5rem; padding: .3rem .5rem; cursor: pointer; white-space: nowrap;
@@ -443,6 +446,21 @@ main[data-view="person"] .tree-pane, main[data-view="tree"] .person-pane { displ
 .history .diff ul { margin: .2rem 0; padding-left: 1.2rem; overflow-wrap: anywhere; }
 .history del { color: var(--danger); }
 .history ins { color: var(--ok); text-decoration: none; }
+
+/* Windows High Contrast and similar replace every color, so states shown by a background
+   (selected segment, current tab, selected card) need a border or outline to survive. */
+@media (forced-colors: active) {
+  .seg > button[aria-pressed="true"], .seg-option:has(input:checked) { outline: 2px solid Highlight; outline-offset: -2px; }
+  .tab[aria-current="page"] .tab-label { text-decoration: underline; text-underline-offset: .25em; }
+  .pcard.selected, .pcard.self, #chart .card-main .ft-card { outline: 3px solid Highlight; }
+  .avatar { border: 2px solid CanvasText; }
+}
+@media (prefers-contrast: more) {
+  :root {
+    --muted: light-dark(#3f3a33, #d4ccbf);
+    --line: var(--line-strong);
+  }
+}
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
