@@ -75,6 +75,13 @@ const pairs = {
   children: ['子女', 'Children'],
   siblings: ['兄弟姊妹', 'Siblings'],
   self: ['本人', 'this person'],
+  fullSiblings: ['同父同母', 'Full siblings'],
+  halfSiblingsPaternal: ['同父異母', 'Half siblings, same father'],
+  halfSiblingsMaternal: ['同母異父', 'Half siblings, same mother'],
+  halfPaternal: ['同父異母', 'Half · same father'],
+  halfMaternal: ['同母異父', 'Half · same mother'],
+  halfVia: ['同父或同母', 'Half · via'],
+  onlyParent: ['只有', 'Only'],
   unknownOtherParent: ['另一位父母不詳', 'other parent unknown'],
   none: ['（無）', '(none)'],
 

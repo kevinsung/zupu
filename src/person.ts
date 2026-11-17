@@ -3,7 +3,7 @@ import { L, t, type Key } from './i18n'
 import { actionSheet, copyText, sectionHead, toast } from './dialog'
 import { avatar, datesLine, marriageText, personCard, selfCard } from './cards'
 import { type AppCtx, addRelative, deletePerson, editMarriage, editPerson, linkExisting, removeRelationship } from './actions'
-import { type Person, allNames, byBirth, childrenByCoParent, displayName, formatPhone, siblingsOf, spousesOf } from './model'
+import { type Person, allNames, byBirth, childrenByCoParent, displayName, formatPhone, halfSiblingVia, siblingsOf, spousesOf } from './model'
 
 export interface PersonViewOpts {
   /** Shown in the "more" menu on phones, where the tree is a separate tab. */
@@ -129,13 +129,32 @@ export function renderPerson(cont: HTMLElement, ctx: AppCtx, id: string, opts: P
       addSlot('addSpouse', () => addRelative(ctx, p, 'spouse')),
       addSlot('addChild', () => addRelative(ctx, p, 'child'))))
 
-  // Siblings, in birth order with this person among them.
-  const siblings = siblingsOf(people, p.id)
+  // Full siblings in birth order with this person among them, then a section per kind of half sibling
+  // (same father, same mother, then via a parent whose gender isn't recorded).
+  const full: Person[] = []
+  const halves = new Map<string, { cls: string; title: Node; kids: Person[] }>()
+  for (const s of siblingsOf(people, p.id)) {
+    const via = halfSiblingVia(p, s)
+    if (!via) { full.push(s); continue }
+    const parent = people.get(via)
+    const g = parent?.gender
+    const key = g || via
+    if (!halves.has(key)) {
+      halves.set(key, g === 'M' ? { cls: 'pv-half-paternal', title: L('halfSiblingsPaternal'), kids: [] }
+        : g === 'F' ? { cls: 'pv-half-maternal', title: L('halfSiblingsMaternal'), kids: [] }
+        : { cls: 'pv-half-via', title: document.createTextNode(`${t.halfVia} ${displayName(parent)}`), kids: [] })
+    }
+    halves.get(key)!.kids.push(s)
+  }
+  const rank = (key: string) => (key === 'M' ? 0 : key === 'F' ? 1 : 2)
+  const halfGroups = [...halves.entries()].sort(([a], [b]) => rank(a) - rank(b)).map(([, v]) => v)
   const siblingsEl = section('pv-siblings',
-    sectionHead(L('siblings'), p.parents.length ? addButton(t.addSibling, () => addRelative(ctx, p, 'sibling')) : undefined),
-    siblings.length
-      ? h('div', { class: 'cards cols-2' }, ...[...siblings, p].sort(byBirth).map(s => (s === p ? selfCard(p) : card(s))))
+    sectionHead(L(halfGroups.length ? 'fullSiblings' : 'siblings'),
+      p.parents.length ? addButton(t.addSibling, () => addRelative(ctx, p, 'sibling')) : undefined),
+    full.length
+      ? h('div', { class: 'cards cols-2' }, ...[...full, p].sort(byBirth).map(s => (s === p ? selfCard(p) : card(s))))
       : h('p', { class: 'muted small' }, t.none))
+  const halfEls = halfGroups.map(g => section(g.cls, sectionHead(g.title), h('div', { class: 'cards cols-2' }, ...g.kids.map(card))))
 
-  cont.append(h('div', { class: 'pv' }, parentsEl, hero, contactEl, notesEl, familiesEl, siblingsEl))
+  cont.append(h('div', { class: 'pv' }, parentsEl, hero, contactEl, notesEl, familiesEl, siblingsEl, ...halfEls))
 }

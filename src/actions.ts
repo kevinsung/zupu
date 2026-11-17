@@ -1,8 +1,8 @@
 import { h } from './dom'
 import { L, t } from './i18n'
 import { confirmDialog, marriageForm, openDialog, personForm, personPicker, toast } from './dialog'
-import { personCard } from './cards'
-import { type Person, type PersonFields, childrenOf, displayName, emptyFields } from './model'
+import { halfTag, personCard } from './cards'
+import { type People, type Person, type PersonFields, childrenOf, displayName, emptyFields } from './model'
 import type { FamilyStore, LinkRelative, NewRelative } from './store'
 
 export interface AppCtx {
@@ -70,6 +70,11 @@ export function addRelative(ctx: AppCtx, p: Person, rel: NewRelative) {
     extra = h('label', { class: 'field' }, h('span', { class: 'field-label' }, L('otherParent')), select)
     readOpts = () => ({ coParentId: select.value })
   }
+  if (rel === 'sibling') {
+    const select = h('select', {}, ...siblingParentChoices(people, p).map(c => h('option', { value: c.ids.join(',') }, c.label)))
+    extra = h('label', { class: 'field' }, h('span', { class: 'field-label' }, L('parents')), select)
+    readOpts = () => ({ parentIds: select.value.split(',') })
+  }
 
   const form = personForm(initial)
   openDialog(L(ADD_TITLES[rel]), h('div', { class: 'form' }, extra, form.el), [
@@ -83,6 +88,32 @@ export function addRelative(ctx: AppCtx, p: Person, rel: NewRelative) {
     },
   ], { subtitle: displayName(p) })
   form.focus()
+}
+
+/**
+ * Parent sets a new sibling of `p` can have: p's own parents (a full sibling, the default),
+ * then each parent with one of their other spouses, then each parent alone.
+ */
+function siblingParentChoices(people: People, p: Person): { ids: string[]; label: string }[] {
+  const choices: { ids: string[]; label: string }[] = []
+  const seen = new Set<string>()
+  const name = (id: string) => displayName(people.get(id))
+  // Only a person with both parents recorded can tell a half sibling from a full one.
+  const half = (via: string) => (p.parents.length === 2 ? ` (${halfTag(people.get(via))})` : '')
+  const add = (ids: string[], label: string) => {
+    const key = [...ids].sort().join(',')
+    if (seen.has(key)) return
+    seen.add(key)
+    choices.push({ ids, label })
+  }
+  add(p.parents, p.parents.map(name).join(' & '))
+  for (const pid of p.parents) {
+    for (const sid of people.get(pid)?.spouses ?? []) {
+      if (!p.parents.includes(sid) && people.has(sid)) add([pid, sid], `${name(pid)} & ${name(sid)}${half(pid)}`)
+    }
+  }
+  for (const pid of p.parents) add([pid], `${t.onlyParent} ${name(pid)}${half(pid)}`)
+  return choices
 }
 
 export function linkExisting(ctx: AppCtx, p: Person) {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { type People, type Person, age, childrenByCoParent, emptyFields, formatPhone, isValidEmail, isValidPartialDate, isValidPhone, normalizePerson, normalizePhone, rootAncestors, searchPeople, seniorAncestor, siblingsOf, spousesOf } from '../src/model'
+import { type People, type Person, age, childrenByCoParent, emptyFields, formatPhone, halfSiblingVia, isValidEmail, isValidPartialDate, isValidPhone, normalizePerson, normalizePhone, rootAncestors, searchPeople, seniorAncestor, siblingsOf, spousesOf } from '../src/model'
 import { applyOp, FamilyStore, simulate, type Backend, type ChangeRecord, type NewChange, type Op } from '../src/store'
 import { seedToPeople } from '../src/seed-format'
 
@@ -71,6 +71,17 @@ describe('model', () => {
   it('finds half siblings too', () => {
     const { store } = memoryStore(family())
     expect(siblingsOf(store.people, 'c').map(p => p.id).sort()).toEqual(['a', 'b'])
+  })
+
+  it('tells half siblings by the one shared parent', () => {
+    const { store } = memoryStore(family())
+    const get = (id: string) => store.people.get(id)!
+    expect(halfSiblingVia(get('a'), get('c'))).toBe('dad')
+    expect(halfSiblingVia(get('c'), get('a'))).toBe('dad')
+    expect(halfSiblingVia(get('a'), get('b'))).toBeNull()
+    const only = person('d', { parents: ['dad'] })
+    expect(halfSiblingVia(only, get('a'))).toBeNull() // can't tell with one parent recorded
+    expect(halfSiblingVia(get('a'), only)).toBe('dad')
   })
 
   it('orders spouses by marriage date, leaving undated ones in place', () => {
@@ -162,6 +173,18 @@ describe('store', () => {
     const id = await store.addRelative('K', 'sibling', 'c', emptyFields())
     expect(store.people.get(id)!.parents).toEqual(['dad', 'mom2'])
     await expect(store.addRelative('K', 'sibling', 'dad', emptyFields())).rejects.toThrow()
+  })
+
+  it('adds a half sibling with chosen parents, which must include a shared one', async () => {
+    const { store } = memoryStore(family())
+    const half = await store.addRelative('K', 'sibling', 'a', emptyFields(), { parentIds: ['dad', 'mom2'] })
+    expect(store.people.get(half)!.parents).toEqual(['dad', 'mom2'])
+    const only = await store.addRelative('K', 'sibling', 'a', emptyFields(), { parentIds: ['dad'] })
+    expect(store.people.get(only)!.parents).toEqual(['dad'])
+    await expect(store.addRelative('K', 'sibling', 'a', emptyFields(), { parentIds: ['mom2'] })).rejects.toThrow()
+    await expect(store.addRelative('K', 'sibling', 'a', emptyFields(), { parentIds: [] })).rejects.toThrow()
+    await expect(store.addRelative('K', 'sibling', 'a', emptyFields(), { parentIds: ['dad', 'dad'] })).rejects.toThrow()
+    await expect(store.addRelative('K', 'sibling', 'a', emptyFields(), { parentIds: ['dad', 'nobody'] })).rejects.toThrow()
   })
 
   it('only writes changed fields', async () => {

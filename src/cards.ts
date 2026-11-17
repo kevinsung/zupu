@@ -28,6 +28,11 @@ export function avatar(p: Person, cls = ''): HTMLElement {
   return h('span', { class: `avatar g-${p.gender || 'U'} ${cls}`.trim(), 'aria-hidden': 'true' }, initial)
 }
 
+/** How a half sibling is related, from the one parent they share: "同父異母 / Half · same father" etc. */
+export function halfTag(parent: Person | undefined): string {
+  return parent?.gender === 'M' ? t.halfPaternal : parent?.gender === 'F' ? t.halfMaternal : `${t.halfVia} ${displayName(parent)}`
+}
+
 /** A tappable row for one person; the colored edge shows gender. `extra` goes on the right (e.g. a remove button). */
 export function personCard(p: Person, onclick: () => void, extra?: Node): HTMLElement {
   const sub = personSubtitle(p)

@@ -14,6 +14,9 @@ const seed = [
   person('gm', { nameZh: '祖母', gender: 'F', spouses: ['gp'], order: 1 }),
   person('a', { nameZh: '甲', nameEn: 'Alice', gender: 'F', parents: ['gp', 'gm'], birthDate: '1960', order: 2 }),
   person('b', { nameZh: '乙', gender: 'M', parents: ['gp', 'gm'], order: 3 }),
+  // A half sibling of 甲 and 乙 through 祖父; their mother isn't recorded as his spouse.
+  person('gm2', { nameZh: '繼祖母', gender: 'F', order: 4 }),
+  person('c', { nameZh: '丙', gender: 'M', parents: ['gp', 'gm2'], birthDate: '1970', order: 5 }),
 ]
 
 let w: Awaited<ReturnType<typeof startWorker>>
@@ -83,6 +86,12 @@ describe('app', () => {
     // This person appears among their siblings, in birth order, and isn't a link.
     expect($('#person .pv-siblings').textContent).toContain('乙')
     expect($('#person .pv-siblings .pcard.self').textContent).toContain('甲')
+    // Full and half siblings get separate sections.
+    expect($('#person .pv-siblings .section-title').textContent).toContain('同父同母')
+    expect($('#person .pv-siblings').textContent).not.toContain('丙')
+    expect($('#person .pv-half-paternal .section-title').textContent).toContain('同父異母')
+    expect($('#person .pv-half-paternal').textContent).toContain('丙')
+    expect(document.querySelector('#person .pv-half-maternal')).toBeNull()
     input.click()
     expect(pop.hidden).toBe(false)
     expect(pop.textContent).toContain('祖父')
@@ -221,6 +230,27 @@ describe('app', () => {
     expect(contact.querySelector('a[href="mailto:alice@example.com"]')).toBeTruthy()
     expect(contact.querySelector('a[href="tel:+12015550123"]')!.textContent).toBe('+1 201 555 0123')
     expect(contact.textContent).toContain('alice_line')
+  })
+
+  it('adds a half sibling by choosing the parents', async () => {
+    buttonWith('新增', $('#person .pv-siblings')).click()
+    const dlg = topDialog()
+    const select = dlg.querySelector<HTMLSelectElement>('select')!
+    const options = [...select.options]
+    expect(options.map(o => o.value)).toEqual(['gp,gm', 'gp', 'gm'])
+    expect(options[0].textContent).toBe('祖父 & 祖母')
+    expect(options[1].textContent).toContain('同父異母')
+    select.value = 'gp'
+    dlg.querySelector<HTMLInputElement>('input[name=nameZh]')!.value = '丁'
+    buttonWith('儲存', dlg).click()
+    await closed(dlg)
+    expect($('#person .pv-siblings').textContent).not.toContain('丁')
+    const card = [...document.querySelectorAll('#person .pv-half-paternal .pcard')].find(c => c.textContent!.includes('丁'))!
+    ;(card.querySelector('.pcard-main') as HTMLElement).click()
+    await tick(100)
+    expect($('#person h2').textContent).toBe('丁')
+    expect($('#person .pv-parents').textContent).toContain('祖父')
+    expect($('#person .pv-parents').textContent).not.toContain('祖母')
   })
 
   it('switches the theme from the settings menu and remembers it', async () => {

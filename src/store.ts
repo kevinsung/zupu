@@ -90,7 +90,7 @@ export class FamilyStore {
     rel: NewRelative,
     anchorId: string,
     fields: PersonFields,
-    opts: { coParentId?: string; alsoSpouseOf?: string } = {},
+    opts: { coParentId?: string; alsoSpouseOf?: string; parentIds?: string[] } = {},
   ): Promise<string> {
     const anchor = this.get(anchorId)
     const id = this.backend.newId()
@@ -117,11 +117,18 @@ export class FamilyStore {
         person.parents = opts.coParentId ? [anchorId, opts.coParentId] : [anchorId]
         label = '新增子女 Added child'
         break
-      case 'sibling':
+      case 'sibling': {
         if (anchor.parents.length === 0) throw new Error('請先新增父母 Add a parent first')
-        person.parents = [...anchor.parents]
+        const parentIds = opts.parentIds ?? anchor.parents
+        if (parentIds.length < 1 || parentIds.length > 2 || new Set(parentIds).size !== parentIds.length) {
+          throw new Error('父母需為一或兩位 Needs one or two different parents')
+        }
+        parentIds.forEach(pid => this.get(pid))
+        if (!parentIds.some(pid => anchor.parents.includes(pid))) throw new Error('需有共同的父母 Must share a parent')
+        person.parents = [...parentIds]
         label = '新增兄弟姊妹 Added sibling'
         break
+      }
     }
     ops.unshift({ type: 'set', person })
     await this.commit(editor, `${label}: ${displayName(person)} → ${displayName(anchor)}`, ops)

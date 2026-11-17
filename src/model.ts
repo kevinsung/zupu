@@ -200,6 +200,16 @@ export function siblingsOf(people: People, id: string): Person[] {
 }
 
 /**
+ * For a sibling who shares only one of `me`'s two parents, that parent's id; otherwise null
+ * (a full sibling, or `me` has fewer than two parents recorded so we can't tell).
+ */
+export function halfSiblingVia(me: Person, sib: Person): string | null {
+  if (me.parents.length !== 2) return null
+  const shared = me.parents.filter(pid => sib.parents.includes(pid))
+  return shared.length === 1 ? shared[0] : null
+}
+
+/**
  * Top of each family line: people with no recorded parents who have children, and whose
  * co-parents also have no parents (so in-laws marrying into a line don't count).
  * Couples are returned once, as the first-entered partner.
