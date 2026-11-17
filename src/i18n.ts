@@ -18,7 +18,7 @@ export const t = {
   nameEn: '英文姓名 / English name',
   otherNames: '別名、小名 / Other names, nicknames',
   otherNamesHint: '用逗號分隔 / Separate with commas',
-  gender: '性別 / Sex',
+  gender: '性別 / Gender',
   male: '男 / M',
   female: '女 / F',
   unknownGender: '不詳 / Unknown',
