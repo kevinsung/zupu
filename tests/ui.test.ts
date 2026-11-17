@@ -134,11 +134,30 @@ describe('app', () => {
     edit.click()
     const dlg = $('dialog[open]')
     expect(dlg.querySelector('.dlg-sub')!.textContent).toBe('甲')
-    dlg.querySelector<HTMLInputElement>('input[name=birthDate]')!.value = '60'
+    const year = dlg.querySelector<HTMLInputElement>('input[name=birthDate-y]')!
+    const month = dlg.querySelector<HTMLInputElement>('input[name=birthDate-m]')!
+    expect(year.value).toBe('1960')
+    expect(year.getAttribute('inputmode')).toBe('numeric')
+    // A month needs a year; the bad box is marked and focused.
+    year.value = ''
+    month.value = '3'
     buttonWith('儲存', dlg).click()
     await tick()
-    expect(dlg.querySelector('.dlg-error')!.textContent).toContain('YYYY')
-    dlg.querySelector<HTMLInputElement>('input[name=birthDate]')!.value = '1960-03'
+    expect(dlg.querySelector('.dlg-error')!.textContent).toContain('Birth date: 填了月份也請填年份 / enter the year too')
+    expect(year.getAttribute('aria-invalid')).toBe('true')
+    expect(document.activeElement).toBe(year)
+    year.value = '60'
+    buttonWith('儲存', dlg).click()
+    await tick()
+    expect(dlg.querySelector('.dlg-error')!.textContent).toContain('4 digits')
+    month.value = '13'
+    year.value = '1960'
+    buttonWith('儲存', dlg).click()
+    await tick()
+    expect(dlg.querySelector('.dlg-error')!.textContent).toContain('1 to 12')
+    expect(year.hasAttribute('aria-invalid')).toBe(false)
+    expect(month.getAttribute('aria-invalid')).toBe('true')
+    month.value = '3'
     buttonWith('儲存', dlg).click()
     await closed(dlg)
     expect($('#person .pv-dates').textContent).toContain('1960-03')
@@ -222,11 +241,12 @@ describe('app', () => {
     const families = () => $('#person .pv-families')
     buttonWith('新增結婚日期', families()).click()
     const dlg = topDialog()
-    dlg.querySelector<HTMLInputElement>('input[name=married]')!.value = '85'
+    dlg.querySelector<HTMLInputElement>('input[name=married-y]')!.value = '85'
     buttonWith('儲存', dlg).click()
     await tick()
-    expect(dlg.querySelector('.dlg-error')!.textContent).toContain('YYYY')
-    dlg.querySelector<HTMLInputElement>('input[name=married]')!.value = '1985-10'
+    expect(dlg.querySelector('.dlg-error')!.textContent).toContain('Marriage date: 年份應為四位數字')
+    dlg.querySelector<HTMLInputElement>('input[name=married-y]')!.value = '1985'
+    dlg.querySelector<HTMLInputElement>('input[name=married-m]')!.value = '10'
     buttonWith('儲存', dlg).click()
     await closed(dlg)
     expect(families().querySelector('.marriage')!.textContent).toContain('結婚 / Married 1985-10')
@@ -244,6 +264,7 @@ describe('app', () => {
     buttonWith('儲存', dlg).click()
     await tick()
     expect(dlg.querySelector('.dlg-error')!.textContent).toContain('Invalid email')
+    expect(dlg.querySelector('[name=email]')!.getAttribute('aria-invalid')).toBe('true')
     set('email', 'alice@example.com')
     set('phone', '201-555-0123')
     buttonWith('儲存', dlg).click()

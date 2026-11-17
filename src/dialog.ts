@@ -1,5 +1,5 @@
 import { h, wide } from './dom'
-import { L, t, tn } from './i18n'
+import { L, lang, t, tn, type Key } from './i18n'
 import { type Marriage, type Person, type PersonFields, emptyFields, isValidEmail, isValidPartialDate, normalizePhone, searchPeople, type People } from './model'
 import { personCard } from './cards'
 import { type IconName, icon } from './icons'
@@ -35,16 +35,26 @@ let dialogSeq = 0
 export function openDialog(title: string | Node, body: Node, actions: DialogAction[], opts: DialogOpts = {}): () => void {
   const error = h('p', { class: 'dlg-error', role: 'alert' })
   const dismiss = () => { opts.onDismiss?.(); close() }
+  // The input named by the last validation error (see fieldError), marked until the next attempt.
+  let invalid: HTMLElement | undefined
   const button = (a: DialogAction) => {
     const btn = h('button', { type: 'button', class: [a.primary && 'primary', a.danger && 'danger'].filter(Boolean).join(' ') }, a.label)
     btn.addEventListener('click', async () => {
       error.textContent = ''
+      invalid?.removeAttribute('aria-invalid')
+      invalid = undefined
       btn.disabled = true
       try {
         if ((await a.run?.()) !== false) close()
       } catch (e) {
         error.textContent = `${t.saveFailed}: ${(e as Error).message}`
-        error.scrollIntoView?.({ block: 'nearest' })
+        invalid = (e as FieldError).field
+        if (invalid) {
+          invalid.setAttribute('aria-invalid', 'true')
+          invalid.focus()
+        } else {
+          error.scrollIntoView?.({ block: 'nearest' })
+        }
       } finally {
         btn.disabled = false
       }
@@ -232,19 +242,60 @@ export function copyText(text: string) {
   navigator.clipboard?.writeText(text).then(() => toast(t.copied), () => toast(text)) ?? toast(text)
 }
 
+/** A validation error that names the input at fault, so the dialog can mark and focus it. */
+type FieldError = Error & { field?: HTMLElement }
+
+function fieldError(message: string, field: HTMLElement): FieldError {
+  return Object.assign(new Error(message), { field })
+}
+
+/**
+ * A date that may be partial (YYYY, YYYY-MM or YYYY-MM-DD) as separate year, month and day
+ * boxes. One box with dashes didn't work on iPhones, whose number pad has no "-".
+ * `read()` returns the date with month and day zero-padded, or throws a FieldError.
+ */
+function partialDateField(label: Key, name: string, initial: string) {
+  const [y = '', m = '', d = ''] = initial ? initial.split('-') : []
+  const placeholders = lang === 'zh' ? ['年', '月', '日'] : ['YYYY', 'MM', 'DD']
+  const part = (suffix: string, value: string, maxlength: number, ariaLabel: string, i: number) => h('input', {
+    type: 'text', name: `${name}-${suffix}`, value, inputmode: 'numeric', pattern: '[0-9]*', maxlength: String(maxlength),
+    autocomplete: 'off', 'aria-label': ariaLabel, placeholder: placeholders[i], class: `date-${suffix}`,
+  })
+  const year = part('y', y, 4, t.year, 0)
+  const month = part('m', m, 2, t.month, 1)
+  const day = part('d', d, 2, t.day, 2)
+  const el = h('fieldset', { class: 'field date-field' },
+    h('legend', { class: 'field-label' }, L(label)),
+    h('div', { class: 'date-parts' }, year, month, day))
+
+  function read(): string {
+    const [yv, mv, dv] = [year, month, day].map(i => i.value.trim())
+    const fail = (msg: string, input: HTMLElement) => fieldError(`${t[label]}: ${msg}`, input)
+    if (!yv && mv) throw fail(t.monthNeedsYear, year)
+    if (!mv && dv) throw fail(t.dayNeedsMonth, month)
+    if (yv && !/^\d{4}$/.test(yv)) throw fail(t.badYear, year)
+    if (mv && !(/^\d{1,2}$/.test(mv) && +mv >= 1 && +mv <= 12)) throw fail(t.badMonth, month)
+    if (dv && !(/^\d{1,2}$/.test(dv) && +dv >= 1 && +dv <= 31)) throw fail(t.badDay, day)
+    const date = [yv, mv && mv.padStart(2, '0'), dv && dv.padStart(2, '0')].filter(Boolean).join('-')
+    if (!isValidPartialDate(date)) throw fail(t.badDate, year)
+    return date
+  }
+  return { el, read, focus: () => year.focus() }
+}
+
 function field(label: string | Node, input: HTMLElement, hint?: string) {
   return h('label', { class: 'field' }, h('span', { class: 'field-label' }, label), input, hint ? h('small', {}, hint) : null)
 }
 
-/** Person fields form. `read()` returns the fields, or throws a user-facing message. */
+/** Person fields form. `read()` returns the fields, or throws a user-facing message (a FieldError where it can). */
 export function personForm(initial: PersonFields = emptyFields()) {
   const text = (name: keyof PersonFields, extra: Record<string, string> = {}) =>
     h('input', { type: 'text', name, value: initial[name], autocomplete: 'off', ...extra })
   const nameZh = text('nameZh')
   const nameEn = text('nameEn')
   const otherNames = text('otherNames')
-  const birthDate = text('birthDate', { placeholder: 'YYYY-MM-DD', inputmode: 'numeric' })
-  const deathDate = text('deathDate', { placeholder: 'YYYY-MM-DD', inputmode: 'numeric' })
+  const birthDate = partialDateField('birthDate', 'birthDate', initial.birthDate)
+  const deathDate = partialDateField('deathDate', 'deathDate', initial.deathDate)
   const email = text('email', { type: 'email', inputmode: 'email' })
   const phone = text('phone', { type: 'tel', placeholder: '+886 912 345 678' })
   const address = h('textarea', { name: 'address', rows: '2' })
@@ -264,8 +315,7 @@ export function personForm(initial: PersonFields = emptyFields()) {
     field(L('nameEn'), nameEn),
     field(L('otherNames'), otherNames, t.otherNamesHint),
     h('div', { class: 'field' }, h('span', { class: 'field-label' }, L('gender')), gender),
-    h('div', { class: 'row' }, field(L('birthDate'), birthDate), field(L('deathDate'), deathDate)),
-    h('small', { class: 'form-hint' }, t.dateHint),
+    h('div', { class: 'row' }, birthDate.el, deathDate.el),
     h('details', { class: 'form-group', open: hasContact },
       h('summary', {}, icon('chevronRight'), h('span', {}, L('contact'))),
       h('div', { class: 'form' },
@@ -283,8 +333,8 @@ export function personForm(initial: PersonFields = emptyFields()) {
       nameEn: nameEn.value.trim(),
       otherNames: otherNames.value.trim(),
       gender: g === 'M' || g === 'F' ? g : '',
-      birthDate: birthDate.value.trim(),
-      deathDate: deathDate.value.trim(),
+      birthDate: birthDate.read(),
+      deathDate: deathDate.read(),
       notes: notes.value.trim(),
       email: email.value.trim(),
       phone: phone.value.trim(),
@@ -292,31 +342,22 @@ export function personForm(initial: PersonFields = emptyFields()) {
       line: line.value.trim(),
       signal: signal.value.trim(),
     }
-    if (!isValidPartialDate(fields.birthDate) || !isValidPartialDate(fields.deathDate)) throw new Error(t.badDate)
-    if (!isValidEmail(fields.email)) throw new Error(t.badEmail)
+    if (!isValidEmail(fields.email)) throw fieldError(t.badEmail, email)
     const phoneE164 = normalizePhone(fields.phone)
-    if (phoneE164 === null) throw new Error(t.badPhone)
+    if (phoneE164 === null) throw fieldError(t.badPhone, phone)
     return { ...fields, phone: phoneE164 }
   }
 
   return { el, read, focus: () => nameZh.focus() }
 }
 
-/** Marriage dates form. `read()` returns the dates, or throws a user-facing message. */
+/** Marriage dates form. `read()` returns the dates, or throws a FieldError. */
 export function marriageForm(initial: Marriage) {
-  const date = (name: keyof Marriage) =>
-    h('input', { type: 'text', name, value: initial[name], autocomplete: 'off', placeholder: 'YYYY-MM-DD', inputmode: 'numeric' })
-  const married = date('married')
-  const divorced = date('divorced')
-  const el = h('div', { class: 'form' },
-    h('div', { class: 'row' }, field(L('marriedDate'), married), field(L('divorcedDate'), divorced)),
-    h('small', { class: 'form-hint' }, t.dateHint))
-  function read(): Marriage {
-    const m = { married: married.value.trim(), divorced: divorced.value.trim() }
-    if (!isValidPartialDate(m.married) || !isValidPartialDate(m.divorced)) throw new Error(t.badDate)
-    return m
-  }
-  return { el, read, focus: () => married.focus() }
+  const married = partialDateField('marriedDate', 'married', initial.married)
+  const divorced = partialDateField('divorcedDate', 'divorced', initial.divorced)
+  const el = h('div', { class: 'form' }, h('div', { class: 'row' }, married.el, divorced.el))
+  const read = (): Marriage => ({ married: married.read(), divorced: divorced.read() })
+  return { el, read, focus: married.focus }
 }
 
 /**
