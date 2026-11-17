@@ -8,3 +8,4 @@ backups/
 .dev.vars
 # Screenshots may show family data
 *.png
+!public/apple-touch-icon.png
