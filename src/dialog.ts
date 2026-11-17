@@ -2,6 +2,7 @@ import { h, wide } from './dom'
 import { L, t } from './i18n'
 import { type Marriage, type Person, type PersonFields, emptyFields, isValidEmail, isValidPartialDate, normalizePhone, searchPeople, type People } from './model'
 import { personCard } from './cards'
+import { type IconName, icon } from './icons'
 
 export interface DialogAction {
   label: string | Node
@@ -52,7 +53,7 @@ export function openDialog(title: string | Node, body: Node, actions: DialogActi
   }
   const inHeader = actions.length === 1 && actions[0].primary && !opts.cls?.includes('confirm')
   const titleId = `dlg-title-${++dialogSeq}`
-  const x = h('button', { type: 'button', class: 'icon dlg-x', 'aria-label': t.close, title: t.close, onclick: dismiss }, '✕')
+  const x = h('button', { type: 'button', class: 'icon dlg-x', 'aria-label': t.close, title: t.close, onclick: dismiss }, icon('close'))
   const heading = opts.head ?? h('div', { class: 'dlg-title' },
     h('h2', { id: titleId }, title),
     opts.subtitle ? h('p', { class: 'dlg-sub' }, opts.subtitle) : null)
@@ -145,7 +146,7 @@ function placeNear(el: HTMLElement, anchor: HTMLElement) {
 }
 
 export interface MenuItem {
-  icon: string
+  icon: IconName
   label: string | Node
   run: () => void
   danger?: boolean
@@ -163,7 +164,7 @@ export function menuList(items: (MenuItem | null)[], close: () => void): HTMLEle
     h('button', {
       type: 'button', role: 'menuitem', class: item.danger ? 'menu-item danger' : 'menu-item', disabled: !!item.disabled,
       onclick: () => { close(); item.run() },
-    }, h('span', { class: 'menu-icon', 'aria-hidden': 'true' }, item.icon),
+    }, icon(item.icon, 'menu-icon'),
     h('span', { class: 'menu-label' }, item.label, item.disabled ? h('small', {}, item.disabled) : null))))
 }
 
@@ -233,7 +234,7 @@ export function personForm(initial: PersonFields = emptyFields()) {
     h('div', { class: 'row' }, field(L('birthDate'), birthDate), field(L('deathDate'), deathDate)),
     h('small', { class: 'form-hint' }, t.dateHint),
     h('details', { class: 'form-group', open: hasContact },
-      h('summary', {}, L('contact')),
+      h('summary', {}, icon('chevronRight'), h('span', {}, L('contact'))),
       h('div', { class: 'form' },
         h('div', { class: 'row' }, field(L('email'), email), field(L('phone'), phone, t.phoneHint)),
         field(L('line'), line, t.lineHint),
@@ -312,8 +313,7 @@ export function personPicker(
       const on = p.id === selectedId
       el.classList.toggle('selected', on)
       el.querySelector('.pcard-main')?.setAttribute('aria-pressed', String(on))
-      const chev = el.querySelector('.pcard-chev')
-      if (chev) chev.textContent = on ? '✓' : ''
+      el.querySelector('.pcard-chev')?.replaceChildren(...(on ? [icon('check')] : []))
     }
     return el
   }

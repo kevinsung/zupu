@@ -62,6 +62,10 @@ button.ghost:hover:not(:disabled) { background: var(--bg); border-color: transpa
 button.icon { width: var(--tap); padding: 0; display: inline-grid; place-items: center; font-size: 1.15rem; }
 button.small, .small { font-size: var(--fs-sm); }
 button.small { min-height: 2.25rem; padding: .25em .7em; }
+/* Lucide icons (src/icons.ts). A button with an icon lines it up with its label; :where keeps
+   this from overriding layouts set by class (menu items, tabs, chart tools). */
+svg.icon { flex: none; vertical-align: -.25em; }
+:where(button:has(> svg.icon), a:has(> svg.icon)) { display: inline-flex; align-items: center; justify-content: center; gap: .4em; }
 button.link { border: none; background: none; padding: 0; min-height: 0; color: var(--accent); text-decoration: underline; text-underline-offset: .15em; }
 input, select, textarea {
   border: 1px solid var(--line-strong); border-radius: 10px; padding: .6em .7em; background: var(--surface); width: 100%;
@@ -87,6 +91,7 @@ h2 .en, .dlg-head h2 .en { font-weight: 500; }
   border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--accent);
   font-size: var(--fs-sm); text-decoration: none; white-space: nowrap; cursor: pointer;
 }
+.chip svg.icon { width: 1.1em; height: 1.1em; }
 .chip:hover { border-color: var(--accent); background: var(--accent-soft); }
 .chip.faint { color: var(--muted); border-style: dashed; background: transparent; }
 .chip.faint:hover { color: var(--accent); }
@@ -115,9 +120,9 @@ h2 .en, .dlg-head h2 .en { font-weight: 500; }
 .topnav { display: flex; margin-left: auto; gap: .25rem; align-items: center; }
 .topnav button { white-space: nowrap; }
 .settings-btn { display: inline-flex; align-items: center; gap: .5rem; max-width: 16rem; }
-.settings-btn .avatar-sm { color: var(--muted); }
+.settings-btn .icon { color: var(--muted); }
 .settings-name { overflow: hidden; text-overflow: ellipsis; }
-.caret { color: var(--muted); font-size: .8em; }
+svg.caret { width: 1em; height: 1em; }
 
 /* Top-bar search with results dropping down under it */
 .search-box { position: relative; flex: 1; max-width: 30rem; min-width: 12rem; }
@@ -146,11 +151,10 @@ h2 .en, .dlg-head h2 .en { font-weight: 500; }
   border: none; border-radius: 0; background: none; display: grid; justify-items: center; align-content: center; gap: .1rem;
   padding: .35rem 0; min-height: var(--tabbar-h); color: var(--muted); line-height: 1.15;
 }
-.tab-icon { font-size: 1.2rem; filter: grayscale(1); opacity: .7; }
+svg.tab-icon { width: 1.4rem; height: 1.4rem; }
 .tab-label { display: grid; justify-items: center; font-size: .78rem; font-weight: 600; }
 .tab-label .en { font-size: .72rem; }
 .tab[aria-current="page"] { color: var(--accent); }
-.tab[aria-current="page"] .tab-icon { filter: none; opacity: 1; }
 
 /* Main: one pane at a time on phones */
 main { flex: 1; min-height: 0; position: relative; }
@@ -204,7 +208,7 @@ main[data-view="person"] .tree-pane, main[data-view="tree"] .person-pane { displ
 }
 .chart-tools button {
   width: var(--tap); height: var(--tap); padding: 0; border: none; border-radius: 0; background: none;
-  display: grid; place-items: center; font-size: 1.2rem; color: var(--ink);
+  display: grid; place-items: center; color: var(--ink);
 }
 .chart-tools button + button { border-top: 1px solid var(--line); }
 .chart-tools button:hover:not(:disabled) { background: var(--bg); }
@@ -217,7 +221,7 @@ main[data-view="person"] .tree-pane, main[data-view="tree"] .person-pane { displ
 .peek-text { flex: 1; min-width: 0; display: grid; }
 .peek-text strong { font-size: 1.05rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .peek-text span { font-size: .8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.peek-go { color: var(--accent); font-weight: 600; white-space: nowrap; }
+.peek-go { color: var(--accent); font-weight: 600; white-space: nowrap; display: inline-flex; align-items: center; gap: .15rem; }
 @media (max-width: 699px) {
   /* Keep the zoom buttons clear of the bar that opens the person's page. */
   .chart-tools { bottom: 5rem; }
@@ -238,7 +242,7 @@ main[data-view="person"] .tree-pane, main[data-view="tree"] .person-pane { displ
 }
 .pcard-name { font-weight: 600; font-size: 1.05rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pcard-sub { font-size: .8rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pcard-chev { color: var(--muted); padding-right: .75rem; font-size: 1.3rem; pointer-events: none; }
+.pcard-chev { color: var(--muted); padding-right: .6rem; display: flex; pointer-events: none; }
 .pcard > button.small { margin-right: .5rem; }
 .pcard.selected { outline: 3px solid var(--accent); outline-offset: -1px; background: var(--accent-soft); }
 .pcard.selected .pcard-chev { color: var(--accent); }
@@ -272,8 +276,9 @@ main[data-view="person"] .tree-pane, main[data-view="tree"] .person-pane { displ
 .pv-names { margin: .25rem 0 0; color: var(--muted); }
 .pv-dates { margin: .25rem 0 0; color: var(--muted); font-variant-numeric: tabular-nums; font-size: .95rem; }
 .pv-actions { display: grid; grid-template-columns: 1fr 1fr var(--tap); gap: .5rem; margin: 1rem 0 0; width: 100%; max-width: 24rem; }
-.pv-actions button { white-space: nowrap; padding-inline: .5rem; overflow: hidden; text-overflow: ellipsis; }
-.pv-actions .more { padding: 0; font-size: 1.3rem; line-height: 1; }
+.pv-actions button { white-space: nowrap; padding-inline: .5rem; min-width: 0; }
+.pv-actions button > span { overflow: hidden; text-overflow: ellipsis; }
+.pv-actions .more { padding: 0; }
 .crows { display: grid; }
 .crow { display: flex; align-items: center; gap: .75rem; padding: .6rem .9rem; min-height: 3.25rem; }
 .crow + .crow { border-top: 1px solid var(--line); }
@@ -354,7 +359,7 @@ main[data-view="person"] .tree-pane, main[data-view="tree"] .person-pane { displ
 .menu { display: grid; margin: -.5rem -1.1rem; }
 .popover .menu, .settings .menu { margin: 0; }
 .menu-item {
-  display: flex; align-items: center; gap: .9rem; text-align: left; border: none; border-radius: 0;
+  display: flex; align-items: center; justify-content: flex-start; gap: .9rem; text-align: left; border: none; border-radius: 0;
   padding: .85rem 1.1rem; min-height: 3.25rem; background: none;
 }
 .popover .menu-item { padding: .55rem 1rem; min-height: 2.6rem; gap: .75rem; }
@@ -364,7 +369,8 @@ main[data-view="person"] .tree-pane, main[data-view="tree"] .person-pane { displ
 .menu-item.danger { color: var(--danger); }
 .menu-label { display: block; min-width: 0; }
 .menu-item small { display: block; color: var(--muted); font-size: .78rem; }
-.menu-icon { width: 1.5rem; text-align: center; font-size: 1.1rem; }
+svg.menu-icon { width: 1.25rem; height: 1.25rem; }
+.menu-item:not(.danger) .menu-icon { color: var(--muted); }
 
 /* Settings (in the menu sheet or the top-bar menu) */
 .settings { display: grid; }
@@ -408,8 +414,8 @@ main[data-view="person"] .tree-pane, main[data-view="tree"] .person-pane { displ
   display: flex; align-items: center; gap: .4rem;
 }
 .form-group > summary::-webkit-details-marker { display: none; }
-.form-group > summary::before { content: '▸'; transition: transform .15s; }
-.form-group[open] > summary::before { transform: rotate(90deg); }
+.form-group > summary .icon { width: 1.1em; height: 1.1em; transition: transform .15s; }
+.form-group[open] > summary .icon { transform: rotate(90deg); }
 .form-group[open] > summary { margin-bottom: .5rem; }
 .checkbox { display: inline-flex; align-items: center; gap: .5rem; }
 .checkbox input { width: auto; margin: 0; accent-color: var(--accent); }

@@ -1,5 +1,6 @@
 import { h } from './dom'
 import { t, tn } from './i18n'
+import { icon } from './icons'
 import { type Marriage, type Person, UNKNOWN, age, allNames, displayName, lifespan } from './model'
 
 /** e.g. "結婚 / Married 1962 · 離婚 / Divorced 1975"; '' if nothing is recorded. */
@@ -39,7 +40,7 @@ export function personCard(p: Person, onclick: () => void, extra?: Node): HTMLEl
   const main = h('button', { type: 'button', class: 'pcard-main', onclick },
     h('span', { class: 'pcard-name' }, displayName(p)),
     sub ? h('span', { class: 'pcard-sub' }, sub) : null)
-  return h('div', { class: `pcard g-${p.gender || 'U'}`, 'data-id': p.id }, main, extra ?? h('span', { class: 'pcard-chev', 'aria-hidden': 'true' }, '›'))
+  return h('div', { class: `pcard g-${p.gender || 'U'}`, 'data-id': p.id }, main, extra ?? h('span', { class: 'pcard-chev', 'aria-hidden': 'true' }, icon('chevronRight')))
 }
 
 /** The current person shown among their siblings: same shape as a card, but not a link. */

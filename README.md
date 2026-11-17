@@ -63,3 +63,4 @@ Code map:
 - `src/person.ts`: the person page; `src/actions.ts`: edit/add/link/remove/delete flows.
 - `src/dialog.ts`, `src/cards.ts`, `src/search.ts`, `src/history.ts`: dialogs/sheets, person cards, search, change log.
 - `src/i18n.ts`: all labels.
+- `src/icons.ts`: the lucide icons the UI uses.

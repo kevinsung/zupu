@@ -1,6 +1,7 @@
 import { h } from './dom'
 import { L, t, type Key } from './i18n'
 import { actionSheet, copyText, sectionHead, toast } from './dialog'
+import { type IconName, icon } from './icons'
 import { avatar, datesLine, marriageText, personCard, selfCard } from './cards'
 import { type AppCtx, addRelative, deletePerson, editMarriage, editPerson, linkExisting, removeRelationship } from './actions'
 import { type Person, allNames, byBirth, childrenByCoParent, displayName, formatPhone, halfSiblingVia, siblingsOf, spousesOf } from './model'
@@ -25,10 +26,10 @@ export function renderPerson(cont: HTMLElement, ctx: AppCtx, id: string, opts: P
   const get = (ids: string[]) => ids.map(x => people.get(x)).filter((x): x is Person => !!x)
   const card = (other: Person) => personCard(other, () => ctx.select(other.id))
   const addSlot = (key: Key, onclick: () => void) =>
-    h('button', { type: 'button', class: 'add-slot', onclick }, h('span', { 'aria-hidden': 'true' }, '＋ '), L(key))
+    h('button', { type: 'button', class: 'add-slot', onclick }, icon('plus'), h('span', {}, L(key)))
   const addButton = (label: string, onclick: (e: Event) => void) =>
     h('button', { type: 'button', class: 'section-add', 'aria-label': label, title: label, onclick },
-      h('span', { 'aria-hidden': 'true' }, '＋ '), L('add'))
+      icon('plus'), h('span', {}, L('add')))
   const section = (cls: string, head: HTMLElement, ...body: (Node | null)[]) =>
     h('section', { class: `pv-section ${cls}` }, head, ...body)
 
@@ -44,17 +45,17 @@ export function renderPerson(cont: HTMLElement, ctx: AppCtx, id: string, opts: P
   const name = displayName(p)
   const otherNames = allNames(p).filter(n => n !== name).join(' · ')
   const dates = datesLine(p)
-  const moreBtn = h('button', { type: 'button', class: 'more', 'aria-haspopup': 'menu', 'aria-label': t.more, title: t.more }, '⋯')
+  const moreBtn = h('button', { type: 'button', class: 'more', 'aria-haspopup': 'menu', 'aria-label': t.more, title: t.more }, icon('more'))
   moreBtn.addEventListener('click', () => actionSheet(name, [
-    { icon: '＋', label: L('addParent'), run: () => addRelative(ctx, p, 'parent'), disabled: p.parents.length >= 2 ? t.parentsFull : undefined },
-    { icon: '＋', label: L('addSpouse'), run: () => addRelative(ctx, p, 'spouse') },
-    { icon: '＋', label: L('addChild'), run: () => addRelative(ctx, p, 'child') },
-    { icon: '＋', label: L('addSibling'), run: () => addRelative(ctx, p, 'sibling'), disabled: p.parents.length === 0 ? t.siblingNeedsParent : undefined },
-    { icon: '🔗', label: L('linkExisting'), run: () => linkExisting(ctx, p) },
-    { icon: '✂', label: L('removeRelationship'), run: () => removeRelationship(ctx, p) },
-    { icon: '🕘', label: L('personHistory'), run: () => ctx.showHistory(p.id) },
-    opts.showInTree ? { icon: '🌳', label: L('showInTree'), run: opts.showInTree } : null,
-    { icon: '🗑', label: L('delete'), run: () => deletePerson(ctx, p), danger: true },
+    { icon: 'plus', label: L('addParent'), run: () => addRelative(ctx, p, 'parent'), disabled: p.parents.length >= 2 ? t.parentsFull : undefined },
+    { icon: 'plus', label: L('addSpouse'), run: () => addRelative(ctx, p, 'spouse') },
+    { icon: 'plus', label: L('addChild'), run: () => addRelative(ctx, p, 'child') },
+    { icon: 'plus', label: L('addSibling'), run: () => addRelative(ctx, p, 'sibling'), disabled: p.parents.length === 0 ? t.siblingNeedsParent : undefined },
+    { icon: 'link', label: L('linkExisting'), run: () => linkExisting(ctx, p) },
+    { icon: 'unlink', label: L('removeRelationship'), run: () => removeRelationship(ctx, p) },
+    { icon: 'history', label: L('personHistory'), run: () => ctx.showHistory(p.id) },
+    opts.showInTree ? { icon: 'tree', label: L('showInTree'), run: opts.showInTree } : null,
+    { icon: 'trash', label: L('delete'), run: () => deletePerson(ctx, p), danger: true },
   ], moreBtn))
   const share = async () => {
     const url = location.href
@@ -70,21 +71,21 @@ export function renderPerson(cont: HTMLElement, ctx: AppCtx, id: string, opts: P
     otherNames ? h('p', { class: 'pv-names' }, otherNames) : null,
     dates ? h('p', { class: 'pv-dates' }, dates) : null,
     h('div', { class: 'pv-actions' },
-      h('button', { type: 'button', class: 'primary', onclick: () => editPerson(ctx, p) }, '✎ ', L('edit')),
-      h('button', { type: 'button', onclick: share }, L('share')),
+      h('button', { type: 'button', class: 'primary', onclick: () => editPerson(ctx, p) }, icon('edit'), h('span', {}, L('edit'))),
+      h('button', { type: 'button', onclick: share }, icon('share'), h('span', {}, L('share'))),
       moreBtn))
 
   // Contact: each row has the value and quick actions.
-  const action = (label: Key, attrs: { href?: string; onclick?: () => void }) => attrs.href
-    ? h('a', { class: 'chip', href: attrs.href }, L(label))
-    : h('button', { type: 'button', class: 'chip', onclick: attrs.onclick }, L(label))
-  const copy = (value: string) => action('copy', { onclick: () => copyText(value) })
+  const action = (label: Key, name: IconName, attrs: { href?: string; onclick?: () => void }) => attrs.href
+    ? h('a', { class: 'chip', href: attrs.href }, icon(name), h('span', {}, L(label)))
+    : h('button', { type: 'button', class: 'chip', onclick: attrs.onclick }, icon(name), h('span', {}, L(label)))
+  const copy = (value: string) => action('copy', 'copy', { onclick: () => copyText(value) })
   const contactRow = (label: Key, value: Node | string, ...actions: HTMLElement[]) =>
     h('div', { class: 'crow' },
       h('div', { class: 'crow-text' }, h('span', { class: 'crow-label' }, L(label)), h('span', { class: 'crow-value' }, value)),
       actions.length ? h('div', { class: 'crow-actions' }, ...actions) : null)
   const contactRows = [
-    p.phone && contactRow('phone', h('a', { href: `tel:${p.phone}` }, formatPhone(p.phone)), action('text', { href: `sms:${p.phone}` })),
+    p.phone && contactRow('phone', h('a', { href: `tel:${p.phone}` }, formatPhone(p.phone)), action('text', 'message', { href: `sms:${p.phone}` })),
     p.email && contactRow('email', h('a', { href: `mailto:${p.email}` }, p.email), copy(p.email)),
     p.line && contactRow('line', p.line, copy(p.line)),
     p.signal && contactRow('signal', p.signal, copy(p.signal)),
@@ -105,8 +106,8 @@ export function renderPerson(cont: HTMLElement, ctx: AppCtx, id: string, opts: P
     const edit = () => editMarriage(ctx, p, spouse)
     return text
       ? h('div', { class: 'marriage' }, h('span', {}, text),
-        h('button', { type: 'button', class: 'chip', onclick: edit, 'aria-label': t.editMarriage, title: t.editMarriage }, '✎'))
-      : h('div', { class: 'marriage' }, h('button', { type: 'button', class: 'chip faint', onclick: edit }, '＋ ', L('addMarriage')))
+        h('button', { type: 'button', class: 'chip', onclick: edit, 'aria-label': t.editMarriage, title: t.editMarriage }, icon('edit')))
+      : h('div', { class: 'marriage' }, h('button', { type: 'button', class: 'chip faint', onclick: edit }, icon('plus'), h('span', {}, L('addMarriage'))))
   }
   const families = coParents.map(cpId => {
     const cp = people.get(cpId)
@@ -119,8 +120,8 @@ export function renderPerson(cont: HTMLElement, ctx: AppCtx, id: string, opts: P
         h('div', { class: 'cards cols-2' }, ...kids.map(card))) : null)
   })
   const familyAdd = addButton(t.addSpouseOrChild, e => actionSheet(t.addSpouseOrChild, [
-    { icon: '＋', label: L('addSpouse'), run: () => addRelative(ctx, p, 'spouse') },
-    { icon: '＋', label: L('addChild'), run: () => addRelative(ctx, p, 'child') },
+    { icon: 'plus', label: L('addSpouse'), run: () => addRelative(ctx, p, 'spouse') },
+    { icon: 'plus', label: L('addChild'), run: () => addRelative(ctx, p, 'child') },
   ], e.currentTarget as HTMLElement))
   const familiesEl = section('pv-families',
     sectionHead(L('spousesChildren'), families.length ? familyAdd : undefined),

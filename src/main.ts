@@ -12,6 +12,7 @@ import { avatar, personSubtitle } from './cards'
 import { menuList, openDialog, openMenu, personForm, segmented } from './dialog'
 import { displayName, seniorAncestor } from './model'
 import { getTheme, setTheme, type Theme } from './theme'
+import { type IconName, icon } from './icons'
 
 const EDITOR_KEY = 'ft-editor'
 const root = document.getElementById('app')!
@@ -62,12 +63,12 @@ function startApp(backend: Backend, authApi: AuthApi): () => void {
   const personEl = h('div', { id: 'person' })
   const status = h('div', { class: 'status', role: 'status' }, t.loading)
   const emptyEl = h('div', { class: 'empty', hidden: true },
-    h('button', { type: 'button', class: 'primary', onclick: () => addFirst() }, '＋ ', L('addFirst')))
+    h('button', { type: 'button', class: 'primary', onclick: () => addFirst() }, icon('plus'), h('span', {}, L('addFirst'))))
 
   const editorName = () => localStorage.getItem(EDITOR_KEY) ?? ''
   const settingsLabel = h('span', { class: 'settings-name' })
   const settingsBtn = h('button', { type: 'button', class: 'ghost settings-btn', 'aria-haspopup': 'dialog', title: t.settings },
-    h('span', { class: 'avatar-sm', 'aria-hidden': 'true' }, '✎'), settingsLabel, h('span', { class: 'caret', 'aria-hidden': 'true' }, '▾'))
+    icon('settings'), settingsLabel, icon('chevronDown', 'caret'))
   const refreshEditor = () => {
     settingsLabel.textContent = editorName() || t.settings
     settingsBtn.setAttribute('aria-label', `${t.settings}: ${t.editorLabel} ${editorName() || '—'}`)
@@ -109,29 +110,28 @@ function startApp(backend: Backend, authApi: AuthApi): () => void {
   const peekName = h('strong', {})
   const peekSub = h('span', { class: 'muted' })
   const peek = h('button', { type: 'button', class: 'peek', onclick: () => setView('person') },
-    peekAvatar, h('span', { class: 'peek-text' }, peekName, peekSub), h('span', { class: 'peek-go' }, L('viewPerson'), ' ›'))
+    peekAvatar, h('span', { class: 'peek-text' }, peekName, peekSub), h('span', { class: 'peek-go' }, h('span', {}, L('viewPerson')), icon('chevronRight')))
 
-  const tool = (label: string, text: string, onclick: () => void) =>
-    h('button', { type: 'button', title: label, 'aria-label': label, onclick }, text)
+  const tool = (label: string, name: IconName, onclick: () => void) =>
+    h('button', { type: 'button', title: label, 'aria-label': label, onclick }, icon(name))
   const treePane = h('section', { class: 'pane tree-pane', 'aria-label': t.title },
     chartEl,
     h('div', { class: 'chart-tools', role: 'toolbar', 'aria-label': t.title },
-      tool(t.zoomIn, '+', () => chart.zoom(1.3)),
-      tool(t.zoomOut, '−', () => chart.zoom(1 / 1.3)),
-      tool(t.center, '◎', () => chart.center()),
-      tool(t.fit, '⤢', () => chart.fit())),
+      tool(t.zoomIn, 'plus', () => chart.zoom(1.3)),
+      tool(t.zoomOut, 'minus', () => chart.zoom(1 / 1.3)),
+      tool(t.center, 'center', () => chart.center()),
+      tool(t.fit, 'fit', () => chart.fit())),
     peek)
   const personPane = h('section', { class: 'pane person-pane' }, personEl)
   const main = h('main', {}, treePane, personPane, emptyEl, status)
 
-  const tab = (v: View | 'search' | 'menu', icon: string, label: Key, onclick: (e: Event) => void) =>
-    h('button', { type: 'button', class: 'tab', 'data-tab': v, onclick },
-      h('span', { class: 'tab-icon', 'aria-hidden': 'true' }, icon), h('span', { class: 'tab-label' }, L(label)))
+  const tab = (v: View | 'search' | 'menu', name: IconName, label: Key, onclick: (e: Event) => void) =>
+    h('button', { type: 'button', class: 'tab', 'data-tab': v, onclick }, icon(name, 'tab-icon'), h('span', { class: 'tab-label' }, L(label)))
   const tabbar = h('nav', { class: 'tabbar' },
-    tab('tree', '🌳', 'tabTree', () => setView('tree')),
-    tab('person', '👤', 'tabPerson', () => setView('person')),
-    tab('search', '🔍', 'tabSearch', () => search()),
-    tab('menu', '☰', 'tabMenu', () => openSettings()))
+    tab('tree', 'tree', 'tabTree', () => setView('tree')),
+    tab('person', 'person', 'tabPerson', () => setView('person')),
+    tab('search', 'search', 'tabSearch', () => search()),
+    tab('menu', 'menu', 'tabMenu', () => openSettings()))
 
   const treeVisible = () => wide.matches || view === 'tree'
 
@@ -171,14 +171,14 @@ function startApp(backend: Backend, authApi: AuthApi): () => void {
     const row = (label: Key, control: Node) =>
       h('div', { class: 'setting' }, h('span', { class: 'setting-label' }, L(label)), control)
     const body = h('div', { class: 'settings' },
-      anchor ? null : menuList([{ icon: '🕘', label: L('history'), run: () => openHistory(ctx, backend) }], () => close()),
+      anchor ? null : menuList([{ icon: 'history', label: L('history'), run: () => openHistory(ctx, backend) }], () => close()),
       row('editorLabel', h('button', { type: 'button', class: 'setting-value', onclick: () => { close(); askEditor() } },
         h('span', {}, editorName() || '—'), h('span', { class: 'chip' }, L('change')))),
       row('appearance', segmented<Theme>(t.appearance,
         [['auto', L('themeAuto')], ['light', L('themeLight')], ['dark', L('themeDark')]], getTheme(), setTheme)),
       row('language', segmented<Lang>(t.language,
         [['both', '中英'], ['zh', '中文'], ['en', 'English']], getLang(), lang => { setLang(lang); location.reload() })),
-      menuList([{ icon: '⎋', label: L('signOut'), run: signOut }], () => close()))
+      menuList([{ icon: 'signOut', label: L('signOut'), run: signOut }], () => close()))
     close = openMenu(anchor ? t.settings : t.menu, body, anchor)
   }
   settingsBtn.addEventListener('click', () => openSettings(settingsBtn))
@@ -237,7 +237,7 @@ function startApp(backend: Backend, authApi: AuthApi): () => void {
       box.el,
       h('nav', { class: 'topnav' },
         h('button', { type: 'button', class: 'ghost', onclick: () => openHistory(ctx, backend) },
-          h('span', { 'aria-hidden': 'true' }, '🕘 '), L('history')),
+          icon('history'), h('span', {}, L('history'))),
         settingsBtn),
     ),
     main,
