@@ -53,6 +53,15 @@ export function addRelative(ctx: AppCtx, p: Person, rel: NewRelative) {
   let readOpts = () => ({})
 
   if (rel === 'spouse' && p.gender) initial.gender = p.gender === 'M' ? 'F' : 'M'
+  if (rel === 'spouse') {
+    // Children with only this person as a parent are most likely the new spouse's too.
+    const kids = childrenOf(people, p.id).filter(c => c.parents.length === 1)
+    if (kids.length) {
+      const box = h('input', { type: 'checkbox', checked: true })
+      extra = h('label', { class: 'checkbox' }, box, `${t.alsoParentOf} ${kids.map(displayName).join(', ')}`)
+      readOpts = () => (box.checked ? { alsoParentOf: kids.map(c => c.id) } : {})
+    }
+  }
   if (rel === 'parent' && p.parents.length === 1) {
     const existing = people.get(p.parents[0])
     if (existing) {

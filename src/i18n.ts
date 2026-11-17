@@ -117,6 +117,7 @@ const pairs = {
   otherParent: ['另一位父母', 'Other parent'],
   otherParentNone: ['不詳或無', 'Unknown or none'],
   alsoSpouseOf: ['同時為此人的配偶：', 'Also a spouse of:'],
+  alsoParentOf: ['同時為這些子女的父母：', 'Also a parent of:'],
   delete: ['刪除', 'Delete'],
   confirmDelete: ['確定要刪除此人嗎？此操作會記錄在修改紀錄，可以還原。', 'Delete this person? This is logged in the history and can be reverted.'],
   copied: ['已複製', 'Copied'],

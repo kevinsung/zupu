@@ -83,6 +83,8 @@ export class FamilyStore {
   /**
    * Create a new person related to `anchorId`.
    * - parent: `alsoSpouseOf` makes the new parent a spouse of the existing parent.
+   * - spouse: `alsoParentOf` makes the new spouse the second parent of those children of the anchor
+   *   who have the anchor as their only parent.
    * - child: `coParentId` is the other parent ('' for none).
    */
   async addRelative(
@@ -90,7 +92,7 @@ export class FamilyStore {
     rel: NewRelative,
     anchorId: string,
     fields: PersonFields,
-    opts: { coParentId?: string; alsoSpouseOf?: string; parentIds?: string[] } = {},
+    opts: { coParentId?: string; alsoSpouseOf?: string; alsoParentOf?: string[]; parentIds?: string[] } = {},
   ): Promise<string> {
     const anchor = this.get(anchorId)
     const id = this.backend.newId()
@@ -111,6 +113,13 @@ export class FamilyStore {
       case 'spouse':
         person.spouses = [anchorId]
         ops.push({ type: 'update', id: anchorId, add: { spouses: [id] } })
+        for (const cid of new Set(opts.alsoParentOf ?? [])) {
+          const child = this.get(cid)
+          if (child.parents.length !== 1 || child.parents[0] !== anchorId) {
+            throw new Error(`${displayName(child)} 已有其他父母 already has another parent`)
+          }
+          ops.push({ type: 'update', id: cid, add: { parents: [id] } })
+        }
         label = '新增配偶 Added spouse'
         break
       case 'child':

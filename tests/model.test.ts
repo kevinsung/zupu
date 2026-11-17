@@ -168,6 +168,17 @@ describe('store', () => {
     await expect(store.addRelative('K', 'parent', 'kid', emptyFields())).rejects.toThrow()
   })
 
+  it('adds a spouse, optionally as the other parent of single-parent children', async () => {
+    const people = [person('p1'), person('k1', { parents: ['p1'] }), person('k2', { parents: ['p1'] }), person('x'), person('k3', { parents: ['p1', 'x'] })]
+    const { store } = memoryStore(people)
+    const id = await store.addRelative('K', 'spouse', 'p1', emptyFields(), { alsoParentOf: ['k1', 'k2'] })
+    expect(store.people.get('k1')!.parents).toEqual(['p1', id])
+    expect(store.people.get('k2')!.parents).toEqual(['p1', id])
+    expect(store.people.get(id)!.spouses).toEqual(['p1'])
+    await expect(store.addRelative('K', 'spouse', 'p1', emptyFields(), { alsoParentOf: ['k3'] })).rejects.toThrow()
+    await expect(store.addRelative('K', 'spouse', 'x', emptyFields(), { alsoParentOf: ['k1'] })).rejects.toThrow()
+  })
+
   it('adds a sibling with the same parents, and refuses without parents', async () => {
     const { store } = memoryStore(family())
     const id = await store.addRelative('K', 'sibling', 'c', emptyFields())
