@@ -69,6 +69,16 @@ describe('app', () => {
     expect(document.querySelectorAll('.ft-card').length).toBeGreaterThanOrEqual(4)
   })
 
+  it("makes the tree one tab stop, on the selected person's card", async () => {
+    const stops = document.querySelectorAll<HTMLElement>('.ft-card[tabindex="0"]')
+    expect(stops.length).toBe(1)
+    expect(location.hash).toBe(`#/p/${stops[0].dataset.id}`)
+    expect(stops[0].getAttribute('aria-label')).toBe('祖父, 男 / male')
+    expect(stops[0].getAttribute('aria-current')).toBe('true')
+    expect(document.querySelectorAll('.ft-card[tabindex="-1"]').length).toBeGreaterThanOrEqual(3)
+    expect(document.getElementById(stops[0].getAttribute('aria-describedby')!)!.textContent).toContain('Arrow keys')
+  })
+
   it('navigates via search, which lists family lines and recent people', async () => {
     const input = $<HTMLInputElement>('.search-trigger')
     const pop = $('.search-pop')

@@ -3,7 +3,7 @@ import { h, wide } from './dom'
 import { L, getLang, setLang, t, type Key, type Lang } from './i18n'
 import { authApi, backend, type AuthApi } from './backend'
 import { FamilyStore, type Backend } from './store'
-import { TreeChart } from './chart'
+import { TREE_HINT_ID, TreeChart } from './chart'
 import type { AppCtx } from './actions'
 import { renderPerson } from './person'
 import { openHistory } from './history'
@@ -119,7 +119,8 @@ function startApp(backend: Backend, authApi: AuthApi): () => void {
     h('button', { type: 'button', title: label, 'aria-label': label, onclick }, icon(name))
   const treePane = h('section', { class: 'pane tree-pane', 'aria-label': t.title },
     chartEl,
-    h('div', { class: 'chart-tools', role: 'toolbar', 'aria-label': t.title },
+    h('p', { id: TREE_HINT_ID, class: 'sr-only' }, t.treeKeysHint),
+    h('div', { class: 'chart-tools', role: 'group', 'aria-label': t.treeControls },
       tool(t.zoomIn, 'plus', () => chart.zoom(1.3)),
       tool(t.zoomOut, 'minus', () => chart.zoom(1 / 1.3)),
       tool(t.center, 'center', () => chart.center()),
@@ -145,7 +146,11 @@ function startApp(backend: Backend, authApi: AuthApi): () => void {
       if (b.dataset.tab === v) b.setAttribute('aria-current', 'page')
       else b.removeAttribute('aria-current')
     })
-    if (v === 'person') personPane.scrollTop = 0
+    if (v === 'person') {
+      personPane.scrollTop = 0
+      // Opening the page from the tree (the selected card, the bar under it) hides what had focus.
+      if (treePane.contains(document.activeElement)) focusPersonHeading()
+    }
     if (treeVisible() && chartStale) renderChart(true)
     else if (v === 'tree') chart.center(0)
   }

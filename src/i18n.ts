@@ -43,6 +43,9 @@ const pairs = {
   male: ['男', 'M'],
   female: ['女', 'F'],
   unknownGender: ['不詳', 'Unknown'],
+  // Spoken with a name (tree cards, person cards), where 'M' and 'F' would be unclear.
+  maleWord: ['男', 'male'],
+  femaleWord: ['女', 'female'],
   birthDate: ['出生日期', 'Birth date'],
   deathDate: ['逝世日期', 'Death date'],
   dateHint: ['YYYY、YYYY-MM 或 YYYY-MM-DD', 'YYYY, YYYY-MM or YYYY-MM-DD'],
@@ -136,6 +139,8 @@ const pairs = {
   fit: ['顯示整個族譜', 'Fit the whole tree'],
   zoomIn: ['放大', 'Zoom in'],
   zoomOut: ['縮小', 'Zoom out'],
+  treeControls: ['樹狀圖控制', 'Tree controls'],
+  treeKeysHint: ['用方向鍵在家人之間移動，按 Enter 選取', 'Arrow keys move between people; Enter selects'],
   change: ['更改', 'Change'],
   appearance: ['外觀', 'Appearance'],
   themeAuto: ['跟隨系統', 'Auto'],
