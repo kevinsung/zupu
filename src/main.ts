@@ -9,7 +9,7 @@ import { renderPerson } from './person'
 import { openHistory } from './history'
 import { openSearch, rememberRecent, searchBox } from './search'
 import { avatar, personSubtitle } from './cards'
-import { menuList, openDialog, openMenu, personForm, segmented } from './dialog'
+import { focusPersonHeading, menuList, mountToast, openDialog, openMenu, personForm, segmented } from './dialog'
 import { displayName, seniorAncestor } from './model'
 import { getTheme, setTheme, type Theme } from './theme'
 import { type IconName, icon } from './icons'
@@ -17,9 +17,10 @@ import { type IconName, icon } from './icons'
 const EDITOR_KEY = 'ft-editor'
 const root = document.getElementById('app')!
 
+/** The app name in the top bar. Not a heading: each person's name is the page's h1. */
 function brand() {
   const [zh, en] = t.title.split(' / ')
-  return h('h1', { class: 'brand' }, h('span', {}, zh), en ? h('small', { lang: 'en' }, en) : null)
+  return h('div', { class: 'brand' }, h('span', {}, zh), en ? h('small', { lang: 'en' }, en) : null)
 }
 
 function showLogin(authApi: AuthApi) {
@@ -62,6 +63,8 @@ function startApp(backend: Backend, authApi: AuthApi): () => void {
   const chartEl = h('div', { id: 'chart', class: 'f3' })
   const personEl = h('div', { id: 'person' })
   const status = h('div', { class: 'status', role: 'status' }, t.loading)
+  // Names the person each time the selection changes, for screen readers on any layout.
+  const announcer = h('div', { class: 'sr-only', 'aria-live': 'polite' })
   const emptyEl = h('div', { class: 'empty', hidden: true },
     h('button', { type: 'button', class: 'primary', onclick: () => addFirst() }, icon('plus'), h('span', {}, L('addFirst'))))
 
@@ -123,7 +126,7 @@ function startApp(backend: Backend, authApi: AuthApi): () => void {
       tool(t.fit, 'fit', () => chart.fit())),
     peek)
   const personPane = h('section', { class: 'pane person-pane' }, personEl)
-  const main = h('main', {}, treePane, personPane, emptyEl, status)
+  const main = h('main', {}, treePane, personPane, emptyEl, status, announcer)
 
   const tab = (v: View | 'search' | 'menu', name: IconName, label: Key, onclick: (e: Event) => void) =>
     h('button', { type: 'button', class: 'tab', 'data-tab': v, onclick }, icon(name, 'tab-icon'), h('span', { class: 'tab-label' }, L(label)))
@@ -194,6 +197,7 @@ function startApp(backend: Backend, authApi: AuthApi): () => void {
 
   function render(recenter: boolean) {
     const people = store.people
+    const prev = selected
     emptyEl.hidden = people.size > 0
     if (people.size === 0) {
       personEl.replaceChildren()
@@ -212,8 +216,14 @@ function startApp(backend: Backend, authApi: AuthApi): () => void {
     peekAvatar.replaceChildren(avatar(p))
     peekName.textContent = displayName(p)
     peekSub.textContent = personSubtitle(p)
+    // Re-rendering the page destroys whatever had focus in it (a relative's card, Edit). Put focus
+    // on the new name instead of letting it fall to <body>. The tree moves focus to its own cards.
+    const active = document.activeElement
+    const lostFocus = !!active && personEl.contains(active)
     renderPersonPane()
     document.title = `${displayName(p)} — ${t.title}`
+    if (prev && prev !== selected) announcer.textContent = displayName(p)
+    if (lostFocus || (prev && prev !== selected && active === document.body)) focusPersonHeading()
   }
 
   function addFirst() {
@@ -243,6 +253,7 @@ function startApp(backend: Backend, authApi: AuthApi): () => void {
     main,
     tabbar,
   )
+  mountToast()
   setView(view)
 
   const onHash = () => {

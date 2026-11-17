@@ -63,7 +63,17 @@ export function openDialog(title: string | Node, body: Node, actions: DialogActi
     h('div', { class: 'dlg-body' }, error, body),
   )
   if (opts.head && typeof title === 'string') dlg.setAttribute('aria-label', title)
-  const close = () => { dlg.close(); dlg.remove() }
+  // Return focus to what opened the dialog. Saving often re-renders the page, which replaces that
+  // button, so then fall back to the dialog underneath or the person's name.
+  const opener = document.activeElement as HTMLElement | null
+  const close = () => {
+    dlg.close()
+    dlg.remove()
+    if (opener && opener !== document.body && opener.isConnected && !opener.matches(':disabled')) { opener.focus({ preventScroll: true }); return }
+    const under = [...document.querySelectorAll<HTMLElement>('dialog[open]')].at(-1)
+    if (under) under.querySelector<HTMLElement>('.dlg-body :is(input, select, textarea), button')?.focus({ preventScroll: true })
+    else focusPersonHeading()
+  }
   dlg.addEventListener('cancel', e => { e.preventDefault(); dismiss() })
   // Tapping the backdrop (outside the dialog box) dismisses it.
   dlg.addEventListener('click', e => { if (e.target === dlg) dismiss() })
@@ -100,7 +110,11 @@ export function openMenu(title: string, body: HTMLElement, anchor?: HTMLElement)
 
   const el = h('div', { class: 'popover', role: 'dialog', 'aria-label': title }, body)
   const close = () => {
+    // If focus was in the menu (an item was chosen), hand it back to the button so that a dialog
+    // the item opens can return there too.
+    const hadFocus = el.contains(document.activeElement)
     el.remove()
+    if (hadFocus) anchor.focus({ preventScroll: true })
     anchor.setAttribute('aria-expanded', 'false')
     document.removeEventListener('pointerdown', onDown, true)
     document.removeEventListener('keydown', onKey, true)
@@ -181,14 +195,28 @@ export function segmented<V extends string>(label: string, options: [V, string |
   return group
 }
 
-let toastTimer: ReturnType<typeof setTimeout> | undefined
-/** Brief message at the bottom of the screen. */
-export function toast(message: string) {
+/** Moves focus to the current person's name (the page's h1), e.g. after the control that had it was re-rendered. */
+export function focusPersonHeading() {
+  document.querySelector<HTMLElement>('#person h1')?.focus({ preventScroll: true })
+}
+
+/**
+ * Adds the toast's live region to the page. Called at startup: screen readers may skip a message
+ * put into a live region that was created at the same moment.
+ */
+export function mountToast(): HTMLElement {
   let el = document.querySelector<HTMLElement>('.toast')
   if (!el) {
     el = h('div', { class: 'toast', role: 'status' })
     document.body.append(el)
   }
+  return el
+}
+
+let toastTimer: ReturnType<typeof setTimeout> | undefined
+/** Brief message at the bottom of the screen. */
+export function toast(message: string) {
+  const el = mountToast()
   el.textContent = message
   el.classList.add('show')
   clearTimeout(toastTimer)
@@ -353,5 +381,5 @@ export function personPicker(
 
 /** A small header label for a section, with an optional compact action button on the right. */
 export function sectionHead(title: Node, action?: HTMLElement): HTMLElement {
-  return h('div', { class: 'section-head' }, h('h3', { class: 'section-title' }, title), action ?? null)
+  return h('div', { class: 'section-head' }, h('h2', { class: 'section-title' }, title), action ?? null)
 }

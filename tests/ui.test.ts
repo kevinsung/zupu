@@ -64,7 +64,7 @@ describe('app', () => {
   })
 
   it('starts at a root ancestor and renders cards', async () => {
-    expect($('#person h2').textContent).toBe('祖父')
+    expect($('#person h1').textContent).toBe('祖父')
     expect(location.hash).toMatch(/^#\/p\//)
     expect(document.querySelectorAll('.ft-card').length).toBeGreaterThanOrEqual(4)
   })
@@ -81,7 +81,7 @@ describe('app', () => {
     buttonWith('甲', pop).click()
     await tick(100)
     expect(pop.hidden).toBe(true)
-    expect($('#person h2').textContent).toBe('甲')
+    expect($('#person h1').textContent).toBe('甲')
     expect($('#person .pv-parents').textContent).toContain('祖父')
     // This person appears among their siblings, in birth order, and isn't a link.
     expect($('#person .pv-siblings').textContent).toContain('乙')
@@ -117,7 +117,9 @@ describe('app', () => {
   })
 
   it('rejects bad dates in the edit form', async () => {
-    buttonWith('編輯', $('#person')).click()
+    const edit = buttonWith('編輯', $('#person'))
+    edit.focus()
+    edit.click()
     const dlg = $('dialog[open]')
     expect(dlg.querySelector('.dlg-sub')!.textContent).toBe('甲')
     dlg.querySelector<HTMLInputElement>('input[name=birthDate]')!.value = '60'
@@ -128,6 +130,9 @@ describe('app', () => {
     buttonWith('儲存', dlg).click()
     await closed(dlg)
     expect($('#person .pv-dates').textContent).toContain('1960-03')
+    // Saving re-rendered the page and its Edit button, so focus goes to the person's name.
+    expect(edit.isConnected).toBe(false)
+    expect(document.activeElement).toBe($('#person h1'))
   })
 
   it('logs changes in history and can revert', async () => {
@@ -246,9 +251,12 @@ describe('app', () => {
     await closed(dlg)
     expect($('#person .pv-siblings').textContent).not.toContain('丁')
     const card = [...document.querySelectorAll('#person .pv-half-paternal .pcard')].find(c => c.textContent!.includes('丁'))!
-    ;(card.querySelector('.pcard-main') as HTMLElement).click()
+    const main = card.querySelector<HTMLElement>('.pcard-main')!
+    main.focus()
+    main.click()
     await tick(100)
-    expect($('#person h2').textContent).toBe('丁')
+    expect($('#person h1').textContent).toBe('丁')
+    expect(document.activeElement).toBe($('#person h1'))
     expect($('#person .pv-parents').textContent).toContain('祖父')
     expect($('#person .pv-parents').textContent).not.toContain('祖母')
   })

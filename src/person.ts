@@ -67,7 +67,7 @@ export function renderPerson(cont: HTMLElement, ctx: AppCtx, id: string, opts: P
   }
   const hero = h('section', { class: `pv-hero g-${p.gender || 'U'}` },
     avatar(p, 'avatar-lg'),
-    h('h2', {}, name),
+    h('h1', { tabindex: '-1' }, name),
     otherNames ? h('p', { class: 'pv-names' }, otherNames) : null,
     dates ? h('p', { class: 'pv-dates' }, dates) : null,
     h('div', { class: 'pv-actions' },
