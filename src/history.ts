@@ -1,5 +1,5 @@
 import { h } from './dom'
-import { t } from './i18n'
+import { L, locale, t } from './i18n'
 import { confirmDialog, openDialog, toast } from './dialog'
 import { marriageText } from './cards'
 import { FIELD_KEYS, type Person, displayName, formatPhone } from './model'
@@ -35,12 +35,24 @@ function diffLines(ctx: AppCtx, d: PersonDiff): Node[] {
   return lines
 }
 
-/** Change log dialog; stays live while open. */
-export function openHistory(ctx: AppCtx, backend: Backend) {
-  const list = h('ol', { class: 'history' }, h('li', { class: 'muted' }, t.loading))
-  const render = (items: ChangeRecord[]) => {
-    list.replaceChildren(...(items.length ? [] : [h('li', { class: 'muted' }, t.historyEmpty)]))
+/** Change log dialog, grouped by day; stays live while open. With `personId`, only changes that touched that person. */
+export function openHistory(ctx: AppCtx, backend: Backend, personId?: string) {
+  const list = h('div', { class: 'history' }, h('p', { class: 'muted' }, t.loading))
+  const dayFmt = new Intl.DateTimeFormat(locale, { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })
+  const timeFmt = new Intl.DateTimeFormat(locale, { hour: 'numeric', minute: '2-digit' })
+  const render = (all: ChangeRecord[]) => {
+    const items = personId ? all.filter(c => c.diffs.some(d => d.id === personId)) : all
+    list.replaceChildren(...(items.length ? [] : [h('p', { class: 'muted' }, t.historyEmpty)]))
+    let day = ''
+    let ol: HTMLElement | null = null
     for (const c of items) {
+      const date = new Date(c.at)
+      const label = dayFmt.format(date)
+      if (label !== day || !ol) {
+        day = label
+        ol = h('ol', {})
+        list.append(h('section', { class: 'history-day' }, h('h3', {}, label), ol))
+      }
       const people = c.diffs.map(d => {
         const who = d.after ?? d.before
         return h('div', { class: 'diff' },
@@ -48,13 +60,13 @@ export function openHistory(ctx: AppCtx, backend: Backend) {
             displayName(who ?? undefined)),
           h('ul', {}, ...diffLines(ctx, d)))
       })
-      list.append(h('li', {},
+      ol.append(h('li', { class: 'history-item' },
         h('div', { class: 'history-head' },
-          h('time', {}, new Date(c.at).toLocaleString()),
           h('strong', {}, c.editor),
+          h('time', { datetime: date.toISOString() }, timeFmt.format(date)),
         ),
-        h('div', {}, c.summary),
-        h('details', {}, h('summary', {}, t.historyDetails), ...people,
+        h('div', { class: 'history-summary' }, c.summary),
+        h('details', {}, h('summary', {}, L('historyDetails')), ...people,
           h('button', {
             type: 'button', class: 'danger small', onclick: async () => {
               if (!(await confirmDialog(t.confirmRevert, t.revert, true))) return
@@ -62,12 +74,14 @@ export function openHistory(ctx: AppCtx, backend: Backend) {
               if (!editor) return
               await ctx.store.revert(editor, c).catch(e => toast(`${t.saveFailed}: ${e.message}`))
             },
-          }, t.revert)),
+          }, L('revert'))),
       ))
     }
   }
   const unsubscribe = backend.subscribeChanges(render, e => {
-    list.replaceChildren(h('li', { class: 'dlg-error' }, `${t.loadFailed}: ${e.message}`))
+    list.replaceChildren(h('p', { class: 'dlg-error' }, `${t.loadFailed}: ${e.message}`))
   })
-  openDialog(t.history, list, [], unsubscribe, 'tall')
+  const who = personId ? ctx.store.people.get(personId) : undefined
+  openDialog(L(personId ? 'personHistory' : 'history'), list, [],
+    { onDismiss: unsubscribe, cls: 'tall history-dlg', subtitle: who ? displayName(who) : undefined })
 }

@@ -17,3 +17,11 @@ export function h<K extends keyof HTMLElementTagNameMap>(tag: K, attrs: Attrs = 
 export function escapeHtml(s: string): string {
   return s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!)
 }
+
+type Query = Pick<MediaQueryList, 'matches' | 'addEventListener' | 'removeEventListener'>
+const query = (q: string, fallback: boolean): Query =>
+  window.matchMedia?.(q) ?? { matches: fallback, addEventListener() {}, removeEventListener() {} }
+
+/** Tablets and computers show the tree and the person side by side; phones show one at a time. */
+export const wide = query('(min-width: 700px)', true)
+export const reducedMotion = query('(prefers-reduced-motion: reduce)', false)

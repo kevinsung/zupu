@@ -2,7 +2,7 @@ import * as f3 from 'family-chart'
 import 'family-chart/styles/family-chart.css'
 import * as d3 from 'd3'
 import { type People, allNames, displayName, lifespan } from './model'
-import { escapeHtml } from './dom'
+import { escapeHtml, reducedMotion } from './dom'
 
 /** Wraps family-chart so the rest of the app only deals in People and ids. */
 export class TreeChart {
@@ -11,6 +11,22 @@ export class TreeChart {
   /** `compact` uses smaller cards and spacing so more of the tree fits on a phone. */
   constructor(private cont: HTMLElement, private onSelect: (id: string) => void, private compact = false) {
     cont.classList.toggle('compact', compact)
+    // Cards are focusable buttons: Enter or Space selects, like a click.
+    cont.addEventListener('keydown', e => {
+      if (e.key !== 'Enter' && e.key !== ' ') return
+      const id = (e.target as Element).closest<HTMLElement>('.ft-card[data-id]')?.dataset.id
+      if (!id) return
+      e.preventDefault()
+      this.refocus = true
+      this.onSelect(id)
+    })
+  }
+
+  /** Set when a card was chosen from the keyboard, so focus follows it into the redrawn tree. */
+  private refocus = false
+
+  private get transition() {
+    return reducedMotion.matches ? 0 : 600
   }
 
   private toData(people: People): f3.Data {
@@ -41,7 +57,7 @@ export class TreeChart {
     if (data.length === 0) return
     if (!this.chart) {
       this.chart = f3.createChart(this.cont, data)
-        .setTransitionTime(600)
+        .setTransitionTime(this.transition)
         // Generations run left to right, so siblings and cousins stack in a column rather than
         // spreading sideways off a narrow screen. Spacings keep their screen axes.
         .setOrientationHorizontal()
@@ -59,7 +75,7 @@ export class TreeChart {
           const p = d.data.data.person
           const name = displayName(p)
           const sub = allNames(p).filter(n => n !== name).join(' · ')
-          return `<div class="ft-card ft-${p.gender || 'U'}">
+          return `<div class="ft-card ft-${p.gender || 'U'}" data-id="${escapeHtml(p.id)}" tabindex="0" role="button" aria-label="${escapeHtml([name, sub, lifespan(p)].filter(Boolean).join(', '))}">
             <div class="ft-name">${escapeHtml(name)}</div>
             ${sub ? `<div class="ft-sub">${escapeHtml(sub)}</div>` : ''}
             ${lifespan(p) ? `<div class="ft-years">${escapeHtml(lifespan(p))}</div>` : ''}
@@ -80,8 +96,18 @@ export class TreeChart {
     }
     this.chart.updateData(data)
     this.chart.updateMainId(mainId)
-    this.chart.updateTree({ tree_position: 'inherit' })
+    this.chart.updateTree({ tree_position: 'inherit', transition_time: this.transition })
     if (recenter) this.center()
+    if (this.refocus) {
+      this.refocus = false
+      requestAnimationFrame(() => [...this.cont.querySelectorAll<HTMLElement>('.ft-card[data-id]')]
+        .find(el => el.dataset.id === mainId)?.focus({ preventScroll: true }))
+    }
+  }
+
+  /** Zoom out (or in) so the whole tree fits the pane. */
+  fit() {
+    this.chart?.updateTree({ tree_position: 'fit', transition_time: this.transition })
   }
 
   /** The element d3-zoom is attached to, if the chart exists. */
@@ -92,7 +118,7 @@ export class TreeChart {
   }
 
   /** Pan so the selected person is in the middle, keeping the current zoom level. */
-  center(transition = 600) {
+  center(transition = this.transition) {
     const el = this.zoomTarget()
     const main = this.chart?.store.getTree() && this.chart.store.getTreeMainDatum()
     if (!el?.__zoomObj || !main) return
@@ -104,6 +130,6 @@ export class TreeChart {
 
   zoom(factor: number) {
     const el = this.zoomTarget()
-    if (el?.__zoomObj) d3.select(el).transition().duration(250).call(el.__zoomObj.scaleBy, factor)
+    if (el?.__zoomObj) d3.select(el).transition().duration(reducedMotion.matches ? 0 : 250).call(el.__zoomObj.scaleBy, factor)
   }
 }

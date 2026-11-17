@@ -22,6 +22,8 @@ afterAll(() => w?.dispose())
 const tick = (ms = 50) => new Promise(r => setTimeout(r, ms))
 const $ = <T extends Element = HTMLElement>(sel: string) => document.querySelector<T>(sel)!
 const topDialog = () => [...document.querySelectorAll<HTMLElement>('dialog[open]')].at(-1)!
+/** Menus open next to their button on wide screens (jsdom counts as wide). */
+const popover = () => $('.popover')
 const buttonWith = (text: string, root: ParentNode = document) =>
   [...root.querySelectorAll('button')].find(b => b.textContent!.includes(text))!
 
@@ -61,22 +63,27 @@ describe('app', () => {
   })
 
   it('navigates via search, which lists family lines and recent people', async () => {
-    $('.search-trigger').click()
-    const dlg = $('dialog[open]')
-    expect([...dlg.querySelectorAll('.pcard-name')].map(e => e.textContent)).toContain('祖父 & 祖母')
-    const input = dlg.querySelector<HTMLInputElement>('input[type=search]')!
+    const input = $<HTMLInputElement>('.search-trigger')
+    const pop = $('.search-pop')
+    expect(pop.hidden).toBe(true)
+    document.body.dispatchEvent(new KeyboardEvent('keydown', { key: '/', bubbles: true }))
+    expect(pop.hidden).toBe(false)
+    expect([...pop.querySelectorAll('.pcard-name')].map(e => e.textContent)).toContain('祖父 & 祖母')
     input.value = 'alice'
     input.dispatchEvent(new Event('input'))
-    buttonWith('甲', dlg).click()
+    buttonWith('甲', pop).click()
     await tick(100)
-    expect(dlg.isConnected).toBe(false)
+    expect(pop.hidden).toBe(true)
     expect($('#person h2').textContent).toBe('甲')
     expect($('#person .pv-parents').textContent).toContain('祖父')
+    // This person appears among their siblings, in birth order, and isn't a link.
     expect($('#person .pv-siblings').textContent).toContain('乙')
-    $('.search-trigger').click()
-    const again = $('dialog[open]')
-    expect(again.textContent).toContain('祖父')
-    again.querySelector<HTMLButtonElement>('.dlg-x')!.click()
+    expect($('#person .pv-siblings .pcard.self').textContent).toContain('甲')
+    input.click()
+    expect(pop.hidden).toBe(false)
+    expect(pop.textContent).toContain('祖父')
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    expect(pop.hidden).toBe(true)
   })
 
   it('adds a spouse, asking for the editor name first', async () => {
@@ -96,8 +103,9 @@ describe('app', () => {
   })
 
   it('rejects bad dates in the edit form', async () => {
-    buttonWith('編輯 / Edit', $('#person')).click()
+    buttonWith('編輯', $('#person')).click()
     const dlg = $('dialog[open]')
+    expect(dlg.querySelector('.dlg-sub')!.textContent).toBe('甲')
     dlg.querySelector<HTMLInputElement>('input[name=birthDate]')!.value = '60'
     buttonWith('儲存', dlg).click()
     await tick()
@@ -105,14 +113,14 @@ describe('app', () => {
     dlg.querySelector<HTMLInputElement>('input[name=birthDate]')!.value = '1960-03'
     buttonWith('儲存', dlg).click()
     await tick(300)
-    expect($('#person .facts').textContent).toContain('1960-03')
+    expect($('#person .pv-dates').textContent).toContain('1960-03')
   })
 
   it('logs changes in history and can revert', async () => {
     buttonWith('修改紀錄').click()
     await tick(300)
     const dlg = $('dialog[open]')
-    const items = dlg.querySelectorAll('.history > li')
+    const items = dlg.querySelectorAll('.history-item')
     expect(items.length).toBe(3) // seed + spouse + edit
     expect(items[0].textContent).toContain('Tester')
     expect(items[0].textContent).toContain('1960 → 1960-03')
@@ -120,12 +128,25 @@ describe('app', () => {
     await tick()
     buttonWith('還原', [...document.querySelectorAll('dialog[open]')].at(-1)!).click()
     await tick(300)
-    expect($('#person .facts').textContent).not.toContain('1960-03')
+    expect($('#person .pv-dates').textContent).not.toContain('1960-03')
+  })
+
+  it("shows one person's history from the more menu", async () => {
+    $<HTMLButtonElement>('#person .pv-actions .more').click()
+    buttonWith('此人的修改紀錄', popover()).click()
+    await tick(300)
+    const dlg = topDialog()
+    expect(dlg.querySelector('.dlg-sub')!.textContent).toBe('甲')
+    const items = [...dlg.querySelectorAll('.history-item')].map(li => li.textContent)
+    expect(items.length).toBeGreaterThan(0)
+    expect(items.every(text => !text!.includes('祖父 → '))).toBe(true)
+    dlg.querySelector<HTMLButtonElement>('.dlg-x')!.click()
   })
 
   it('removes a relationship from the more menu', async () => {
     $<HTMLButtonElement>('#person .pv-actions .more').click()
-    buttonWith('移除關係', topDialog()).click()
+    buttonWith('移除關係', popover()).click()
+    expect(document.querySelector('.popover')).toBeNull()
     const dlg = topDialog()
     expect(dlg.textContent).toContain('丈夫')
     const row = [...dlg.querySelectorAll('.pcard')].find(c => c.textContent!.includes('丈夫'))!
@@ -139,7 +160,7 @@ describe('app', () => {
 
   it('links an existing person only after Save', async () => {
     $<HTMLButtonElement>('#person .pv-actions .more').click()
-    buttonWith('連結現有的人', topDialog()).click()
+    buttonWith('連結現有的人', popover()).click()
     const dlg = topDialog()
     buttonWith('儲存', dlg).click()
     await tick()
@@ -173,12 +194,12 @@ describe('app', () => {
     expect(families().querySelector('.marriage')!.textContent).toContain('結婚 / Married 1985-10')
     buttonWith('修改紀錄').click()
     await tick(300)
-    expect(topDialog().querySelector('.history > li')!.textContent).toContain('婚姻 / Marriage (丈夫): —')
+    expect(topDialog().querySelector('.history-item')!.textContent).toContain('婚姻 / Marriage (丈夫): —')
     topDialog().querySelector<HTMLButtonElement>('.dlg-x')!.click()
   })
 
   it('edits contact info and shows email and phone as links', async () => {
-    buttonWith('編輯 / Edit', $('#person')).click()
+    buttonWith('編輯', $('#person')).click()
     const dlg = [...document.querySelectorAll<HTMLElement>('dialog[open]')].at(-1)!
     const set = (name: string, value: string) => { dlg.querySelector<HTMLInputElement>(`[name=${name}]`)!.value = value }
     set('email', 'alice@')
@@ -201,19 +222,17 @@ describe('app', () => {
     expect(contact.textContent).toContain('alice_line')
   })
 
-  it('switches the theme from the menu and remembers it', async () => {
-    const pickTheme = (label: string) => {
-      $('[data-tab=menu]').click()
-      buttonWith('外觀', topDialog()).click()
-      buttonWith(label, topDialog()).click()
-    }
-    pickTheme('深色')
+  it('switches the theme from the settings menu and remembers it', async () => {
+    const settings = $<HTMLButtonElement>('.settings-btn')
+    settings.click()
+    buttonWith('深色', popover()).click()
     expect(document.documentElement.dataset.theme).toBe('dark')
     expect(localStorage.getItem('ft-theme')).toBe('dark')
-    $('[data-tab=menu]').click()
-    expect(topDialog().textContent).toContain('Appearance: 深色 / Dark')
-    topDialog().querySelector<HTMLButtonElement>('.dlg-x')!.click()
-    pickTheme('跟隨系統')
+    settings.click() // a second click closes the menu
+    expect(document.querySelector('.popover')).toBeNull()
+    settings.click()
+    expect(buttonWith('深色', popover()).getAttribute('aria-pressed')).toBe('true')
+    buttonWith('跟隨系統', popover()).click()
     expect(document.documentElement.dataset.theme).toBeUndefined()
     expect(localStorage.getItem('ft-theme')).toBeNull()
   })

@@ -136,7 +136,42 @@ export function lifespan(p: Person): string {
   return d ? `${b || '?'}–${d}` : b
 }
 
-function byBirth(a: Person, b: Person): number {
+/** Living people older than this probably died without a recorded date, so no age is shown. */
+const MAX_LIVING_AGE = 105
+
+export interface Age {
+  years: number
+  /** A date lacks the month or day needed to be exact. */
+  approx: boolean
+  /** Age at death rather than today. */
+  atDeath: boolean
+}
+
+/** Age today, or at death if a death date is recorded; null when the birth date is unknown. */
+export function age(p: Person, today = new Date()): Age | null {
+  const parse = (s: string) => {
+    const m = /^(\d{4})(?:-(\d{2})(?:-(\d{2}))?)?$/.exec(s)
+    return m ? { y: Number(m[1]), m: m[2] ? Number(m[2]) : 0, d: m[3] ? Number(m[3]) : 0 } : null
+  }
+  const b = parse(p.birthDate)
+  if (!b) return null
+  const atDeath = !!p.deathDate
+  const e = atDeath ? parse(p.deathDate) : { y: today.getFullYear(), m: today.getMonth() + 1, d: today.getDate() }
+  if (!e) return null
+  let years = e.y - b.y
+  let approx = !b.m || !e.m
+  if (!approx) {
+    if (e.m < b.m) years--
+    else if (e.m === b.m) {
+      if (!b.d || !e.d) approx = true
+      else if (e.d < b.d) years--
+    }
+  }
+  if (years < 0 || (!atDeath && years > MAX_LIVING_AGE)) return null
+  return { years, approx, atDeath }
+}
+
+export function byBirth(a: Person, b: Person): number {
   if (a.birthDate && b.birthDate && a.birthDate !== b.birthDate) return a.birthDate < b.birthDate ? -1 : 1
   return a.order - b.order
 }

@@ -4,6 +4,7 @@ A password-protected family tree that relatives can view and edit. It runs on Cl
 one Worker serves the site and a small API, and the data lives in a D1 (SQLite) database.
 
 - **Built for phones:** each person has a page showing their parents, spouses with the children they had together, and siblings, and you tap anyone to go to their page. A full interactive tree sits beside it on wide screens and in its own tab on phones. Search works on Chinese, English or nicknames, and links to a person (`#/p/<id>`) can be shared.
+- **Bilingual:** labels show 中文 with English beside them; each relative can switch to 中文 or English only under 語言 / Language (in the Menu tab on phones, under Settings on wider screens).
 - **Extend anywhere:** add a parent, spouse, child or sibling to any person, or link two people already in the tree.
 - **Change history:** every edit records who made it (the name they type once) and what changed, and any change can be reverted.
 - **Privacy:** the password is checked by the Worker. Sessions are signed HttpOnly cookies, and failed logins are rate limited per IP. The data is only reachable through the API. `seed/` and `backups/` are gitignored, so no family data is in the repo.

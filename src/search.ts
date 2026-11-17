@@ -1,6 +1,6 @@
 import { h } from './dom'
-import { t } from './i18n'
-import { openDialog, personPicker } from './dialog'
+import { L, t } from './i18n'
+import { closePopover, openDialog, personPicker } from './dialog'
 import { personCard } from './cards'
 import { type People, type Person, coupleLabel, rootAncestors } from './model'
 
@@ -21,21 +21,16 @@ function recentIds(): string[] {
   }
 }
 
-/**
- * Full-screen search on phones, a dialog on wide screens. With an empty query it lists
- * recently viewed people and the top ancestor of each family line.
- */
-export function openSearch(people: () => People, select: (id: string) => void, currentId: string) {
-  let close = () => {}
-  const go = (p: Person) => { close(); select(p.id) }
-  const idle = () => {
+/** With an empty query: recently viewed people and the top ancestor of each family line. */
+function idleLists(people: () => People, currentId: () => string, go: (p: Person) => void) {
+  return () => {
     const all = people()
-    const recent = recentIds().filter(id => id !== currentId).map(id => all.get(id)).filter((p): p is Person => !!p)
+    const recent = recentIds().filter(id => id !== currentId()).map(id => all.get(id)).filter((p): p is Person => !!p)
     const lines = rootAncestors(all)
     return [
-      recent.length ? h('section', {}, h('h3', { class: 'section-title' }, t.recent),
+      recent.length ? h('section', {}, h('h3', { class: 'section-title' }, L('recent')),
         h('div', { class: 'cards' }, ...recent.map(p => personCard(p, () => go(p))))) : null,
-      lines.length ? h('section', {}, h('h3', { class: 'section-title' }, t.familyLines),
+      lines.length ? h('section', {}, h('h3', { class: 'section-title' }, L('familyLines')),
         h('div', { class: 'cards' }, ...lines.map(p => {
           const c = personCard(p, () => go(p))
           c.querySelector('.pcard-name')!.textContent = coupleLabel(all, p)
@@ -43,7 +38,57 @@ export function openSearch(people: () => People, select: (id: string) => void, c
         }))) : null,
     ].filter((x): x is HTMLElement => !!x)
   }
-  const picker = personPicker(people, go, { idle })
-  close = openDialog(t.search, picker.el, [], undefined, 'search tall')
+}
+
+/** Full-screen search for phones: the search box is the header, results fill the screen. */
+export function openSearch(people: () => People, select: (id: string) => void, currentId: string) {
+  let close = () => {}
+  const go = (p: Person) => { close(); select(p.id) }
+  const picker = personPicker(people, go, { idle: idleLists(people, () => currentId, go) })
+  close = openDialog(t.search, picker.el, [], { cls: 'search tall', head: picker.input })
   picker.input.focus()
+}
+
+/**
+ * The top-bar search on wide screens: a box whose results drop down under it. Focus or `/`
+ * opens the list; arrow keys and Enter pick; Esc or a click elsewhere closes it.
+ */
+export function searchBox(people: () => People, select: (id: string) => void, currentId: () => string) {
+  const input = h('input', {
+    type: 'search', class: 'search-trigger', placeholder: t.search, 'aria-label': t.search,
+    autocomplete: 'off', role: 'combobox', 'aria-expanded': 'false', 'aria-controls': 'search-pop',
+  })
+  const pop = h('div', { class: 'search-pop', id: 'search-pop', hidden: true })
+  const wrap = h('div', { class: 'search-box' }, input, h('kbd', { 'aria-hidden': 'true' }, '/'), pop)
+  const go = (p: Person) => { hide(); input.blur(); select(p.id) }
+  const picker = personPicker(people, go, { input, idle: idleLists(people, currentId, go) })
+  pop.append(picker.list)
+
+  const show = () => {
+    if (!pop.hidden) return
+    closePopover()
+    picker.refresh()
+    pop.hidden = false
+    input.setAttribute('aria-expanded', 'true')
+    document.addEventListener('pointerdown', onDown, true)
+  }
+  const hide = () => {
+    pop.hidden = true
+    input.setAttribute('aria-expanded', 'false')
+    document.removeEventListener('pointerdown', onDown, true)
+  }
+  const onDown = (e: Event) => { if (!wrap.contains(e.target as Node)) hide() }
+  input.addEventListener('focus', show)
+  input.addEventListener('click', show)
+  input.addEventListener('input', show)
+  wrap.addEventListener('keydown', e => {
+    if (e.key !== 'Escape') return
+    e.preventDefault()
+    if (input.value) { input.value = ''; picker.refresh(); input.focus() } else { hide(); input.blur() }
+  })
+  wrap.addEventListener('focusout', e => {
+    const next = (e as FocusEvent).relatedTarget as Node | null
+    if (next && !wrap.contains(next)) hide()
+  })
+  return { el: wrap, focus: () => { input.focus(); show() } }
 }

@@ -1,5 +1,5 @@
 import { h } from './dom'
-import { t } from './i18n'
+import { L, t } from './i18n'
 import { confirmDialog, marriageForm, openDialog, personForm, personPicker, toast } from './dialog'
 import { personCard } from './cards'
 import { type Person, type PersonFields, childrenOf, displayName, emptyFields } from './model'
@@ -10,43 +10,41 @@ export interface AppCtx {
   select(id: string): void
   /** Resolves to the editor's name, prompting for it the first time; null if they cancel. */
   editorName(): Promise<string | null>
+  /** Opens the change log, optionally only the changes that touched one person. */
+  showHistory(personId?: string): void
 }
 
 export function editPerson(ctx: AppCtx, p: Person) {
   const form = personForm(p)
-  openDialog(`${t.edit}: ${displayName(p)}`, form.el, [
-    { label: t.cancel },
+  openDialog(L('edit'), form.el, [
     {
-      label: t.save, primary: true, run: async () => {
+      label: L('save'), primary: true, run: async () => {
         const fields = form.read()
         const editor = await ctx.editorName()
         if (!editor) return false
         await ctx.store.updateFields(editor, p.id, fields)
       },
     },
-  ])
+  ], { subtitle: displayName(p) })
   form.focus()
 }
 
 export function editMarriage(ctx: AppCtx, p: Person, spouse: Person) {
   const form = marriageForm(p.marriages[spouse.id] ?? { married: '', divorced: '' })
-  openDialog(`${t.editMarriage}: ${displayName(p)} & ${displayName(spouse)}`, form.el, [
-    { label: t.cancel },
+  openDialog(L('editMarriage'), form.el, [
     {
-      label: t.save, primary: true, run: async () => {
+      label: L('save'), primary: true, run: async () => {
         const marriage = form.read()
         const editor = await ctx.editorName()
         if (!editor) return false
         await ctx.store.setMarriage(editor, p.id, spouse.id, marriage)
       },
     },
-  ])
+  ], { subtitle: `${displayName(p)} & ${displayName(spouse)}` })
   form.focus()
 }
 
-const ADD_TITLES: Record<NewRelative, string> = {
-  parent: t.addParent, spouse: t.addSpouse, child: t.addChild, sibling: t.addSibling,
-}
+const ADD_TITLES = { parent: 'addParent', spouse: 'addSpouse', child: 'addChild', sibling: 'addSibling' } as const satisfies Record<NewRelative, string>
 
 export function addRelative(ctx: AppCtx, p: Person, rel: NewRelative) {
   const people = ctx.store.people
@@ -69,22 +67,21 @@ export function addRelative(ctx: AppCtx, p: Person, rel: NewRelative) {
       ...p.spouses.map(sid => h('option', { value: sid }, displayName(people.get(sid)))),
       h('option', { value: '' }, t.otherParentNone),
     )
-    extra = h('label', { class: 'field' }, h('span', {}, t.otherParent), select)
+    extra = h('label', { class: 'field' }, h('span', { class: 'field-label' }, L('otherParent')), select)
     readOpts = () => ({ coParentId: select.value })
   }
 
   const form = personForm(initial)
-  openDialog(`${ADD_TITLES[rel]} → ${displayName(p)}`, h('div', {}, extra, form.el), [
-    { label: t.cancel },
+  openDialog(L(ADD_TITLES[rel]), h('div', { class: 'form' }, extra, form.el), [
     {
-      label: t.save, primary: true, run: async () => {
+      label: L('save'), primary: true, run: async () => {
         const fields = form.read()
         const editor = await ctx.editorName()
         if (!editor) return false
         await ctx.store.addRelative(editor, rel, p.id, fields, readOpts())
       },
     },
-  ])
+  ], { subtitle: displayName(p) })
   form.focus()
 }
 
@@ -95,12 +92,11 @@ export function linkExisting(ctx: AppCtx, p: Person) {
     h('option', { value: 'child' }, t.asChild),
   )
   const picker = personPicker(() => ctx.store.people, () => {}, { exclude: p.id, selectable: true })
-  openDialog(`${t.linkExisting} → ${displayName(p)}`,
-    h('div', { class: 'form' }, picker.el, h('label', { class: 'field' }, h('span', {}, t.linkAs), rel)),
+  openDialog(L('linkExisting'),
+    h('div', { class: 'form' }, h('label', { class: 'field' }, h('span', { class: 'field-label' }, L('linkAs')), rel), picker.el),
     [
-      { label: t.cancel },
       {
-        label: t.save, primary: true, run: async () => {
+        label: L('save'), primary: true, run: async () => {
           const other = picker.selected()
           if (!other) throw new Error(t.pickPerson)
           const r = rel.value as LinkRelative
@@ -111,7 +107,7 @@ export function linkExisting(ctx: AppCtx, p: Person) {
           await ctx.store.link(editor, r, p.id, other.id)
         },
       },
-    ])
+    ], { subtitle: displayName(p) })
   picker.input.focus()
 }
 
@@ -157,5 +153,5 @@ export function removeRelationship(ctx: AppCtx, p: Person) {
     section(t.children, 'child', childrenOf(people, p.id)),
   ].filter((x): x is HTMLElement => !!x)
   list.append(...(sections.length ? sections : [h('p', { class: 'muted' }, t.noRelationships)]))
-  close = openDialog(`${t.removeRelationship} — ${displayName(p)}`, list, [])
+  close = openDialog(L('removeRelationship'), list, [], { subtitle: displayName(p) })
 }

@@ -1,29 +1,33 @@
 import './styles.css'
-import { h } from './dom'
-import { t, tabs } from './i18n'
+import { h, wide } from './dom'
+import { L, getLang, setLang, t, type Key, type Lang } from './i18n'
 import { authApi, backend, type AuthApi } from './backend'
 import { FamilyStore, type Backend } from './store'
 import { TreeChart } from './chart'
 import type { AppCtx } from './actions'
 import { renderPerson } from './person'
 import { openHistory } from './history'
-import { openSearch, rememberRecent } from './search'
-import { personSubtitle } from './cards'
-import { actionSheet, openDialog, personForm } from './dialog'
+import { openSearch, rememberRecent, searchBox } from './search'
+import { avatar, personSubtitle } from './cards'
+import { menuList, openDialog, openMenu, personForm, segmented } from './dialog'
 import { displayName, seniorAncestor } from './model'
 import { getTheme, setTheme, type Theme } from './theme'
 
 const EDITOR_KEY = 'ft-editor'
-const themeLabels: Record<Theme, string> = { auto: t.themeAuto, light: t.themeLight, dark: t.themeDark }
 const root = document.getElementById('app')!
+
+function brand() {
+  const [zh, en] = t.title.split(' / ')
+  return h('h1', { class: 'brand' }, h('span', {}, zh), en ? h('small', { lang: 'en' }, en) : null)
+}
 
 function showLogin(authApi: AuthApi) {
   const input = h('input', { type: 'password', autocomplete: 'current-password', required: true })
   const error = h('p', { class: 'dlg-error', role: 'alert' })
-  const button = h('button', { type: 'submit', class: 'primary' }, t.signIn)
+  const button = h('button', { type: 'submit', class: 'primary' }, L('signIn'))
   const form = h('form', { class: 'login' },
-    h('h1', { class: 'brand' }, h('span', {}, '族譜'), h('small', {}, 'Family Tree')),
-    h('label', { class: 'field' }, h('span', {}, t.password), input),
+    h('h1', { class: 'brand' }, h('span', {}, '族譜'), h('small', { lang: 'en' }, 'Family Tree')),
+    h('label', { class: 'field' }, h('span', { class: 'field-label' }, L('password')), input),
     button, error)
   form.addEventListener('submit', async e => {
     e.preventDefault()
@@ -50,38 +54,40 @@ type View = 'person' | 'tree'
 function startApp(backend: Backend, authApi: AuthApi): () => void {
   const store = new FamilyStore(backend)
   let selected = ''
-  // Phones show one pane at a time; wide screens show the tree and the person side by side.
-  const wide = window.matchMedia?.('(min-width: 900px)') ?? { matches: true, addEventListener() {}, removeEventListener() {} }
   // Phones open on the tree; tapping the selected person (or the bar under the tree) opens their page.
   let view: View = 'tree'
   let chartStale = true
 
   const chartEl = h('div', { id: 'chart', class: 'f3' })
   const personEl = h('div', { id: 'person' })
-  const editorBtn = h('button', { type: 'button', class: 'ghost' })
   const status = h('div', { class: 'status', role: 'status' }, t.loading)
   const emptyEl = h('div', { class: 'empty', hidden: true },
-    h('button', { type: 'button', class: 'primary', onclick: () => addFirst() }, `＋ ${t.addFirst}`))
+    h('button', { type: 'button', class: 'primary', onclick: () => addFirst() }, '＋ ', L('addFirst')))
 
   const editorName = () => localStorage.getItem(EDITOR_KEY) ?? ''
-  const refreshEditor = () => { editorBtn.textContent = `${t.editorLabel}: ${editorName() || '—'}` }
+  const settingsLabel = h('span', { class: 'settings-name' })
+  const settingsBtn = h('button', { type: 'button', class: 'ghost settings-btn', 'aria-haspopup': 'dialog', title: t.settings },
+    h('span', { class: 'avatar-sm', 'aria-hidden': 'true' }, '✎'), settingsLabel, h('span', { class: 'caret', 'aria-hidden': 'true' }, '▾'))
+  const refreshEditor = () => {
+    settingsLabel.textContent = editorName() || t.settings
+    settingsBtn.setAttribute('aria-label', `${t.settings}: ${t.editorLabel} ${editorName() || '—'}`)
+  }
   refreshEditor()
 
   function askEditor(): Promise<string | null> {
     return new Promise(resolve => {
-      const input = h('input', { type: 'text', value: editorName(), autocomplete: 'off', enterkeyhint: 'done' })
-      openDialog(t.editorPrompt, h('div', { class: 'form' }, input), [
-        { label: t.cancel, run: () => resolve(null) },
-        {
-          label: t.save, primary: true, run: () => {
-            const name = input.value.trim()
-            if (!name) return false
-            localStorage.setItem(EDITOR_KEY, name)
-            refreshEditor()
-            resolve(name)
-          },
-        },
-      ], () => resolve(null))
+      const input = h('input', { type: 'text', value: editorName(), autocomplete: 'off', enterkeyhint: 'done', 'aria-label': t.editorLabel })
+      const save = () => {
+        const name = input.value.trim()
+        if (!name) return false
+        localStorage.setItem(EDITOR_KEY, name)
+        refreshEditor()
+        resolve(name)
+      }
+      const close = openDialog(L('editorLabel'), h('div', { class: 'form' }, input), [
+        { label: L('save'), primary: true, run: save },
+      ], { onDismiss: () => resolve(null), subtitle: t.editorPrompt })
+      input.addEventListener('keydown', e => { if (e.key === 'Enter' && save() !== false) close() })
       input.focus()
     })
   }
@@ -90,6 +96,7 @@ function startApp(backend: Backend, authApi: AuthApi): () => void {
     store,
     select: id => { location.hash = `#/p/${id}` },
     editorName: async () => editorName() || askEditor(),
+    showHistory: personId => openHistory(ctx, backend, personId),
   }
 
   const chart = new TreeChart(chartEl, id => {
@@ -98,38 +105,43 @@ function startApp(backend: Backend, authApi: AuthApi): () => void {
   }, !wide.matches)
 
   // Phone-only bar under the tree that names the selected person and opens their page.
+  const peekAvatar = h('span', { class: 'peek-avatar' })
   const peekName = h('strong', {})
   const peekSub = h('span', { class: 'muted' })
   const peek = h('button', { type: 'button', class: 'peek', onclick: () => setView('person') },
-    h('span', { class: 'peek-text' }, peekName, peekSub), h('span', { class: 'peek-go' }, `${t.viewPerson} ›`))
+    peekAvatar, h('span', { class: 'peek-text' }, peekName, peekSub), h('span', { class: 'peek-go' }, L('viewPerson'), ' ›'))
 
+  const tool = (label: string, text: string, onclick: () => void) =>
+    h('button', { type: 'button', title: label, 'aria-label': label, onclick }, text)
   const treePane = h('section', { class: 'pane tree-pane', 'aria-label': t.title },
     chartEl,
-    h('div', { class: 'chart-tools' },
-      h('button', { type: 'button', class: 'icon', title: t.zoomIn, 'aria-label': t.zoomIn, onclick: () => chart.zoom(1.3) }, '+'),
-      h('button', { type: 'button', class: 'icon', title: t.zoomOut, 'aria-label': t.zoomOut, onclick: () => chart.zoom(1 / 1.3) }, '−'),
-      h('button', { type: 'button', class: 'icon', title: t.center, 'aria-label': t.center, onclick: () => chart.center() }, '◎')),
+    h('div', { class: 'chart-tools', role: 'toolbar', 'aria-label': t.title },
+      tool(t.zoomIn, '+', () => chart.zoom(1.3)),
+      tool(t.zoomOut, '−', () => chart.zoom(1 / 1.3)),
+      tool(t.center, '◎', () => chart.center()),
+      tool(t.fit, '⤢', () => chart.fit())),
     peek)
   const personPane = h('section', { class: 'pane person-pane' }, personEl)
   const main = h('main', {}, treePane, personPane, emptyEl, status)
 
-  const tab = (v: View | 'search' | 'menu', icon: string, onclick: () => void) => {
-    const [zh, en] = tabs[v]
-    return h('button', { type: 'button', class: 'tab', 'data-tab': v, onclick },
-      h('span', { class: 'tab-icon', 'aria-hidden': 'true' }, icon), h('span', { class: 'tab-zh' }, zh), h('span', { class: 'tab-en' }, en))
-  }
+  const tab = (v: View | 'search' | 'menu', icon: string, label: Key, onclick: (e: Event) => void) =>
+    h('button', { type: 'button', class: 'tab', 'data-tab': v, onclick },
+      h('span', { class: 'tab-icon', 'aria-hidden': 'true' }, icon), h('span', { class: 'tab-label' }, L(label)))
   const tabbar = h('nav', { class: 'tabbar' },
-    tab('tree', '🌳', () => setView('tree')),
-    tab('person', '👤', () => setView('person')),
-    tab('search', '🔍', () => search()),
-    tab('menu', '☰', () => openMenu()))
+    tab('tree', '🌳', 'tabTree', () => setView('tree')),
+    tab('person', '👤', 'tabPerson', () => setView('person')),
+    tab('search', '🔍', 'tabSearch', () => search()),
+    tab('menu', '☰', 'tabMenu', () => openSettings()))
 
   const treeVisible = () => wide.matches || view === 'tree'
 
   function setView(v: View) {
     view = v
     main.dataset.view = v
-    tabbar.querySelectorAll<HTMLElement>('.tab').forEach(b => b.classList.toggle('active', b.dataset.tab === v))
+    tabbar.querySelectorAll<HTMLElement>('.tab').forEach(b => {
+      if (b.dataset.tab === v) b.setAttribute('aria-current', 'page')
+      else b.removeAttribute('aria-current')
+    })
     if (v === 'person') personPane.scrollTop = 0
     if (treeVisible() && chartStale) renderChart(true)
     else if (v === 'tree') chart.center(0)
@@ -142,32 +154,42 @@ function startApp(backend: Backend, authApi: AuthApi): () => void {
     chart.render(store.people, selected, recenter)
   }
 
+  const box = searchBox(() => store.people, id => ctx.select(id), () => selected)
+
   function search() {
-    openSearch(() => store.people, ctx.select, selected)
+    if (wide.matches) box.focus()
+    else openSearch(() => store.people, ctx.select, selected)
   }
 
   function signOut() {
     authApi.signOut().then(() => location.reload())
   }
 
-  function openMenu() {
-    actionSheet(t.menu, [
-      { icon: '🕘', label: t.history, run: () => openHistory(ctx, backend) },
-      { icon: '✎', label: `${t.editorLabel}: ${editorName() || '—'}`, run: () => askEditor() },
-      { icon: '◐', label: `${t.appearance}: ${themeLabels[getTheme()]}`, run: openTheme },
-      { icon: '⎋', label: t.signOut, run: signOut },
-    ])
+  /** Editor name, appearance, language and sign-out: a menu under the top-bar button, or a sheet from the phone's Menu tab. */
+  function openSettings(anchor?: HTMLElement) {
+    let close = () => {}
+    const row = (label: Key, control: Node) =>
+      h('div', { class: 'setting' }, h('span', { class: 'setting-label' }, L(label)), control)
+    const body = h('div', { class: 'settings' },
+      anchor ? null : menuList([{ icon: '🕘', label: L('history'), run: () => openHistory(ctx, backend) }], () => close()),
+      row('editorLabel', h('button', { type: 'button', class: 'setting-value', onclick: () => { close(); askEditor() } },
+        h('span', {}, editorName() || '—'), h('span', { class: 'chip' }, L('change')))),
+      row('appearance', segmented<Theme>(t.appearance,
+        [['auto', L('themeAuto')], ['light', L('themeLight')], ['dark', L('themeDark')]], getTheme(), setTheme)),
+      row('language', segmented<Lang>(t.language,
+        [['both', '中英'], ['zh', '中文'], ['en', 'English']], getLang(), lang => { setLang(lang); location.reload() })),
+      menuList([{ icon: '⎋', label: L('signOut'), run: signOut }], () => close()))
+    close = openMenu(anchor ? t.settings : t.menu, body, anchor)
   }
-
-  function openTheme() {
-    const current = getTheme()
-    actionSheet(t.appearance, (['auto', 'light', 'dark'] as const).map(theme => ({
-      icon: theme === current ? '✓' : '', label: themeLabels[theme], run: () => setTheme(theme),
-    })))
-  }
+  settingsBtn.addEventListener('click', () => openSettings(settingsBtn))
 
   function idFromHash() {
     return /^#\/p\/(.+)$/.exec(location.hash)?.[1] ?? ''
+  }
+
+  function renderPersonPane() {
+    // On wide screens the tree is always in view, so the person menu doesn't offer to show it.
+    renderPerson(personEl, ctx, selected, { showInTree: wide.matches ? undefined : () => setView('tree') })
   }
 
   function render(recenter: boolean) {
@@ -187,18 +209,18 @@ function startApp(backend: Backend, authApi: AuthApi): () => void {
     if (idFromHash() !== selected) history.replaceState(null, '', `#/p/${selected}`)
     renderChart(recenter)
     const p = people.get(selected)!
+    peekAvatar.replaceChildren(avatar(p))
     peekName.textContent = displayName(p)
     peekSub.textContent = personSubtitle(p)
-    renderPerson(personEl, ctx, selected, { showInTree: () => setView('tree') })
+    renderPersonPane()
     document.title = `${displayName(p)} — ${t.title}`
   }
 
   function addFirst() {
     const form = personForm()
-    openDialog(t.addFirst, form.el, [
-      { label: t.cancel },
+    openDialog(L('addFirst'), form.el, [
       {
-        label: t.save, primary: true, run: async () => {
+        label: L('save'), primary: true, run: async () => {
           const fields = form.read()
           const editor = await ctx.editorName()
           if (!editor) return false
@@ -206,20 +228,17 @@ function startApp(backend: Backend, authApi: AuthApi): () => void {
         },
       },
     ])
+    form.focus()
   }
-
-  editorBtn.addEventListener('click', () => askEditor())
 
   root.replaceChildren(
     h('header', { class: 'topbar' },
-      h('h1', { class: 'brand' }, h('span', {}, '族譜'), h('small', {}, 'Family Tree')),
-      h('button', { type: 'button', class: 'search-trigger', onclick: search },
-        h('span', { 'aria-hidden': 'true' }, '🔍'), h('span', {}, t.search), h('kbd', {}, '/')),
+      brand(),
+      box.el,
       h('nav', { class: 'topnav' },
-        h('button', { type: 'button', class: 'ghost', onclick: () => openHistory(ctx, backend) }, t.history),
-        editorBtn,
-        h('button', { type: 'button', class: 'ghost', onclick: openTheme }, t.appearance),
-        h('button', { type: 'button', class: 'ghost', onclick: signOut }, t.signOut)),
+        h('button', { type: 'button', class: 'ghost', onclick: () => openHistory(ctx, backend) },
+          h('span', { 'aria-hidden': 'true' }, '🕘 '), L('history')),
+        settingsBtn),
     ),
     main,
     tabbar,
@@ -241,7 +260,10 @@ function startApp(backend: Backend, authApi: AuthApi): () => void {
     search()
   }
   // Crossing the breakpoint (rotating a tablet, resizing a window) may reveal the tree.
-  const onWide = () => setView(view)
+  const onWide = () => {
+    setView(view)
+    if (store.people.has(selected)) renderPersonPane()
+  }
   window.addEventListener('hashchange', onHash)
   window.addEventListener('keydown', onKey)
   wide.addEventListener('change', onWide)

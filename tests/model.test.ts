@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { type People, type Person, childrenByCoParent, emptyFields, formatPhone, isValidEmail, isValidPartialDate, isValidPhone, normalizePerson, normalizePhone, rootAncestors, searchPeople, seniorAncestor, siblingsOf, spousesOf } from '../src/model'
+import { type People, type Person, age, childrenByCoParent, emptyFields, formatPhone, isValidEmail, isValidPartialDate, isValidPhone, normalizePerson, normalizePhone, rootAncestors, searchPeople, seniorAncestor, siblingsOf, spousesOf } from '../src/model'
 import { applyOp, FamilyStore, simulate, type Backend, type ChangeRecord, type NewChange, type Op } from '../src/store'
 import { seedToPeople } from '../src/seed-format'
 
@@ -40,6 +40,22 @@ function family() {
 }
 
 describe('model', () => {
+  it('computes ages from partial dates', () => {
+    const today = new Date(2026, 10, 17) // 2026-11-17
+    const at = (birthDate: string, deathDate = '') => age(person('x', { birthDate, deathDate }), today)
+    expect(at('')).toBeNull()
+    expect(at('1993-03-14')).toEqual({ years: 33, approx: false, atDeath: false })
+    expect(at('1993-11-18')).toEqual({ years: 32, approx: false, atDeath: false })
+    expect(at('1993-11')).toEqual({ years: 33, approx: true, atDeath: false })
+    expect(at('1993-10')).toEqual({ years: 33, approx: false, atDeath: false })
+    expect(at('1993')).toEqual({ years: 33, approx: true, atDeath: false })
+    expect(at('1920-03-01', '1990-02-28')).toEqual({ years: 69, approx: false, atDeath: true })
+    expect(at('1920', '1990')).toEqual({ years: 70, approx: true, atDeath: true })
+    // Probably died without a recorded date.
+    expect(at('1900')).toBeNull()
+    expect(at('1900', '1980')).toEqual({ years: 80, approx: true, atDeath: true })
+  })
+
   it('validates partial dates', () => {
     for (const ok of ['', '1975', '1975-08', '1975-08-09']) expect(isValidPartialDate(ok)).toBe(true)
     for (const bad of ['61', '1975/08/09', '1975-13', '1975-08-32', 'abcd']) expect(isValidPartialDate(bad)).toBe(false)
