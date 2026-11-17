@@ -22,6 +22,10 @@ type Query = Pick<MediaQueryList, 'matches' | 'addEventListener' | 'removeEventL
 const query = (q: string, fallback: boolean): Query =>
   window.matchMedia?.(q) ?? { matches: fallback, addEventListener() {}, removeEventListener() {} }
 
-/** Tablets and computers show the tree and the person side by side; phones show one at a time. */
-export const wide = query('(min-width: 700px)', true)
+/**
+ * Tablets and computers show the tree and the person side by side; phones show one at a time.
+ * A phone on its side is wide but short, so it keeps the phone layout. Same breakpoint as the
+ * `(width >= 700px) and (height >= 500px)` queries in styles.css.
+ */
+export const wide = query('(min-width: 700px) and (min-height: 500px)', true)
 export const reducedMotion = query('(prefers-reduced-motion: reduce)', false)

@@ -169,17 +169,19 @@ main[data-view="person"] .tree-pane, main[data-view="tree"] .person-pane { displ
 }
 .empty { position: absolute; inset: 0; display: grid; place-items: center; background: var(--bg); z-index: 2; }
 
-/* Tablets and computers: tree and person side by side, no tab bar */
-@media (min-width: 700px) {
+/* Tablets and computers: tree and person side by side, no tab bar. The breakpoint needs some
+   height too, so a phone turned sideways keeps the tab bar. Keep every copy of it in sync with
+   `wide` in src/dom.ts. */
+@media (width >= 700px) and (height >= 500px) {
   .topbar { display: flex; }
   .tabbar { display: none; }
-  main { display: grid; grid-template-columns: 1fr clamp(20rem, 38vw, 30rem); }
+  main { display: grid; grid-template-columns: 1fr clamp(20rem, 38vw, 34rem); }
   .pane { position: relative; inset: auto; min-height: 0; }
   main[data-view] .tree-pane, main[data-view] .person-pane { display: block; }
   .person-pane { border-left: 1px solid var(--line); background: var(--bg); }
   .peek { display: none !important; }
 }
-@media (min-width: 700px) and (max-width: 1023px) {
+@media (700px <= width < 1024px) and (height >= 500px) {
   .brand small { display: none; }
   .topnav .ghost .en { display: none; }
 }
@@ -224,9 +226,20 @@ main[data-view="person"] .tree-pane, main[data-view="tree"] .person-pane { displ
 .peek-text strong { font-size: 1.05rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .peek-text span { font-size: .8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .peek-go { color: var(--accent); font-weight: 600; white-space: nowrap; display: inline-flex; align-items: center; gap: .15rem; }
-@media (max-width: 699px) {
-  /* Keep the zoom buttons clear of the bar that opens the person's page. */
-  .chart-tools { bottom: 5rem; }
+@media not ((width >= 700px) and (height >= 500px)) {
+  /* Top right, where the tree is usually empty, clear of the bar that opens the person's page. */
+  .chart-tools { top: .75rem; bottom: auto; }
+}
+/* Short screens (a phone on its side): a slimmer tab bar with icon and label side by side, and
+   a slimmer bar under the tree. */
+@media (height < 500px) {
+  :root { --tabbar-h: 2.75rem; }
+  .tab { grid-auto-flow: column; justify-content: center; align-items: center; gap: .45rem; padding-block: .15rem; }
+  .tab-label { display: flex; align-items: baseline; gap: .3em; }
+  svg.tab-icon { width: 1.25rem; height: 1.25rem; }
+  .peek { padding-block: .3rem; bottom: .5rem; }
+  .peek .avatar { width: 1.9rem; height: 1.9rem; }
+  .peek-text { display: flex; align-items: baseline; gap: .6rem; }
 }
 
 /* Person cards (lists of relatives, search results) */
@@ -332,9 +345,10 @@ main[data-view="person"] .tree-pane, main[data-view="tree"] .person-pane { displ
 .dlg.search .dlg-head input { flex: 1; border-radius: 999px; padding-left: 1rem; }
 .dlg.search .dlg-body { padding-top: .75rem; }
 .dlg .pcard { box-shadow: none; }
-@media (max-width: 699px) {
+@media not ((width >= 700px) and (height >= 500px)) {
   .dlg {
-    width: 100%; max-width: 100%; margin: auto 0 0; border-radius: 16px 16px 0 0; max-height: 94dvh;
+    /* Capped so a phone on its side gets a sheet of reading width, not the full 800px. */
+    width: min(100%, 40rem); max-width: 100%; margin: auto auto 0; border-radius: 16px 16px 0 0; max-height: 94dvh;
     animation: sheet-up .2s ease-out;
   }
   .dlg::before {
@@ -342,10 +356,10 @@ main[data-view="person"] .tree-pane, main[data-view="tree"] .person-pane { displ
     margin: .4rem auto -.2rem; flex: none;
   }
   .dlg.tall { height: 94dvh; }
-  .dlg.search { height: 100dvh; max-height: 100dvh; border-radius: 0; animation: none; }
+  .dlg.search { width: 100%; height: 100dvh; max-height: 100dvh; border-radius: 0; animation: none; }
   .dlg.search::before { display: none; }
   .dlg-actions button { flex: 1; }
-  .dlg.confirm { width: 100%; }
+  .dlg.confirm { width: min(100%, 40rem); }
 }
 @keyframes sheet-up { from { transform: translateY(30%); opacity: .5; } }
 
@@ -437,7 +451,7 @@ svg.menu-icon { width: 1.25rem; height: 1.25rem; }
   transition: opacity .2s, transform .2s; z-index: 100; max-width: 90vw; text-align: center;
 }
 .toast.show { opacity: 1; transform: translate(-50%, 0); }
-@media (min-width: 700px) { .toast { bottom: 1.5rem; } }
+@media (width >= 700px) and (height >= 500px) { .toast { bottom: 1.5rem; } }
 
 /* History */
 .history { display: grid; gap: .5rem; }
