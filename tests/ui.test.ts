@@ -160,4 +160,21 @@ describe('app', () => {
     expect(contact.querySelector('a[href="tel:+12015550123"]')!.textContent).toBe('+1 201 555 0123')
     expect(contact.textContent).toContain('alice_line')
   })
+
+  it('switches the theme from the menu and remembers it', async () => {
+    const pickTheme = (label: string) => {
+      $('[data-tab=menu]').click()
+      buttonWith('外觀', topDialog()).click()
+      buttonWith(label, topDialog()).click()
+    }
+    pickTheme('深色')
+    expect(document.documentElement.dataset.theme).toBe('dark')
+    expect(localStorage.getItem('ft-theme')).toBe('dark')
+    $('[data-tab=menu]').click()
+    expect(topDialog().textContent).toContain('Appearance: 深色 / Dark')
+    topDialog().querySelector<HTMLButtonElement>('.dlg-x')!.click()
+    pickTheme('跟隨系統')
+    expect(document.documentElement.dataset.theme).toBeUndefined()
+    expect(localStorage.getItem('ft-theme')).toBeNull()
+  })
 })

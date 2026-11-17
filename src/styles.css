@@ -1,26 +1,32 @@
+/* Colors are light-dark(light, dark); data-theme on <html> overrides the system setting. */
 :root {
-  --bg: #f6f3ec;
-  --surface: #ffffff;
-  --ink: #23201b;
-  --muted: #6f685d;
-  --line: #e2dbcf;
-  --accent: #8a3b12;
-  --accent-soft: #f3e4d8;
-  --male: #5b86ad;
-  --female: #c0707f;
-  --unknown: #a39b8e;
-  --male-soft: #e3edf6;
-  --female-soft: #f8e6e9;
-  --unknown-soft: #eeebe5;
-  --danger: #b3261e;
+  color-scheme: light dark;
+  --bg: light-dark(#f6f3ec, #1a1815);
+  --surface: light-dark(#ffffff, #24211d);
+  --ink: light-dark(#23201b, #ece6dc);
+  --muted: light-dark(#6f685d, #a39a8c);
+  --line: light-dark(#e2dbcf, #3a352e);
+  --accent: light-dark(#8a3b12, #e0915e);
+  --accent-soft: light-dark(#f3e4d8, #3d2a1d);
+  --on-accent: light-dark(#fff, #1a1815);
+  --male: light-dark(#5b86ad, #7fa6cc);
+  --female: light-dark(#c0707f, #d98c9a);
+  --unknown: light-dark(#a39b8e, #8f877b);
+  --male-soft: light-dark(#e3edf6, #1f2a35);
+  --female-soft: light-dark(#f8e6e9, #35232a);
+  --unknown-soft: light-dark(#eeebe5, #2b2823);
+  --danger: light-dark(#b3261e, #f2867c);
+  --ok: light-dark(#1d6b2f, #7cc68a);
   --radius: 12px;
-  --shadow: 0 1px 2px rgb(0 0 0 / .06), 0 1px 1px rgb(0 0 0 / .03);
+  --shadow: 0 1px 2px light-dark(rgb(0 0 0 / .06), rgb(0 0 0 / .4)), 0 1px 1px light-dark(rgb(0 0 0 / .03), rgb(0 0 0 / .2));
   --tap: 2.75rem;
   font-family: system-ui, "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", sans-serif;
   color: var(--ink);
   background: var(--bg);
   -webkit-tap-highlight-color: transparent;
 }
+:root[data-theme="light"] { color-scheme: light; }
+:root[data-theme="dark"] { color-scheme: dark; }
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; }
 body { overscroll-behavior: none; }
@@ -35,7 +41,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   outline: 2px solid var(--accent); outline-offset: 1px;
 }
 button:disabled { opacity: .45; cursor: not-allowed; }
-button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 button.danger { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 40%, transparent); }
 button.ghost { background: transparent; border-color: transparent; }
 button.ghost:hover:not(:disabled) { background: var(--bg); border-color: transparent; }
@@ -278,7 +284,7 @@ main[data-view="person"] .tree-pane, main[data-view="tree"] .person-pane { displ
 /* Toast */
 .toast {
   position: fixed; left: 50%; bottom: 5rem; transform: translate(-50%, 1rem);
-  background: var(--ink); color: #fff; padding: .6rem 1.1rem; border-radius: 999px; opacity: 0; pointer-events: none;
+  background: var(--ink); color: var(--bg); padding: .6rem 1.1rem; border-radius: 999px; opacity: 0; pointer-events: none;
   transition: opacity .2s, transform .2s; z-index: 100; max-width: 90vw; text-align: center;
 }
 .toast.show { opacity: 1; transform: translate(-50%, 0); }
@@ -293,4 +299,4 @@ main[data-view="person"] .tree-pane, main[data-view="tree"] .person-pane { displ
 .history .diff { margin: .4rem 0; }
 .history .diff ul { margin: .2rem 0; padding-left: 1.2rem; overflow-wrap: anywhere; }
 .history del { color: var(--danger); }
-.history ins { color: #1d6b2f; text-decoration: none; }
+.history ins { color: var(--ok); text-decoration: none; }

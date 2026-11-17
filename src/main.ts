@@ -11,9 +11,11 @@ import { openSearch, rememberRecent } from './search'
 import { personSubtitle } from './cards'
 import { actionSheet, openDialog, personForm } from './dialog'
 import { displayName, rootAncestors } from './model'
+import { getTheme, setTheme, type Theme } from './theme'
 
 const LAST_KEY = 'ft-last-person'
 const EDITOR_KEY = 'ft-editor'
+const themeLabels: Record<Theme, string> = { auto: t.themeAuto, light: t.themeLight, dark: t.themeDark }
 const root = document.getElementById('app')!
 
 function showLogin(authApi: AuthApi) {
@@ -153,8 +155,16 @@ function startApp(backend: Backend, authApi: AuthApi): () => void {
     actionSheet(t.menu, [
       { icon: '🕘', label: t.history, run: () => openHistory(ctx, backend) },
       { icon: '✎', label: `${t.editorLabel}: ${editorName() || '—'}`, run: () => askEditor() },
+      { icon: '◐', label: `${t.appearance}: ${themeLabels[getTheme()]}`, run: openTheme },
       { icon: '⎋', label: t.signOut, run: signOut },
     ])
+  }
+
+  function openTheme() {
+    const current = getTheme()
+    actionSheet(t.appearance, (['auto', 'light', 'dark'] as const).map(theme => ({
+      icon: theme === current ? '✓' : '', label: themeLabels[theme], run: () => setTheme(theme),
+    })))
   }
 
   function idFromHash() {
@@ -210,6 +220,7 @@ function startApp(backend: Backend, authApi: AuthApi): () => void {
       h('nav', { class: 'topnav' },
         h('button', { type: 'button', class: 'ghost', onclick: () => openHistory(ctx, backend) }, t.history),
         editorBtn,
+        h('button', { type: 'button', class: 'ghost', onclick: openTheme }, t.appearance),
         h('button', { type: 'button', class: 'ghost', onclick: signOut }, t.signOut)),
     ),
     main,

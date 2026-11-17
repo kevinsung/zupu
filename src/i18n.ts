@@ -101,6 +101,10 @@ export const t = {
   zoomOut: '縮小 / Zoom out',
   details: '詳細資料 / Details',
   changeEditor: '更改名字 / Change name',
+  appearance: '外觀 / Appearance',
+  themeAuto: '跟隨系統 / Auto',
+  themeLight: '淺色 / Light',
+  themeDark: '深色 / Dark',
 } as const
 
 /** Short two-part labels for the phone tab bar: [中文, English]. */
