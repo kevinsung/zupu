@@ -26,6 +26,10 @@ const topDialog = () => [...document.querySelectorAll<HTMLElement>('dialog[open]
 const popover = () => $('.popover')
 const buttonWith = (text: string, root: ParentNode = document) =>
   [...root.querySelectorAll('button')].find(b => b.textContent!.includes(text))!
+/** Waits for a dialog to close after Save: saving is several round trips to the Worker, slower on CI. */
+const closed = (dlg: Element) => vi.waitFor(() => {
+  if (dlg.isConnected) throw new Error(`dialog still open; error: "${dlg.querySelector('.dlg-error')?.textContent ?? ''}"`)
+}, { timeout: 5000, interval: 20 })
 
 beforeAll(async () => {
   w = await startWorker('dev')
@@ -96,7 +100,8 @@ describe('app', () => {
     const nameDlg = [...document.querySelectorAll('dialog[open]')].at(-1)!
     nameDlg.querySelector('input')!.value = 'Tester'
     buttonWith('儲存', nameDlg).click()
-    await tick(300)
+    await closed(nameDlg)
+    await closed(dlg)
     expect(document.querySelectorAll('dialog[open]').length).toBe(0)
     expect($('#person').textContent).toContain('丈夫')
     expect(document.querySelector('header')!.textContent).toContain('Tester')
@@ -112,7 +117,7 @@ describe('app', () => {
     expect(dlg.querySelector('.dlg-error')!.textContent).toContain('YYYY')
     dlg.querySelector<HTMLInputElement>('input[name=birthDate]')!.value = '1960-03'
     buttonWith('儲存', dlg).click()
-    await tick(300)
+    await closed(dlg)
     expect($('#person .pv-dates').textContent).toContain('1960-03')
   })
 
@@ -153,8 +158,7 @@ describe('app', () => {
     buttonWith('移除', row).click()
     await tick()
     buttonWith('移除', topDialog()).click()
-    await tick(300)
-    expect(dlg.isConnected).toBe(false)
+    await closed(dlg)
     expect($('#person .pv-families').textContent).not.toContain('丈夫')
   })
 
@@ -174,8 +178,7 @@ describe('app', () => {
     expect(dlg.querySelector('.pcard.selected')!.textContent).toContain('丈夫')
     expect($('#person .pv-families').textContent).not.toContain('丈夫')
     buttonWith('儲存', dlg).click()
-    await tick(300)
-    expect(dlg.isConnected).toBe(false)
+    await closed(dlg)
     expect($('#person .pv-families').textContent).toContain('丈夫')
   })
 
@@ -189,8 +192,7 @@ describe('app', () => {
     expect(dlg.querySelector('.dlg-error')!.textContent).toContain('YYYY')
     dlg.querySelector<HTMLInputElement>('input[name=married]')!.value = '1985-10'
     buttonWith('儲存', dlg).click()
-    await tick(300)
-    expect(dlg.isConnected).toBe(false)
+    await closed(dlg)
     expect(families().querySelector('.marriage')!.textContent).toContain('結婚 / Married 1985-10')
     buttonWith('修改紀錄').click()
     await tick(300)
@@ -214,8 +216,7 @@ describe('app', () => {
     set('phone', '+1 (201) 555-0123')
     set('line', 'alice_line')
     buttonWith('儲存', dlg).click()
-    await tick(300)
-    expect(dlg.isConnected).toBe(false)
+    await closed(dlg)
     const contact = $('#person .contact')
     expect(contact.querySelector('a[href="mailto:alice@example.com"]')).toBeTruthy()
     expect(contact.querySelector('a[href="tel:+12015550123"]')!.textContent).toBe('+1 201 555 0123')
