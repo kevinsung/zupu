@@ -2,29 +2,23 @@ import { h } from './dom'
 import { L, locale, t } from './i18n'
 import { confirmDialog, openDialog, toast } from './dialog'
 import { marriageText } from './cards'
-import { FIELD_KEYS, type Person, displayName, formatPhone } from './model'
+import { FIELD_KEYS, displayName, formatPhone } from './model'
 import type { ChangeRecord, PersonDiff } from './store'
 import { watchChanges } from './backend'
 import type { AppCtx } from './actions'
 
-const FIELD_LABELS: Record<string, string> = {
-  nameZh: t.nameZh, nameEn: t.nameEn, otherNames: t.otherNames, gender: t.gender,
-  birthDate: t.birthDate, deathDate: t.deathDate, notes: t.notes,
-  email: t.email, phone: t.phone, address: t.address, line: t.line, signal: t.signal,
-  parents: t.parents, spouses: t.spouses,
-}
-
 function diffLines(ctx: AppCtx, d: PersonDiff): Node[] {
-  const name = (id: string) => displayName(ctx.store.people.get(id) ?? undefined)
+  const name = (id: string) => displayName(ctx.store.people.get(id))
   const ids = (list: string[]) => list.map(name).join(', ') || '—'
   if (!d.before) return [h('li', {}, `${t.created}: ${displayName(d.after!)}`)]
   if (!d.after) return [h('li', {}, `${t.deleted}: ${displayName(d.before)}`)]
   const lines: Node[] = []
-  for (const k of [...FIELD_KEYS, 'parents', 'spouses'] as (keyof Person)[]) {
+  // Each key doubles as the i18n key of its label.
+  for (const k of [...FIELD_KEYS, 'parents', 'spouses'] as const) {
     const [a, b] = [d.before[k], d.after[k]]
     if (JSON.stringify(a) === JSON.stringify(b)) continue
     const fmt = (v: unknown) => (Array.isArray(v) ? ids(v) : (k === 'phone' ? formatPhone(String(v)) : String(v)) || '—')
-    lines.push(h('li', {}, `${FIELD_LABELS[k] ?? k}: `, h('del', {}, fmt(a)), ' → ', h('ins', {}, fmt(b))))
+    lines.push(h('li', {}, `${t[k]}: `, h('del', {}, fmt(a)), ' → ', h('ins', {}, fmt(b))))
   }
   // Snapshots from before marriages existed lack the field.
   const [ma, mb] = [d.before.marriages ?? {}, d.after.marriages ?? {}]
@@ -65,7 +59,7 @@ export function openHistory(ctx: AppCtx, personId?: string) {
         const who = d.after ?? d.before
         return h('div', { class: 'diff' },
           h('button', { type: 'button', class: 'link', onclick: () => { if (ctx.store.people.has(d.id)) ctx.select(d.id) } },
-            displayName(who ?? undefined)),
+            displayName(who)),
           h('ul', {}, ...diffLines(ctx, d)))
       })
       ol.append(h('li', { class: 'history-item', 'data-id': c.id },
