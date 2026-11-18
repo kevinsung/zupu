@@ -370,7 +370,9 @@ main:not([data-view="home"]) .home-pane, main:not([data-view="tree"]) .tree-pane
 .dlg-sub { margin: 0; font-size: var(--fs-sm); color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dlg-head > .primary { flex: none; white-space: nowrap; }
 .dlg-x { border-color: transparent; background: none; color: var(--muted); flex: none; }
-.dlg-body { padding: 1rem 1.1rem; overflow-y: auto; overscroll-behavior: contain; flex: 1; }
+/* Sized by its content and shrunk to fit max-height. Not flex: 1: a 0% basis in a box whose height
+   is auto can resolve to 0, leaving only the padding visible (a two-line strip in the add dialogs). */
+.dlg-body { padding: 1rem 1.1rem; overflow-y: auto; overscroll-behavior: contain; flex: 1 1 auto; min-height: 0; }
 .dlg-actions { display: flex; justify-content: flex-end; gap: .5rem; padding: .75rem 1.1rem; border-bottom: 1px solid var(--line); }
 .dlg.tall { height: 88dvh; }
 .dlg.confirm { width: min(28rem, 94vw); }
