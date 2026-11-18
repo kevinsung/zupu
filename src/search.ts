@@ -4,7 +4,7 @@ import { closePopover, personPicker } from './dialog'
 import { type People, type Person, rankPeople } from './model'
 
 const RECENT_KEY = 'ft-recent'
-const RECENT_MAX = 8
+const RECENT_MAX = 5
 
 export function rememberRecent(id: string) {
   const list = recentIds().filter(x => x !== id)
@@ -22,7 +22,7 @@ function recentIds(): string[] {
 
 /** Recently viewed people, newest first, skipping any since deleted. */
 function recentPeople(all: People): Person[] {
-  return recentIds().map(id => all.get(id)).filter((p): p is Person => !!p)
+  return recentIds().map(id => all.get(id)).filter((p): p is Person => !!p).slice(0, RECENT_MAX)
 }
 
 /**
