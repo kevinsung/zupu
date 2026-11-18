@@ -321,7 +321,7 @@ function startApp() {
     }
     if (!people.has(selected)) selected = ''
     if (id === selected && selected) rememberRecent(selected)
-    // Picking someone from the list opens their page on phones, and the tree beside it on wide screens.
+    // Picking someone from the list opens the tree around them (beside their page on wide screens).
     const fromHome = view === 'home' && !!id && id === selected
     if (!selected) {
       chart.reset()
@@ -343,12 +343,15 @@ function startApp() {
     const lostFocus = !!active && personEl.contains(active)
     renderPersonPane()
     if (fromHome) {
-      setView('person')
+      setView('tree')
       personPane.scrollTop = 0
     }
     setTitle()
     if (prev && prev !== selected) announcer.textContent = displayName(p)
-    if (fromHome || lostFocus || (prev && prev !== selected && active === document.body)) focusPersonHeading()
+    // The list that had focus is hidden now: on phones focus goes to their card in the tree, which
+    // is all that's shown, and on wide screens to their name.
+    if (fromHome && !wide.matches) chart.focusMain()
+    else if (fromHome || lostFocus || (prev && prev !== selected && active === document.body)) focusPersonHeading()
   }
 
   function addFirst() {
