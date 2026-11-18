@@ -18,8 +18,6 @@ export interface DialogOpts {
   cls?: string
   /** Muted second line under the title, e.g. the person being edited. */
   subtitle?: string
-  /** Replaces the title in the header (the phone search puts its input there). */
-  head?: Node
 }
 
 let dialogSeq = 0
@@ -73,20 +71,19 @@ export function openDialog(title: string | Node, body: Node, actions: DialogActi
   }
   const inHeader = actions.length === 1 && actions[0].primary
   const x = h('button', { type: 'button', class: 'icon dlg-x', 'aria-label': t.close, title: t.close, onclick: dismiss }, icon('close'))
-  const heading = opts.head ?? h('div', { class: 'dlg-title' },
+  const heading = h('div', { class: 'dlg-title' },
     h('h2', { id: titleId }, title),
     opts.subtitle ? h('p', { class: 'dlg-sub', id: subId }, opts.subtitle) : null)
   // The subtitle says who the dialog is about ("Edit" alone doesn't), so it's read with the title.
   const dlg = h('dialog', {
     class: ['dlg', inHeader && 'with-save', opts.cls].filter(Boolean).join(' '),
-    'aria-labelledby': opts.head ? undefined : titleId,
-    'aria-describedby': !opts.head && opts.subtitle ? subId : undefined,
+    'aria-labelledby': titleId,
+    'aria-describedby': opts.subtitle ? subId : undefined,
   },
     h('div', { class: 'dlg-head' }, ...(inHeader ? [x, heading, button(actions[0])] : [heading, x])),
     !inHeader && actions.length ? h('div', { class: 'dlg-actions' }, ...actions.map(button)) : null,
     h('div', { class: 'dlg-body' }, error, body),
   )
-  if (opts.head && typeof title === 'string') dlg.setAttribute('aria-label', title)
   // Return focus to what opened the dialog. Saving often re-renders the page, which replaces that
   // button, so then fall back to the dialog underneath or the person's name.
   const opener = document.activeElement as HTMLElement | null
@@ -429,14 +426,16 @@ export function marriageForm(initial: Marriage) {
 /**
  * Search box with a result list; calls onPick with the chosen person. `idle` fills the list while the box is empty.
  * With `selectable`, picking only highlights the person (read it back with `selected()`) and keeps the results.
- * Pass `input` to drive the list from an existing box (the top-bar search). Arrow keys move
+ * Pass `input` to drive the list from an existing box (the top-bar search), and `find` to match
+ * differently (the landing page lists every match, in rank order). Arrow keys move
  * from the box into the results and between them.
  */
 export function personPicker(
   people: () => People,
   onPick: (p: Person) => void,
-  opts: { placeholder?: string; exclude?: string; idle?: () => Node[]; selectable?: boolean; input?: HTMLInputElement } = {},
+  opts: { placeholder?: string; exclude?: string; idle?: () => Node[]; selectable?: boolean; input?: HTMLInputElement; find?: (query: string) => Person[] } = {},
 ) {
+  const find = opts.find ?? ((q: string) => searchPeople(people(), q))
   const placeholder = opts.placeholder ?? t.search
   const input = opts.input ?? h('input', { type: 'search', placeholder, autocomplete: 'off', enterkeyhint: 'go', 'aria-label': placeholder })
   const list = h('div', { class: 'picker-results' })
@@ -467,7 +466,7 @@ export function personPicker(
   const update = () => {
     const q = input.value
     if (!q.trim()) { list.replaceChildren(...(opts.idle?.() ?? [])); announce(''); return }
-    const results = searchPeople(people(), q).filter(p => p.id !== opts.exclude)
+    const results = find(q).filter(p => p.id !== opts.exclude)
     announce(results.length === 0 ? t.noResults : results.length === 1 ? t.resultOne : tn('resultCount', results.length))
     list.replaceChildren(results.length
       ? h('div', { class: 'cards' }, ...results.map(card))
@@ -482,7 +481,7 @@ export function personPicker(
       return
     }
     if (e.key !== 'Enter') return
-    const first = searchPeople(people(), input.value).find(p => p.id !== opts.exclude)
+    const first = find(input.value).find(p => p.id !== opts.exclude)
     if (first) { e.preventDefault(); pick(first) }
   })
   list.addEventListener('keydown', e => {

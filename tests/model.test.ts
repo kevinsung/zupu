@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 // jsdom because FamilyStore's messages come from i18n, which reads the language setting from localStorage.
 import { describe, expect, it } from 'vitest'
-import { type People, type Person, age, childrenByCoParent, emptyFields, formatPhone, halfSiblingVia, isValidEmail, isValidPartialDate, isValidPhone, normalizePerson, normalizePhone, rootAncestors, searchPeople, seniorAncestor, siblingsOf, spousesOf } from '../src/model'
+import { type People, type Person, age, childrenByCoParent, emptyFields, formatPhone, halfSiblingVia, isValidEmail, isValidPartialDate, isValidPhone, normalizePerson, normalizePhone, rankPeople, rootAncestors, searchPeople, seniorAncestor, siblingsOf, spousesOf } from '../src/model'
 import { applyOp, simulate, type ChangeRecord, type NewChange, type Op } from '../src/ops'
 import { FamilyStore } from '../src/store'
 import { seedToPeople } from '../src/seed-format'
@@ -135,6 +135,40 @@ describe('model', () => {
     expect(seniorAncestor(new Map(twins.map(p => [p.id, p])))?.id).toBe('y')
     twins[2].birthDate = ''
     expect(seniorAncestor(new Map(twins.map(p => [p.id, p])))?.id).toBe('x')
+  })
+
+  it('ranks everyone: deeper lines first, parents before children, then the childless by birth', () => {
+    const rank = (list: Person[]) => rankPeople(new Map(list.map(p => [p.id, p]))).map(p => p.id)
+    const deep = [
+      person('x', { order: 0 }), person('x1', { parents: ['x'], order: 1 }), person('x2', { parents: ['x'], order: 2 }), person('x3', { parents: ['x'], order: 3 }),
+      person('g', { order: 4 }), person('g1', { parents: ['g'], order: 5 }), person('g2', { parents: ['g1'], order: 6, birthDate: '1990' }),
+    ]
+    // A deeper line beats a wider one; the childless come last by birth, then entry order.
+    expect(rank(deep)).toEqual(['g', 'x', 'g1', 'x1', 'x2', 'x3', 'g2'])
+    const born = [
+      person('a', { order: 0, birthDate: '1950' }), person('b', { order: 1, birthDate: '1940' }), person('c', { order: 2 }),
+    ]
+    expect(rank(born)).toEqual(['b', 'a', 'c'])
+
+    // The top entry is the senior ancestor in each of the cases above.
+    const wide = [
+      person('x', { order: 0 }), person('x1', { parents: ['x'] }),
+      person('y', { order: 1 }), person('y1', { parents: ['y'] }), person('y2', { parents: ['y'] }),
+    ]
+    const twins = [
+      person('x', { order: 0, birthDate: '1920' }), person('x1', { parents: ['x'] }),
+      person('y', { order: 1, birthDate: '1910' }), person('y1', { parents: ['y'] }),
+    ]
+    for (const list of [deep, wide, twins, family()]) {
+      expect(rank(list)[0]).toBe(seniorAncestor(new Map(list.map(p => [p.id, p])))?.id)
+    }
+  })
+
+  it('ranks a parent before their children even when a spouse married in', () => {
+    const people = family()
+    people.push(person('inlaw', { spouses: ['a'], order: 10 }), person('gc', { parents: ['a', 'inlaw'], order: 11 }))
+    const ids = rankPeople(new Map(people.map(p => [p.id, p]))).map(p => p.id)
+    for (const p of people) for (const parent of p.parents) expect(ids.indexOf(parent)).toBeLessThan(ids.indexOf(p.id))
   })
 })
 

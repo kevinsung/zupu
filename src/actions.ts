@@ -8,6 +8,8 @@ import type { FamilyStore, LinkRelative, NewRelative } from './store'
 export interface AppCtx {
   store: FamilyStore
   select(id: string): void
+  /** Goes to the landing page, with everyone listed and no one selected. */
+  home(): void
   /** Resolves to the editor's name, prompting for it the first time; null if they cancel. */
   editorName(): Promise<string | null>
   /** Opens the change log, optionally only the changes that touched one person. */
@@ -156,7 +158,8 @@ export async function deletePerson(ctx: AppCtx, p: Person) {
   if (!(await confirmDialog(`${t.confirmDelete} — ${displayName(p)}`, t.delete, true))) return
   const editor = await ctx.editorName()
   if (!editor) return
-  const next = p.parents[0] ?? p.spouses[0] ?? [...ctx.store.people.keys()].find(id => id !== p.id)
+  // A parent or spouse is the nearest place to land; with neither, the list of everyone.
+  const next = p.parents[0] ?? p.spouses[0]
   try {
     await ctx.store.deletePerson(editor, p.id)
   } catch (e) {
@@ -164,6 +167,7 @@ export async function deletePerson(ctx: AppCtx, p: Person) {
     return
   }
   if (next) ctx.select(next)
+  else ctx.home()
 }
 
 /** Lists every relationship of `p` with a remove button. */

@@ -64,9 +64,41 @@ describe('app', () => {
     expect(document.querySelector('header')).toBeTruthy()
   })
 
-  it('starts at a root ancestor and renders cards', async () => {
+  it('starts on the landing list, with no one selected', async () => {
+    const names = () => [...document.querySelectorAll('.home-pane .pcard-name')].map(e => e.textContent)
+    // Most generations and descendants first; the childless by birth, then entry order.
+    expect(names()).toEqual(['祖父', '祖母', '繼祖母', '甲', '乙', '丙'])
+    expect($('main').dataset.view).toBe('home')
+    expect(location.hash).toBe('')
+    expect(document.title).toBe('族譜 / Family Tree')
+    expect(document.querySelector('.ft-card')).toBeNull()
+    expect($('.home-pane').getAttribute('aria-label')).toBe('搜尋 / Search')
+    expect($('.topbar .brand').getAttribute('aria-current')).toBe('page')
+    // On wide screens (jsdom counts as wide) the list's filter is the top bar's only search box.
+    const boxes = [...document.querySelectorAll<HTMLElement>('.topbar .search-box')].filter(b => !b.hidden)
+    expect(boxes.length).toBe(1)
+    expect($('.home-head').hidden).toBe(true)
+    expect(document.querySelector('.search-pop')!.closest('.search-box')!.hasAttribute('hidden')).toBe(true)
+    const filter = boxes[0].querySelector('input')!
+    filter.value = 'alice'
+    filter.dispatchEvent(new Event('input'))
+    expect(names()).toEqual(['甲'])
+    filter.value = ''
+    filter.dispatchEvent(new Event('input'))
+    expect(names()).toEqual(['祖父', '祖母', '繼祖母', '甲', '乙', '丙'])
+  })
+
+  it('opens a person picked from the list and renders cards', async () => {
+    buttonWith('祖父', $('.home-pane')).click()
+    await tick(100)
+    expect(location.hash).toBe('#/p/gp')
+    expect($('main').dataset.view).not.toBe('home')
+    // Off the list, the top bar's search drops its results down again.
+    expect($('.search-pop').closest('.search-box')!.hasAttribute('hidden')).toBe(false)
+    expect($('.home-head').contains($('.home-filter'))).toBe(true)
     expect($('#person h1').textContent).toBe('祖父')
-    expect(location.hash).toMatch(/^#\/p\//)
+    expect(document.activeElement).toBe($('#person h1'))
+    expect(document.title).toBe('祖父 — 族譜 / Family Tree')
     expect(document.querySelectorAll('.ft-card').length).toBeGreaterThanOrEqual(4)
     // Landmarks are named, and the two navs differently.
     expect($('.tree-pane').getAttribute('aria-label')).toBe('族譜 / Tree')
@@ -118,6 +150,27 @@ describe('app', () => {
     expect(pop.textContent).toContain('祖父')
     input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
     expect(pop.hidden).toBe(true)
+  })
+
+  it('goes back to the list from the brand, and from an unknown person', async () => {
+    const brand = $<HTMLAnchorElement>('.topbar a.brand')
+    expect(brand.getAttribute('href')).toBe('#/')
+    expect(brand.hasAttribute('aria-current')).toBe(false)
+    location.hash = '#/'
+    await vi.waitFor(() => expect($('main').dataset.view).toBe('home'))
+    expect(document.title).toBe('族譜 / Family Tree')
+    // Recently viewed comes first while the filter is empty.
+    expect($('.home-pane .section-title').textContent).toContain('Recently viewed')
+    expect($('.home-pane section .pcard-name').textContent).toBe('甲')
+    location.hash = '#/p/x'
+    await tick(100)
+    expect(location.hash).toBe('#/')
+    expect($('main').dataset.view).toBe('home')
+    // The last person picked is still selected, and comes back.
+    expect($('#person h1').textContent).toBe('甲')
+    location.hash = '#/p/a'
+    await vi.waitFor(() => expect($('main').dataset.view).not.toBe('home'))
+    expect($('#person h1').textContent).toBe('甲')
   })
 
   it('adds a spouse, asking for the editor name first', async () => {

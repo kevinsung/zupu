@@ -7,10 +7,10 @@ import { TREE_HINT_ID, TreeChart, getTreeDirection, setTreeDirection, type TreeD
 import type { AppCtx } from './actions'
 import { renderPerson } from './person'
 import { openHistory } from './history'
-import { openSearch, rememberRecent, searchBox } from './search'
+import { homeList, rememberRecent, searchBox } from './search'
 import { avatar, personSubtitle } from './cards'
 import { focusPersonHeading, menuList, mountToast, openDialog, openMenu, personForm, segmented } from './dialog'
-import { displayName, seniorAncestor } from './model'
+import { displayName } from './model'
 import { getTheme, setTheme, type Theme } from './theme'
 import { type IconName, icon } from './icons'
 
@@ -18,9 +18,9 @@ const EDITOR_KEY = 'ft-editor'
 const PANE_KEY = 'ft-person-pane'
 const root = document.getElementById('app')!
 
-/** The app name: the login screen's h1, and plain text in the top bar, where each person's name is the h1. */
-function brand(tag: 'h1' | 'div') {
-  return h(tag, { class: 'brand' }, L('title'))
+/** The app name: the login screen's h1, and in the top bar a link to the list of everyone (each person's name is the h1 there). */
+function brand(tag: 'h1' | 'a') {
+  return h(tag, { class: 'brand', href: tag === 'a' ? '#/' : undefined }, L('title'))
 }
 
 function showLogin() {
@@ -52,13 +52,21 @@ function showLogin() {
   input.focus()
 }
 
-type View = 'person' | 'tree'
+// 'home' is the list of everyone, the phone's Search tab.
+type View = 'home' | 'person' | 'tree'
+
+function idFromHash() {
+  return /^#\/p\/(.+)$/.exec(location.hash)?.[1] ?? ''
+}
 
 function startApp() {
   const store = new FamilyStore(commit)
+  // Kept after going back to the list, so the phone's Tree and Person tabs still show this person.
   let selected = ''
-  // Phones open on the tree; tapping the selected person (or the bar under the tree) opens their page.
-  let view: View = 'tree'
+  // A link to someone opens on the tree (on phones; tapping the selected person or the bar under
+  // the tree opens their page). Otherwise the app opens on the list, with no one selected.
+  let view: View = idFromHash() ? 'tree' : 'home'
+  let loaded = false
   let chartStale = true
 
   const chartEl = h('div', { id: 'chart', class: 'f3' })
@@ -100,6 +108,7 @@ function startApp() {
   const ctx: AppCtx = {
     store,
     select: id => { location.hash = `#/p/${id}` },
+    home: () => goHome(),
     editorName: async () => savedEditor() || askEditor(),
     showHistory: personId => openHistory(ctx, personId),
   }
@@ -142,41 +151,65 @@ function startApp() {
 
   const tool = (label: string, name: IconName, onclick: () => void) =>
     h('button', { type: 'button', title: label, 'aria-label': label, onclick }, icon(name))
+  const chartTools = h('div', { class: 'chart-tools', role: 'group', 'aria-label': t.treeControls },
+    tool(t.zoomIn, 'plus', () => chart.zoom(1.3)),
+    tool(t.zoomOut, 'minus', () => chart.zoom(1 / 1.3)),
+    tool(t.center, 'center', () => chart.center()),
+    tool(t.fit, 'fit', () => chart.fit()),
+    paneToggle)
+  /** What the Tree and Person tabs show before anyone is picked: a way back to the list. */
+  const nobody = () => h('div', { class: 'nobody' },
+    h('p', { class: 'muted' }, L('noneSelected')),
+    h('button', { type: 'button', class: 'primary', onclick: () => goHome() }, icon('search'), h('span', {}, L('choosePerson'))))
+  const treeNobody = nobody()
   const treePane = h('section', { class: 'pane tree-pane', 'aria-label': t.tabTree },
     chartEl,
     h('p', { id: TREE_HINT_ID, class: 'sr-only' }, t.treeKeysHint),
-    h('div', { class: 'chart-tools', role: 'group', 'aria-label': t.treeControls },
-      tool(t.zoomIn, 'plus', () => chart.zoom(1.3)),
-      tool(t.zoomOut, 'minus', () => chart.zoom(1 / 1.3)),
-      tool(t.center, 'center', () => chart.center()),
-      tool(t.fit, 'fit', () => chart.fit()),
-      paneToggle),
-    peek)
+    chartTools,
+    peek,
+    treeNobody)
   const personPane = h('section', { class: 'pane person-pane', 'aria-label': t.tabPerson }, personEl)
-  const main = h('main', {}, treePane, personPane, emptyEl, status, announcer)
+  const home = homeList(() => store.people, id => ctx.select(id))
+  const homePane = h('section', { class: 'pane home-pane', 'aria-label': t.tabSearch }, home.el)
+  const main = h('main', {}, homePane, treePane, personPane, emptyEl, status, announcer)
   personPane.id = 'person-pane'
   paneToggle.setAttribute('aria-controls', personPane.id)
   setPaneHidden(paneHidden)
 
-  const tab = (v: View | 'search' | 'menu', name: IconName, label: Key, onclick: (e: Event) => void) =>
+  const tab = (v: View | 'menu', name: IconName, label: Key, onclick: (e: Event) => void) =>
     h('button', { type: 'button', class: 'tab', 'data-tab': v, onclick }, icon(name, 'tab-icon'), h('span', { class: 'tab-label' }, L(label)))
   const tabbar = h('nav', { class: 'tabbar', 'aria-label': t.navTabs },
-    tab('tree', 'tree', 'tabTree', () => setView('tree')),
-    tab('person', 'person', 'tabPerson', () => setView('person')),
-    tab('search', 'search', 'tabSearch', () => search()),
+    tab('home', 'search', 'tabSearch', () => search()),
+    tab('tree', 'tree', 'tabTree', () => openTab('tree')),
+    tab('person', 'person', 'tabPerson', () => openTab('person')),
     tab('menu', 'menu', 'tabMenu', () => openSettings()))
+  const topBrand = brand('a')
 
-  const treeVisible = () => wide.matches || view === 'tree'
+  // Wide screens show the tree beside the person, but not on the list, which takes the whole width.
+  const treeVisible = () => view !== 'home' && (wide.matches || view === 'tree')
 
   function setView(v: View) {
     // "Show in tree" (phones) is chosen from the person page, which is about to be hidden.
     const fromPerson = v === 'tree' && personPane.contains(document.activeElement)
+    // Going back to the list hides what had focus (Back from a person's page, say).
+    const entering = v === 'home' && view !== 'home'
+    const hidingFocus = entering && (treePane.contains(document.activeElement) || personPane.contains(document.activeElement))
     view = v
     main.dataset.view = v
     tabbar.querySelectorAll<HTMLElement>('.tab').forEach(b => {
       if (b.dataset.tab === v) b.setAttribute('aria-current', 'page')
       else b.removeAttribute('aria-current')
     })
+    placeSearch()
+    if (v === 'home') topBrand.setAttribute('aria-current', 'page')
+    else topBrand.removeAttribute('aria-current')
+    setTitle()
+    if (v === 'home') {
+      // Recently viewed has changed since the list was last built.
+      if (entering) home.refresh()
+      if (hidingFocus) homePane.querySelector<HTMLElement>('h1')!.focus({ preventScroll: true })
+      return
+    }
     if (v === 'person') {
       personPane.scrollTop = 0
       // Opening the page from the tree (the selected card, the bar under it) hides what had focus.
@@ -190,16 +223,53 @@ function startApp() {
 
   function renderChart(recenter: boolean) {
     // family-chart measures its container, so it can't lay out while hidden: defer until shown.
-    if (!treeVisible()) { chartStale = true; return }
+    if (!treeVisible() || !selected) { chartStale = true; return }
     chartStale = false
     chart.render(store.people, selected, recenter)
   }
 
-  const box = searchBox(() => store.people, id => ctx.select(id), () => selected)
+  function setTitle() {
+    const p = view !== 'home' ? store.people.get(selected) : undefined
+    document.title = p ? `${displayName(p)} — ${t.title}` : t.title
+  }
 
+  /** The list of everyone. Leaves the person's address, so Back returns to them. */
+  function goHome() {
+    if (idFromHash()) location.hash = '#/'
+    setView('home')
+  }
+
+  /** The phone's Tree and Person tabs. The person shown gets their address back, as a step Back can undo. */
+  function openTab(v: 'tree' | 'person') {
+    setView(v)
+    if (selected && idFromHash() !== selected) ctx.select(selected)
+  }
+
+  const box = searchBox(() => store.people, id => ctx.select(id), () => selected)
+  // On wide screens the list's filter takes the top-bar search's place, so there's one box,
+  // filtering the list in place rather than dropping results down under it.
+  const homeSlot = h('div', { class: 'search-box', hidden: true }, h('kbd', { 'aria-hidden': 'true' }, '/'))
+
+  function placeSearch() {
+    const inTop = wide.matches && view === 'home'
+    const input = home.input
+    if (inTop === homeSlot.contains(input)) return
+    const focused = document.activeElement === input
+    if (inTop) homeSlot.prepend(input)
+    else home.head.prepend(input)
+    input.classList.toggle('search-trigger', inTop)
+    input.classList.toggle('home-filter', !inTop)
+    homeSlot.hidden = !inTop
+    home.head.hidden = inTop
+    box.el.hidden = inTop
+    if (focused) input.focus({ preventScroll: true })
+  }
+
+  /** `/` and the phone's Search tab: the list's own filter, or the top-bar search while someone is shown on a wide screen. */
   function search() {
-    if (wide.matches) box.focus()
-    else openSearch(() => store.people, ctx.select, selected)
+    if (wide.matches && view !== 'home') { box.focus(); return }
+    goHome()
+    home.focus()
   }
 
 
@@ -229,10 +299,6 @@ function startApp() {
   }
   settingsBtn.addEventListener('click', () => openSettings(settingsBtn))
 
-  function idFromHash() {
-    return /^#\/p\/(.+)$/.exec(location.hash)?.[1] ?? ''
-  }
-
   function renderPersonPane() {
     // On wide screens the tree is always in view, so the person menu doesn't offer to show it.
     renderPerson(personEl, ctx, selected, { showInTree: wide.matches ? undefined : () => setView('tree') })
@@ -241,20 +307,32 @@ function startApp() {
   function render(recenter: boolean) {
     const people = store.people
     const prev = selected
+    loaded = true
     emptyEl.hidden = people.size > 0
-    if (people.size === 0) {
-      personEl.replaceChildren()
-      chart.reset()
-      return
-    }
-    if (!people.has(selected)) {
-      const candidates = [idFromHash(), seniorAncestor(people)?.id, people.keys().next().value]
-      selected = candidates.find(id => id && people.has(id))!
+    home.refresh()
+    // `#/p/<id>` selects that person; someone unknown (deleted, or a bad link) means the list.
+    const id = idFromHash()
+    if (id && !people.has(id)) {
+      history.replaceState(null, '', '#/')
+      setView('home')
+    } else if (id && id !== selected) {
+      selected = id
       recenter = true
     }
-    rememberRecent(selected)
-    if (idFromHash() !== selected) history.replaceState(null, '', `#/p/${selected}`)
-    renderChart(recenter)
+    if (!people.has(selected)) selected = ''
+    if (id === selected && selected) rememberRecent(selected)
+    // Picking someone from the list opens their page on phones, and the tree beside it on wide screens.
+    const fromHome = view === 'home' && !!id && id === selected
+    if (!selected) {
+      chart.reset()
+      chartStale = true
+      personEl.replaceChildren(nobody())
+    } else {
+      renderChart(recenter)
+    }
+    for (const el of [chartTools, peek]) el.hidden = !selected
+    treeNobody.hidden = !!selected
+    if (!selected) { setTitle(); return }
     const p = people.get(selected)!
     peekAvatar.replaceChildren(avatar(p))
     peekName.textContent = displayName(p)
@@ -264,9 +342,13 @@ function startApp() {
     const active = document.activeElement
     const lostFocus = !!active && personEl.contains(active)
     renderPersonPane()
-    document.title = `${displayName(p)} — ${t.title}`
+    if (fromHome) {
+      setView('person')
+      personPane.scrollTop = 0
+    }
+    setTitle()
     if (prev && prev !== selected) announcer.textContent = displayName(p)
-    if (lostFocus || (prev && prev !== selected && active === document.body)) focusPersonHeading()
+    if (fromHome || lostFocus || (prev && prev !== selected && active === document.body)) focusPersonHeading()
   }
 
   function addFirst() {
@@ -286,8 +368,9 @@ function startApp() {
 
   root.replaceChildren(
     h('header', { class: 'topbar' },
-      brand('div'),
+      topBrand,
       box.el,
+      homeSlot,
       h('nav', { class: 'topnav', 'aria-label': t.navTop },
         h('button', { type: 'button', class: 'ghost', onclick: () => openHistory(ctx) },
           icon('history'), h('span', {}, L('history'))),
@@ -300,9 +383,10 @@ function startApp() {
   setView(view)
 
   const onHash = () => {
+    if (!loaded) return
     const id = idFromHash()
-    if (id && id !== selected && store.people.has(id)) {
-      selected = id
+    if (!id) setView('home')
+    else if (id !== selected || view === 'home') {
       render(true)
       personPane.scrollTop = 0
     }

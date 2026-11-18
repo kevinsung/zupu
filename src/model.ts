@@ -238,29 +238,43 @@ export function rootAncestors(people: People): Person[] {
 }
 
 /**
+ * How far a person's line reaches: generations below them and the number of descendants.
+ * Walks down a generation at a time; `seen` keeps cousin marriages (or bad data) from double counting.
+ */
+function lineScore(children: Map<string, string[]>, id: string) {
+  const seen = new Set([id])
+  let generations = 0
+  let level = [id]
+  while (true) {
+    level = level.flatMap(id => children.get(id) ?? []).filter(id => !seen.has(id) && seen.add(id))
+    if (level.length === 0) break
+    generations++
+  }
+  return { generations, descendants: seen.size - 1 }
+}
+
+type Scored = { p: Person, generations: number, descendants: number }
+const bySeniority = (a: Scored, b: Scored) =>
+  b.generations - a.generations ||
+  b.descendants - a.descendants ||
+  byBirth(a.p, b.p)
+
+/**
  * The most senior root ancestor: the one heading the most generations, then the most
  * descendants, then born earliest, then entered first.
  */
 export function seniorAncestor(people: People): Person | undefined {
   const children = childrenIndex(people)
-  // Walk down a generation at a time; `seen` keeps cousin marriages (or bad data) from double counting.
-  const score = (root: Person) => {
-    const seen = new Set([root.id])
-    let generations = 0
-    let level = [root.id]
-    while (true) {
-      level = level.flatMap(id => children.get(id) ?? []).filter(id => !seen.has(id) && seen.add(id))
-      if (level.length === 0) break
-      generations++
-    }
-    return { generations, descendants: seen.size - 1 }
-  }
-  const scored = rootAncestors(people).map(p => ({ p, ...score(p) }))
-  scored.sort((a, b) =>
-    b.generations - a.generations ||
-    b.descendants - a.descendants ||
-    byBirth(a.p, b.p))
-  return scored[0]?.p
+  return rootAncestors(people).map(p => ({ p, ...lineScore(children, p.id) })).sort(bySeniority)[0]?.p
+}
+
+/**
+ * Everyone, in seniorAncestor's order: so a parent comes before their children, and people
+ * without children come last, oldest first.
+ */
+export function rankPeople(people: People): Person[] {
+  const children = childrenIndex(people)
+  return [...people.values()].map(p => ({ p, ...lineScore(children, p.id) })).sort(bySeniority).map(s => s.p)
 }
 
 /** Spouses in the order they were added, except that those with marriage dates are reordered among themselves by date. */
@@ -277,10 +291,12 @@ export function coupleLabel(people: People, p: Person): string {
   return [p, ...partners].map(displayName).join(' & ')
 }
 
-export function searchPeople(people: People, query: string, limit = 20): Person[] {
+/** Whether any of a person's names contains the query, ignoring case; an empty query matches no one. */
+export function matchesName(p: Person, query: string): boolean {
   const q = query.trim().toLowerCase()
-  if (!q) return []
-  return [...people.values()]
-    .filter(p => allNames(p).some(n => n.toLowerCase().includes(q)))
-    .slice(0, limit)
+  return !!q && allNames(p).some(n => n.toLowerCase().includes(q))
+}
+
+export function searchPeople(people: People, query: string, limit = 20): Person[] {
+  return [...people.values()].filter(p => matchesName(p, query)).slice(0, limit)
 }

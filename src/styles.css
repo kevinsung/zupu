@@ -45,7 +45,9 @@ body { overscroll-behavior: none; }
 /* No viewport-fit=cover and no env(safe-area-inset-*): browsers then keep the page out of the
    system bars on their own. Firefox for Android reports the gesture bar's inset anyway, so any
    inset padding shows up there as a blank strip under the tab bar (see 7c69fde). */
-#app { height: 100dvh; display: flex; flex-direction: column; }
+/* The app fits the screen and only its panes scroll. Clipping here keeps anything that overflows
+   anyway from making the page itself scrollable, which can't be scrolled back from the panes. */
+#app { height: 100dvh; display: flex; flex-direction: column; overflow: clip; }
 a { color: var(--accent); text-underline-offset: .15em; }
 button, input, select, textarea { font: inherit; color: inherit; }
 button {
@@ -85,6 +87,8 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline-offs
 h2 .en, .dlg-head h2 .en { font-weight: 500; }
 
 .brand { margin: 0; display: flex; align-items: baseline; gap: .4rem; white-space: nowrap; font-size: 1.2rem; }
+a.brand { color: inherit; text-decoration: none; font-weight: 600; border-radius: 6px; }
+a.brand:hover { color: var(--accent); }
 .brand .en { font-size: .7em; font-weight: 500; color: var(--muted); }
 
 /* Small pill buttons and links (contact actions, marriage, settings) */
@@ -161,8 +165,11 @@ svg.tab-icon { width: 1.4rem; height: 1.4rem; }
 /* Main: one pane at a time on phones */
 main { flex: 1; min-height: 0; position: relative; }
 .pane { position: absolute; inset: 0; }
-main[data-view="person"] .tree-pane, main[data-view="tree"] .person-pane { display: none; }
+main:not([data-view="home"]) .home-pane, main:not([data-view="tree"]) .tree-pane, main:not([data-view="person"]) .person-pane { display: none; }
 .person-pane { overflow-y: auto; overscroll-behavior: contain; }
+/* Before anyone is picked, the Tree and Person tabs offer the way back to the list. */
+.nobody { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: .25rem; padding: 1rem; text-align: center; }
+.nobody p { margin: 0; }
 .status {
   position: absolute; top: 1rem; left: 50%; transform: translateX(-50%); background: var(--surface);
   padding: .5rem 1rem; border-radius: 10px; box-shadow: var(--shadow-pop); z-index: 3;
@@ -179,7 +186,9 @@ main[data-view="person"] .tree-pane, main[data-view="tree"] .person-pane { displ
      to the tree. */
   main { display: grid; grid-template-columns: 1fr 24rem; }
   .pane { position: relative; inset: auto; min-height: 0; }
-  main[data-view] .tree-pane, main[data-view] .person-pane { display: block; }
+  main:not([data-view="home"]) :is(.tree-pane, .person-pane) { display: block; }
+  /* The list of everyone takes the whole width. */
+  main[data-view="home"] { grid-template-columns: 1fr; }
   .person-pane { border-left: 1px solid var(--line); background: var(--bg); }
   /* The person pane hidden: the tree takes the whole width, with the bar that opens the pane
      under it, kept narrow so it clears the tools in the corner. */
@@ -258,6 +267,19 @@ main[data-view="person"] .tree-pane, main[data-view="tree"] .person-pane { displ
   .peek { padding-block: .3rem; bottom: .5rem; }
   .peek .avatar { width: 1.9rem; height: 1.9rem; }
   .peek-text { display: flex; align-items: baseline; gap: .6rem; }
+}
+
+/* Landing page: a filter over everyone, the list scrolling under it */
+.home-pane { display: flex; flex-direction: column; background: var(--bg); }
+.home { display: contents; }
+.home-head { padding: .75rem .9rem .5rem; }
+/* Positioned, so the cards' visually hidden text (position: absolute) scrolls and clips with it. */
+.home-list { position: relative; flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: .5rem .9rem 2.5rem; }
+.home-head > input { display: block; }
+.home-head > input, .home-list > .picker-results { max-width: 40rem; margin-inline: auto; }
+.home-filter { border-radius: 999px; padding-left: 1rem; }
+@media (width >= 700px) and (height >= 500px) {
+  .home-head { padding-top: 1.25rem; }
 }
 
 /* Person cards (lists of relatives, search results) */
@@ -359,9 +381,6 @@ main[data-view="person"] .tree-pane, main[data-view="tree"] .person-pane { displ
 .dlg.confirm .dlg-body:has(.dlg-error:not(:empty)) { display: block; }
 .dlg-error { color: var(--danger); margin: 0 0 .75rem; }
 .dlg-error:empty { display: none; }
-.dlg.search .dlg-head { padding-left: .75rem; }
-.dlg.search .dlg-head input { flex: 1; border-radius: 999px; padding-left: 1rem; }
-.dlg.search .dlg-body { padding-top: .75rem; }
 .dlg .pcard { box-shadow: none; }
 @media not ((width >= 700px) and (height >= 500px)) {
   .dlg {
@@ -374,8 +393,6 @@ main[data-view="person"] .tree-pane, main[data-view="tree"] .person-pane { displ
     margin: .4rem auto -.2rem; flex: none;
   }
   .dlg.tall { height: 94dvh; }
-  .dlg.search { width: 100%; height: 100dvh; max-height: 100dvh; border-radius: 0; animation: none; }
-  .dlg.search::before { display: none; }
   .dlg-actions button { flex: 1; }
   .dlg.confirm { width: min(100%, 40rem); }
 }
