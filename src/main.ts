@@ -1,7 +1,7 @@
 import './styles.css'
 import { h, wide } from './dom'
 import { L, getLang, setLang, t, type Key, type Lang } from './i18n'
-import { authApi, backend, type AuthApi } from './backend'
+import { ApiError, backend, getSession, signIn, signOut } from './backend'
 import { FamilyStore, type Backend } from './store'
 import { TREE_HINT_ID, TreeChart } from './chart'
 import type { AppCtx } from './actions'
@@ -23,7 +23,7 @@ function brand() {
   return h('div', { class: 'brand' }, h('span', {}, zh), en ? h('small', { lang: 'en' }, en) : null)
 }
 
-function showLogin(authApi: AuthApi) {
+function showLogin() {
   const input = h('input', { type: 'password', autocomplete: 'current-password', required: true })
   const error = h('p', { class: 'dlg-error', role: 'alert' })
   const button = h('button', { type: 'submit', class: 'primary' }, L('signIn'))
@@ -36,16 +36,17 @@ function showLogin(authApi: AuthApi) {
     error.textContent = ''
     button.disabled = true
     try {
-      await authApi.signIn(input.value)
+      await signIn(input.value)
     } catch (err) {
-      const code = (err as { code?: string }).code
-      error.textContent = code === 'too-many-requests' ? t.tooManyAttempts
-        : code === 'wrong-password' ? t.wrongPassword
+      const status = err instanceof ApiError ? err.status : 0
+      error.textContent = status === 429 ? t.tooManyAttempts
+        : status === 401 ? t.wrongPassword
         : (err as Error).message
       input.select()
-    } finally {
       button.disabled = false
+      return
     }
+    startApp(backend)
   })
   root.replaceChildren(form)
   input.focus()
@@ -53,7 +54,7 @@ function showLogin(authApi: AuthApi) {
 
 type View = 'person' | 'tree'
 
-function startApp(backend: Backend, authApi: AuthApi): () => void {
+function startApp(backend: Backend): () => void {
   const store = new FamilyStore(backend)
   let selected = ''
   // Phones open on the tree; tapping the selected person (or the bar under the tree) opens their page.
@@ -173,9 +174,6 @@ function startApp(backend: Backend, authApi: AuthApi): () => void {
     else openSearch(() => store.people, ctx.select, selected)
   }
 
-  function signOut() {
-    authApi.signOut().then(() => location.reload())
-  }
 
   /** Editor name, appearance, language and sign-out: a menu under the top-bar button, or a sheet from the phone's Menu tab. */
   function openSettings(anchor?: HTMLElement) {
@@ -191,7 +189,7 @@ function startApp(backend: Backend, authApi: AuthApi): () => void {
       row('language', segmented<Lang>(t.language,
         [['both', h('span', { lang: 'zh-Hant' }, '中英')], ['zh', h('span', { lang: 'zh-Hant' }, '中文')], ['en', h('span', { lang: 'en' }, 'English')]],
         getLang(), lang => { setLang(lang); location.reload() })),
-      menuList([{ icon: 'signOut', label: L('signOut'), run: signOut }], () => close()))
+      menuList([{ icon: 'signOut', label: L('signOut'), run: () => signOut().then(() => location.reload()) }], () => close()))
     close = openMenu(anchor ? t.settings : t.menu, body, anchor)
   }
   settingsBtn.addEventListener('click', () => openSettings(settingsBtn))
@@ -307,10 +305,4 @@ function startApp(backend: Backend, authApi: AuthApi): () => void {
   }
 }
 
-let stop: (() => void) | null = null
-authApi.onChange(signedIn => {
-  stop?.()
-  stop = null
-  if (signedIn) stop = startApp(backend, authApi)
-  else showLogin(authApi)
-})
+getSession().then(signedIn => (signedIn ? startApp(backend) : showLogin()))

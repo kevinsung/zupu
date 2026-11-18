@@ -4,16 +4,9 @@ import { newId } from './ids'
 import type { Person } from './model'
 import type { Backend, ChangeRecord } from './store'
 
-export interface AuthApi {
-  onChange(cb: (signedIn: boolean) => void): () => void
-  /** Rejects with code 'wrong-password' or 'too-many-requests'. */
-  signIn(password: string): Promise<void>
-  signOut(): Promise<void>
-}
-
 const POLL_MS = 30_000
 
-class ApiError extends Error {
+export class ApiError extends Error {
   constructor(public status: number, message: string) { super(message) }
 }
 
@@ -100,26 +93,15 @@ export const backend: Backend = {
   },
 }
 
-export const authApi: AuthApi = {
-  onChange(cb) {
-    let active = true
-    api<{ signedIn: boolean }>('session').then(d => active && cb(d.signedIn), () => active && cb(false))
-    const listener = (e: Event) => cb((e as CustomEvent<boolean>).detail)
-    window.addEventListener('ft-auth', listener)
-    return () => { active = false; window.removeEventListener('ft-auth', listener) }
-  },
-  async signIn(password) {
-    try {
-      await api('login', { password })
-    } catch (e) {
-      const status = (e as ApiError).status
-      throw Object.assign(new Error((e as Error).message), {
-        code: status === 429 ? 'too-many-requests' : status === 401 ? 'wrong-password' : 'error',
-      })
-    }
-    window.dispatchEvent(new CustomEvent('ft-auth', { detail: true }))
-  },
-  async signOut() {
-    await api('logout', {})
-  },
+export async function getSession(): Promise<boolean> {
+  return api<{ signedIn: boolean }>('session').then(d => d.signedIn, () => false)
+}
+
+/** Rejects with an ApiError: status 401 for a wrong password, 429 after too many attempts. */
+export async function signIn(password: string) {
+  await api('login', { password })
+}
+
+export async function signOut() {
+  await api('logout', {})
 }
