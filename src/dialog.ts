@@ -1,6 +1,6 @@
 import { h, wide } from './dom'
 import { L, lang, t, tn, type Key } from './i18n'
-import { type Marriage, type Person, type PersonFields, emptyFields, isValidEmail, isValidPartialDate, normalizePhone, searchPeople, type People } from './model'
+import { type Marriage, type MarriageStatus, type Person, type PersonFields, emptyFields, isValidEmail, isValidPartialDate, marriageWithStatus, normalizePhone, searchPeople, type People } from './model'
 import { personCard } from './cards'
 import { type IconName, icon } from './icons'
 
@@ -408,13 +408,32 @@ export function personForm(initial: PersonFields = emptyFields()) {
   return { el, read, focus: () => nameZh.focus() }
 }
 
-/** Marriage dates form. `read()` returns the dates, or throws a FieldError. */
+/**
+ * A couple's status and marriage dates. Not married hides (and clears) the dates; typing a date
+ * switches to Married. `read()` returns the marriage, or throws a FieldError.
+ */
 export function marriageForm(initial: Marriage) {
+  const option = (value: MarriageStatus, label: string) => h('option', { value, selected: initial.status === value }, label)
+  const status = h('select', { name: 'status' },
+    option('', t.statusUnknown), option('married', t.statusMarried), option('unmarried', t.statusUnmarried))
   const married = partialDateField('marriedDate', 'married', initial.married)
   const divorced = partialDateField('divorcedDate', 'divorced', initial.divorced)
-  const el = h('div', { class: 'form' }, h('div', { class: 'row' }, married.el, divorced.el))
-  const read = (): Marriage => ({ married: married.read(), divorced: divorced.read() })
-  return { el, read, focus: married.focus }
+  const dates = h('div', { class: 'row' }, married.el, divorced.el)
+  const dateInputs = () => [...dates.querySelectorAll('input')]
+  const sync = () => {
+    dates.hidden = status.value === 'unmarried'
+    if (dates.hidden) for (const i of dateInputs()) i.value = ''
+  }
+  status.addEventListener('change', sync)
+  dates.addEventListener('input', () => {
+    if (dateInputs().some(i => i.value.trim())) status.value = 'married'
+  })
+  sync()
+  const el = h('div', { class: 'form' }, field(L('marriageStatus'), status), dates)
+  const read = (): Marriage => marriageWithStatus({
+    married: married.read(), divorced: divorced.read(), status: status.value as MarriageStatus,
+  })
+  return { el, read, focus: () => status.focus() }
 }
 
 /**

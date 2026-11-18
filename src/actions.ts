@@ -2,7 +2,7 @@ import { h } from './dom'
 import { L, t } from './i18n'
 import { confirmDialog, marriageForm, openDialog, personForm, personPicker, toast } from './dialog'
 import { halfTag, personCard } from './cards'
-import { type People, type Person, type PersonFields, childrenOf, displayName, emptyFields } from './model'
+import { type People, type Person, type PersonFields, childrenOf, displayName, emptyFields, emptyMarriage, partnerIds, partnersOf } from './model'
 import type { FamilyStore, LinkRelative, NewRelative } from './store'
 
 export interface AppCtx {
@@ -31,8 +31,9 @@ export function editPerson(ctx: AppCtx, p: Person) {
   form.focus()
 }
 
+/** For any partner (spouse or co-parent); see FamilyStore.setMarriage. */
 export function editMarriage(ctx: AppCtx, p: Person, spouse: Person) {
-  const form = marriageForm(p.marriages[spouse.id] ?? { married: '', divorced: '' })
+  const form = marriageForm(p.marriages[spouse.id] ?? emptyMarriage())
   openDialog(L('editMarriage'), form.el, [
     {
       label: L('save'), primary: true, run: async () => {
@@ -56,26 +57,17 @@ export function addRelative(ctx: AppCtx, p: Person, rel: NewRelative) {
 
   if (rel === 'spouse' && p.gender) initial.gender = p.gender === 'M' ? 'F' : 'M'
   if (rel === 'spouse') {
-    // Children with only this person as a parent are most likely the new spouse's too.
-    const kids = childrenOf(people, p.id).filter(c => c.parents.length === 1)
-    if (kids.length) {
-      const box = h('input', { type: 'checkbox', checked: true })
-      extra = h('label', { class: 'checkbox' }, box, `${t.alsoParentOf} ${kids.map(displayName).join(', ')}`)
-      readOpts = () => (box.checked ? { alsoParentOf: kids.map(c => c.id) } : {})
-    }
+    const also = alsoParentOfBox(people, p)
+    if (also) { extra = also.el; readOpts = also.read }
   }
+  // The store makes the two parents a couple.
   if (rel === 'parent' && p.parents.length === 1) {
-    const existing = people.get(p.parents[0])
-    if (existing) {
-      if (existing.gender) initial.gender = existing.gender === 'M' ? 'F' : 'M'
-      const box = h('input', { type: 'checkbox', checked: true })
-      extra = h('label', { class: 'checkbox' }, box, `${t.alsoSpouseOf} ${displayName(existing)}`)
-      readOpts = () => (box.checked ? { alsoSpouseOf: existing.id } : {})
-    }
+    const gender = people.get(p.parents[0])?.gender
+    if (gender) initial.gender = gender === 'M' ? 'F' : 'M'
   }
   if (rel === 'child') {
     const select = h('select', {},
-      ...p.spouses.map(sid => h('option', { value: sid }, displayName(people.get(sid)))),
+      ...partnersOf(people, p).map(s => h('option', { value: s.id }, displayName(s))),
       h('option', { value: '' }, t.otherParentNone),
     )
     extra = h('label', { class: 'field' }, h('span', { class: 'field-label' }, L('otherParent')), select)
@@ -102,15 +94,27 @@ export function addRelative(ctx: AppCtx, p: Person, rel: NewRelative) {
 }
 
 /**
+ * "Also a parent of …" for children with only `p` as a parent, who are most likely a new spouse's
+ * too; checked by default. Null when there are none.
+ */
+function alsoParentOfBox(people: People, p: Person) {
+  const kids = childrenOf(people, p.id).filter(c => c.parents.length === 1)
+  if (!kids.length) return null
+  const box = h('input', { type: 'checkbox', checked: true })
+  const el = h('label', { class: 'checkbox' }, box, `${t.alsoParentOf} ${kids.map(displayName).join(', ')}`)
+  return { el, read: () => (box.checked ? { alsoParentOf: kids.map(c => c.id) } : {}) }
+}
+
+/**
  * Parent sets a new sibling of `p` can have: p's own parents (a full sibling, the default),
- * then each parent with one of their other spouses, then each parent alone.
+ * then each parent with one of their other partners, then each parent alone. Every choice but
+ * the default makes a half sibling (see halfSiblingVia), via the parent of p's it includes.
  */
 function siblingParentChoices(people: People, p: Person): { ids: string[]; label: string }[] {
   const choices: { ids: string[]; label: string }[] = []
   const seen = new Set<string>()
   const name = (id: string) => displayName(people.get(id))
-  // Only a person with both parents recorded can tell a half sibling from a full one.
-  const half = (via: string) => (p.parents.length === 2 ? ` (${halfTag(people.get(via))})` : '')
+  const half = (via: string) => ` (${halfTag(people.get(via))})`
   const add = (ids: string[], label: string) => {
     const key = [...ids].sort().join(',')
     if (seen.has(key)) return
@@ -119,8 +123,9 @@ function siblingParentChoices(people: People, p: Person): { ids: string[]; label
   }
   add(p.parents, p.parents.map(name).join(' & '))
   for (const pid of p.parents) {
-    for (const sid of people.get(pid)?.spouses ?? []) {
-      if (!p.parents.includes(sid) && people.has(sid)) add([pid, sid], `${name(pid)} & ${name(sid)}${half(pid)}`)
+    const parent = people.get(pid)
+    for (const sid of parent ? partnerIds(people, parent) : []) {
+      if (!p.parents.includes(sid)) add([pid, sid], `${name(pid)} & ${name(sid)}${half(pid)}`)
     }
   }
   for (const pid of p.parents) add([pid], `${t.onlyParent} ${name(pid)}${half(pid)}`)
@@ -134,8 +139,13 @@ export function linkExisting(ctx: AppCtx, p: Person) {
     h('option', { value: 'child' }, t.asChild),
   )
   const picker = personPicker(() => ctx.store.people, () => {}, { exclude: p.id, selectable: true })
+  // As in Add spouse; only offered while linking a spouse.
+  const also = alsoParentOfBox(ctx.store.people, p)
+  const syncAlso = () => { if (also) also.el.hidden = rel.value !== 'spouse' }
+  rel.addEventListener('change', syncAlso)
+  syncAlso()
   openDialog(L('linkExisting'),
-    h('div', { class: 'form' }, h('label', { class: 'field' }, h('span', { class: 'field-label' }, L('linkAs')), rel), picker.el),
+    h('div', { class: 'form' }, h('label', { class: 'field' }, h('span', { class: 'field-label' }, L('linkAs')), rel), also?.el, picker.el),
     [
       {
         label: L('save'), primary: true, run: async () => {
@@ -147,7 +157,7 @@ export function linkExisting(ctx: AppCtx, p: Person) {
           if (problem) throw new Error(problem)
           const editor = await ctx.editorName()
           if (!editor) return false
-          await ctx.store.link(editor, r, p.id, other.id)
+          await ctx.store.link(editor, r, p.id, other.id, r === 'spouse' && also ? also.read() : {})
         },
       },
     ], { subtitle: displayName(p) })
@@ -158,8 +168,8 @@ export async function deletePerson(ctx: AppCtx, p: Person) {
   if (!(await confirmDialog(`${t.confirmDelete} — ${displayName(p)}`, t.delete, true))) return
   const editor = await ctx.editorName()
   if (!editor) return
-  // A parent or spouse is the nearest place to land; with neither, the list of everyone.
-  const next = p.parents[0] ?? p.spouses[0]
+  // A parent or partner is the nearest place to land; with neither, the list of everyone.
+  const next = p.parents[0] ?? partnerIds(ctx.store.people, p)[0]
   try {
     await ctx.store.deletePerson(editor, p.id)
   } catch (e) {
@@ -176,10 +186,15 @@ export function removeRelationship(ctx: AppCtx, p: Person) {
   const list = h('div', { class: 'form' })
   let close = () => {}
   const section = (label: string, rel: LinkRelative, others: Person[]) => others.length
-    ? h('section', {}, h('h3', { class: 'section-title' }, label), h('div', { class: 'cards' }, ...others.map(other =>
-      personCard(other, null, h('button', {
+    ? h('section', {}, h('h3', { class: 'section-title' }, label), h('div', { class: 'cards' }, ...others.map(other => {
+      // Parents of a shared child stay a couple, so that Remove is disabled, saying why.
+      const problem = ctx.store.unlinkProblem(rel, p.id, other.id)
+      return personCard(other, null, h('button', {
         // Says whose relationship goes; the visible word comes first so voice control still finds it.
-        type: 'button', class: 'danger small', 'aria-label': `${t.remove} ${displayName(other)}`, onclick: async () => {
+        // Stays focusable (aria-disabled, as in menus) and says why when pressed (in the dialog's error line), since a tooltip never shows on phones.
+        type: 'button', class: 'danger small', 'aria-disabled': problem ? 'true' : undefined, title: problem ?? undefined,
+        'aria-label': [`${t.remove} ${displayName(other)}`, problem].filter(Boolean).join(': '), onclick: async () => {
+          if (problem) { toast(problem); return }
           if (!(await confirmDialog(`${t.confirmUnlink} ${displayName(p)} — ${displayName(other)}`, t.remove, true))) return
           const editor = await ctx.editorName()
           if (!editor) return
@@ -190,12 +205,13 @@ export function removeRelationship(ctx: AppCtx, p: Person) {
             toast(`${t.saveFailed}: ${(e as Error).message}`)
           }
         },
-      }, t.remove)))))
+      }, t.remove))
+    })))
     : null
   const get = (ids: string[]) => ids.map(id => people.get(id)).filter((x): x is Person => !!x)
   const sections = [
     section(t.parents, 'parent', get(p.parents)),
-    section(t.spouses, 'spouse', get(p.spouses)),
+    section(t.spouses, 'spouse', partnersOf(people, p)),
     section(t.children, 'child', childrenOf(people, p.id)),
   ].filter((x): x is HTMLElement => !!x)
   list.append(...(sections.length ? sections : [h('p', { class: 'muted' }, t.noRelationships)]))

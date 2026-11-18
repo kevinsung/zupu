@@ -1,5 +1,5 @@
 // Strict checks on everything the browser sends, since anyone with the password can call the API.
-import { FIELD_KEYS, type Marriage, type Person, type PersonFields, emptyFields, isValidEmail, isValidPartialDate, isValidPhone } from '../src/model'
+import { FIELD_KEYS, MARRIAGE_STATUSES, type Marriage, type MarriageStatus, type Person, type PersonFields, emptyFields, isValidEmail, isValidPartialDate, isValidPhone } from '../src/model'
 import type { NewChange, Op, RelList } from '../src/ops'
 
 export class BadRequest extends Error {}
@@ -56,11 +56,14 @@ function relLists(v: unknown): Partial<Record<RelList, string[]>> | undefined {
 
 function marriage(v: unknown): Marriage {
   check(isObj(v), 'invalid marriage')
-  const { married = '', divorced = '', ...rest } = v
+  // status is optional: history snapshots from before it existed lack it.
+  const { married = '', divorced = '', status = '', ...rest } = v
   check(Object.keys(rest).length === 0, 'unknown marriage field')
   check(typeof married === 'string' && isValidPartialDate(married), 'invalid married')
   check(typeof divorced === 'string' && isValidPartialDate(divorced), 'invalid divorced')
-  return { married, divorced }
+  check(MARRIAGE_STATUSES.includes(status as MarriageStatus), 'invalid marriage status')
+  check(status !== 'unmarried' || (!married && !divorced), 'an unmarried couple cannot have marriage dates')
+  return { married, divorced, status: status as MarriageStatus }
 }
 
 /** Marriages keyed by spouse id; with `nullable`, null clears one (update patches). */

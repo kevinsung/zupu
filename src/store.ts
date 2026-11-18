@@ -1,4 +1,4 @@
-import { type Marriage, type People, type Person, type PersonFields, FIELD_KEYS, childrenOf, displayName, isEmptyMarriage } from './model'
+import { type Marriage, type People, type Person, type PersonFields, FIELD_KEYS, childrenOf, displayName, emptyMarriage, isEmptyMarriage, marriageWithStatus, partnerIds } from './model'
 import { newId } from './ids'
 import { t } from './i18n'
 import type { ChangeRecord, NewChange, Op, RelList } from './ops'
@@ -33,6 +33,19 @@ export class FamilyStore {
     return displayName(this.people.get(id))
   }
 
+  /**
+   * Stores two people as spouses, unless they already are. Every pair of parents is a couple, so
+   * each path that gives a child a second parent calls this.
+   */
+  private coupleOps(aId: string, bId: string): Op[] {
+    const a = this.people.get(aId)
+    if (!a || aId === bId || !this.people.has(bId) || a.spouses.includes(bId)) return []
+    return [
+      { type: 'update', id: aId, add: { spouses: [bId] } },
+      { type: 'update', id: bId, add: { spouses: [aId] } },
+    ]
+  }
+
   private async commit(editor: string, summary: string, ops: Op[]) {
     await this.save(ops, { editor, summary })
   }
@@ -54,17 +67,18 @@ export class FamilyStore {
 
   /**
    * Create a new person related to `anchorId`.
-   * - parent: `alsoSpouseOf` makes the new parent a spouse of the existing parent.
+   * - parent: a second parent becomes a spouse of the first.
    * - spouse: `alsoParentOf` makes the new spouse the second parent of those children of the anchor
    *   who have the anchor as their only parent.
-   * - child: `coParentId` is the other parent ('' for none).
+   * - child: `coParentId` is the other parent ('' for none); they become the anchor's spouse if not already.
+   * - sibling: `parentIds` are the new sibling's parents (default: the anchor's); two become spouses.
    */
   async addRelative(
     editor: string,
     rel: NewRelative,
     anchorId: string,
     fields: PersonFields,
-    opts: { coParentId?: string; alsoSpouseOf?: string; alsoParentOf?: string[]; parentIds?: string[] } = {},
+    opts: { coParentId?: string; alsoParentOf?: string[]; parentIds?: string[] } = {},
   ): Promise<string> {
     const anchor = this.get(anchorId)
     const person = newPerson(fields)
@@ -76,9 +90,10 @@ export class FamilyStore {
       case 'parent':
         if (anchor.parents.length >= 2) throw new Error(t.parentsFull)
         ops.push({ type: 'update', id: anchorId, add: { parents: [id] } })
-        if (opts.alsoSpouseOf && anchor.parents.includes(opts.alsoSpouseOf)) {
-          person.spouses = [opts.alsoSpouseOf]
-          ops.push({ type: 'update', id: opts.alsoSpouseOf, add: { spouses: [id] } })
+        // The new person isn't in `people` yet, so coupleOps can't link them.
+        if (anchor.parents.length === 1 && this.people.has(anchor.parents[0])) {
+          person.spouses = [anchor.parents[0]]
+          ops.push({ type: 'update', id: anchor.parents[0], add: { spouses: [id] } })
         }
         label = '新增父母 Added parent'
         break
@@ -92,9 +107,14 @@ export class FamilyStore {
           }
           ops.push({ type: 'update', id: cid, add: { parents: [id] } })
         }
-        label = '新增配偶 Added spouse'
+        label = '新增伴侶 Added partner'
         break
       case 'child':
+        if (opts.coParentId) {
+          this.get(opts.coParentId)
+          if (opts.coParentId === anchorId) throw new Error(t.needsOneOrTwoParents)
+          ops.push(...this.coupleOps(anchorId, opts.coParentId))
+        }
         person.parents = opts.coParentId ? [anchorId, opts.coParentId] : [anchorId]
         label = '新增子女 Added child'
         break
@@ -107,6 +127,7 @@ export class FamilyStore {
         parentIds.forEach(pid => this.get(pid))
         if (!parentIds.some(pid => anchor.parents.includes(pid))) throw new Error(t.mustShareParent)
         person.parents = [...parentIds]
+        if (parentIds.length === 2) ops.push(...this.coupleOps(parentIds[0], parentIds[1]))
         label = '新增兄弟姊妹 Added sibling'
         break
       }
@@ -145,39 +166,66 @@ export class FamilyStore {
     return false
   }
 
-  async link(editor: string, rel: LinkRelative, anchorId: string, otherId: string) {
+  /**
+   * Link two existing people. A child who already has a parent makes that parent and the new one
+   * spouses. For a spouse, `alsoParentOf` makes `otherId` the second parent of those children of the
+   * anchor who have the anchor as their only parent (as in addRelative).
+   */
+  async link(editor: string, rel: LinkRelative, anchorId: string, otherId: string, opts: { alsoParentOf?: string[] } = {}) {
     const problem = this.linkProblem(rel, anchorId, otherId)
     if (problem) throw new Error(problem)
     let ops: Op[]
     let label: string
     if (rel === 'spouse') {
-      ops = [
-        { type: 'update', id: anchorId, add: { spouses: [otherId] } },
-        { type: 'update', id: otherId, add: { spouses: [anchorId] } },
-      ]
-      label = '連結配偶 Linked spouse'
+      ops = this.coupleOps(anchorId, otherId)
+      for (const cid of new Set(opts.alsoParentOf ?? [])) {
+        const child = this.get(cid)
+        if (child.parents.length !== 1 || child.parents[0] !== anchorId) {
+          throw new Error(`${displayName(child)} ${t.hasOtherParent}`)
+        }
+        const childProblem = this.linkProblem('parent', cid, otherId)
+        if (childProblem) throw new Error(`${displayName(child)}: ${childProblem}`)
+        ops.push({ type: 'update', id: cid, add: { parents: [otherId] } })
+      }
+      label = '連結伴侶 Linked partner'
     } else {
       const [childId, parentId] = rel === 'parent' ? [anchorId, otherId] : [otherId, anchorId]
       ops = [{ type: 'update', id: childId, add: { parents: [parentId] } }]
+      const existing = this.get(childId).parents[0]
+      if (existing) ops.push(...this.coupleOps(existing, parentId))
       label = rel === 'parent' ? '連結父母 Linked parent' : '連結子女 Linked child'
     }
     await this.commit(editor, `${label}: ${this.name(otherId)} → ${this.name(anchorId)}`, ops)
   }
 
-  /** Set the marriage dates of two spouses, on both of them. */
+  /**
+   * Set a couple's marriage status and dates, on both of them. Works for any partners; co-parents
+   * not yet stored as spouses are linked in the same commit, so older data catches up as it's edited.
+   */
   async setMarriage(editor: string, aId: string, bId: string, marriage: Marriage) {
     const a = this.get(aId)
-    if (!a.spouses.includes(bId)) throw new Error(t.notSpouses)
-    const cur = a.marriages[bId] ?? { married: '', divorced: '' }
-    if (cur.married === marriage.married && cur.divorced === marriage.divorced) return
-    const value = isEmptyMarriage(marriage) ? null : marriage
+    if (!partnerIds(this.people, a).includes(bId)) throw new Error(t.notSpouses)
+    const next = marriageWithStatus(marriage)
+    const cur = a.marriages[bId] ?? emptyMarriage()
+    if (cur.married === next.married && cur.divorced === next.divorced && cur.status === next.status) return
+    const value = isEmptyMarriage(next) ? null : next
     await this.commit(editor, `編輯婚姻 Edited marriage: ${this.name(aId)} & ${this.name(bId)}`, [
+      ...this.coupleOps(aId, bId),
       { type: 'update', id: aId, marriages: { [bId]: value } },
       { type: 'update', id: bId, marriages: { [aId]: value } },
     ])
   }
 
+  /** Why unlinking would be refused, or null if it's fine. Parents of a shared child stay a couple. */
+  unlinkProblem(rel: LinkRelative, anchorId: string, otherId: string): string | null {
+    if (rel !== 'spouse') return null
+    const shares = childrenOf(this.people, anchorId).some(c => c.parents.includes(otherId))
+    return shares ? t.sharesChildren : null
+  }
+
   async unlink(editor: string, rel: LinkRelative, anchorId: string, otherId: string) {
+    const problem = this.unlinkProblem(rel, anchorId, otherId)
+    if (problem) throw new Error(problem)
     let ops: Op[]
     let label: string
     if (rel === 'spouse') {
@@ -185,7 +233,7 @@ export class FamilyStore {
         { type: 'update', id: anchorId, remove: { spouses: [otherId] } },
         { type: 'update', id: otherId, remove: { spouses: [anchorId] } },
       ]
-      label = '移除配偶關係 Unlinked spouse'
+      label = '移除伴侶關係 Unlinked partner'
     } else {
       const [childId, parentId] = rel === 'parent' ? [anchorId, otherId] : [otherId, anchorId]
       ops = [{ type: 'update', id: childId, remove: { parents: [parentId] } }]

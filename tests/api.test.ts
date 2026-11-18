@@ -126,7 +126,7 @@ describe('data', () => {
   })
 
   it('saves marriages and rejects bad ones', async () => {
-    const m = { married: '1985-10', divorced: '' }
+    const m = { married: '1985-10', divorced: '', status: 'married' as const }
     expect((await commit([{ type: 'update', id: 'dad', add: { spouses: ['mom'] } }, { type: 'update', id: 'mom', add: { spouses: ['dad'] } }])).status).toBe(200)
     expect((await commit([{ type: 'update', id: 'dad', marriages: { mom: m } }, { type: 'update', id: 'mom', marriages: { dad: m } }])).status).toBe(200)
     let { people } = await (await w.call('/api/people')).json() as { people: Person[] }
@@ -134,6 +134,8 @@ describe('data', () => {
     const bad: unknown[][] = [
       [{ type: 'update', id: 'dad', marriages: { mom: { married: '85' } } }],
       [{ type: 'update', id: 'dad', marriages: { mom: { married: '1985', place: 'x' } } }],
+      [{ type: 'update', id: 'dad', marriages: { mom: { status: 'engaged' } } }],
+      [{ type: 'update', id: 'dad', marriages: { mom: { married: '1985', status: 'unmarried' } } }],
       [{ type: 'update', id: 'dad', marriages: { 'bad id!': m } }],
       [{ type: 'update', id: 'dad', marriages: [] }],
       [{ type: 'set', person: person('x', { marriages: { mom: m } }) }], // not a spouse
@@ -142,6 +144,14 @@ describe('data', () => {
     expect((await commit([{ type: 'update', id: 'dad', marriages: { mom: null } }])).status).toBe(200)
     ;({ people } = await (await w.call('/api/people')).json() as { people: Person[] })
     expect(people.find(p => p.id === 'dad')!.marriages).toEqual({})
+
+    // Status round-trips; marriages from before it existed still save, as unknown or (with a date) married.
+    const unmarried = { married: '', divorced: '', status: 'unmarried' as const }
+    expect((await commit([{ type: 'update', id: 'dad', marriages: { mom: unmarried } }, { type: 'update', id: 'mom', marriages: { dad: { married: '1985' } } }])).status).toBe(200)
+    ;({ people } = await (await w.call('/api/people')).json() as { people: Person[] })
+    expect(people.find(p => p.id === 'dad')!.marriages).toEqual({ mom: unmarried })
+    expect(people.find(p => p.id === 'mom')!.marriages).toEqual({ dad: { married: '1985', divorced: '', status: 'married' } })
+    expect((await commit([{ type: 'set', person: { ...person('old2', { spouses: ['mom'] }), marriages: { mom: { divorced: '1990' } } } }])).status).toBe(200)
   })
 
   it('refuses to update someone who was deleted meanwhile', async () => {

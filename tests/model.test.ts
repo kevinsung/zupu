@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 // jsdom because FamilyStore's messages come from i18n, which reads the language setting from localStorage.
 import { describe, expect, it } from 'vitest'
-import { type People, type Person, age, childrenByCoParent, emptyFields, formatPhone, halfSiblingVia, isValidEmail, isValidPartialDate, isValidPhone, normalizePerson, normalizePhone, rankPeople, rootAncestors, searchPeople, seniorAncestor, siblingsOf, spousesOf } from '../src/model'
+import { type People, type Person, age, childrenByCoParent, emptyFields, formatPhone, halfSiblingVia, isValidEmail, isValidPartialDate, isValidPhone, normalizePerson, normalizePhone, rankPeople, rootAncestors, searchPeople, seniorAncestor, siblingsOf, partnerIds, partnersOf } from '../src/model'
 import { applyOp, simulate, type ChangeRecord, type NewChange, type Op } from '../src/ops'
 import { FamilyStore } from '../src/store'
 import { seedToPeople } from '../src/seed-format'
@@ -75,26 +75,49 @@ describe('model', () => {
     expect(halfSiblingVia(get('c'), get('a'))).toBe('dad')
     expect(halfSiblingVia(get('a'), get('b'))).toBeNull()
     const only = person('d', { parents: ['dad'] })
-    expect(halfSiblingVia(only, get('a'))).toBeNull() // can't tell with one parent recorded
+    // The same from both sides, even with one parent recorded.
+    expect(halfSiblingVia(only, get('a'))).toBe('dad')
     expect(halfSiblingVia(get('a'), only)).toBe('dad')
+    // Two people with the same one parent recorded are full siblings.
+    expect(halfSiblingVia(only, person('e', { parents: ['dad'] }))).toBeNull()
+    expect(halfSiblingVia(only, person('f', { parents: ['mom'] }))).toBeNull()
   })
 
   it('orders spouses by marriage date, leaving undated ones in place', () => {
     const people: People = new Map([
       person('p', { spouses: ['w1', 'w2', 'w3', 'w4'], marriages: {
-        w1: { married: '1970', divorced: '' }, w3: { married: '1960-05', divorced: '1968' }, w4: { married: '1960', divorced: '' },
+        w1: { married: '1970', divorced: '', status: 'married' }, w3: { married: '1960-05', divorced: '1968', status: 'married' }, w4: { married: '1960', divorced: '', status: 'married' },
       } }),
       ...['w1', 'w2', 'w3', 'w4'].map(id => person(id, { spouses: ['p'] })),
     ].map(p => [p.id, p]))
-    expect(spousesOf(people, people.get('p')!).map(s => s.id)).toEqual(['w4', 'w2', 'w3', 'w1'])
+    expect(partnersOf(people, people.get('p')!).map(s => s.id)).toEqual(['w4', 'w2', 'w3', 'w1'])
   })
 
   it('drops empty marriages and marriages to non-spouses on load', () => {
     const p = normalizePerson('p', { spouses: ['s'], marriages: {
       s: { married: '1960' }, gone: { married: '1950', divorced: '' }, t: { married: '', divorced: '' },
     } })
-    expect(p.marriages).toEqual({ s: { married: '1960', divorced: '' } })
+    expect(p.marriages).toEqual({ s: { married: '1960', divorced: '', status: 'married' } })
     expect(normalizePerson('p', {}).marriages).toEqual({})
+  })
+
+  it('reads marriage status, treating a missing or invalid one as unknown and any date as married', () => {
+    const p = normalizePerson('p', { spouses: ['s', 't', 'u', 'v'], marriages: {
+      s: { status: 'unmarried' }, t: { status: 'bogus', married: '' }, u: { status: 'unmarried', divorced: '1970' }, v: { status: 'married' },
+    } })
+    expect(p.marriages).toEqual({
+      s: { married: '', divorced: '', status: 'unmarried' },
+      u: { married: '', divorced: '1970', status: 'married' },
+      v: { married: '', divorced: '', status: 'married' },
+    })
+  })
+
+  it('counts co-parents as partners, after spouses', () => {
+    const { store } = memoryStore([...family(), person('x'), person('k', { parents: ['mom', 'x'] })])
+    const ids = (id: string) => partnerIds(store.people, store.people.get(id)!)
+    expect(ids('mom')).toEqual(['dad', 'x'])
+    expect(ids('x')).toEqual(['mom'])
+    expect(ids('dad')).toEqual(['mom', 'mom2'])
   })
 
   it('searches across Chinese, English and other names', () => {
@@ -182,18 +205,24 @@ describe('store', () => {
     expect(changes[0].diffs.map(d => d.id).sort()).toEqual(['a', id].sort())
   })
 
-  it('adds a child with a chosen co-parent', async () => {
+  it('adds a child with a chosen co-parent, who becomes a spouse', async () => {
     const { store } = memoryStore(family())
     const id = await store.addRelative('K', 'child', 'dad', emptyFields(), { coParentId: 'mom2' })
     expect(store.people.get(id)!.parents).toEqual(['dad', 'mom2'])
+    const kid = await store.addRelative('K', 'child', 'mom', emptyFields(), { coParentId: 'mom2' })
+    expect(store.people.get(kid)!.parents).toEqual(['mom', 'mom2'])
+    expect(store.people.get('mom')!.spouses).toEqual(['dad', 'mom2'])
+    expect(store.people.get('mom2')!.spouses).toEqual(['dad', 'mom'])
+    await expect(store.addRelative('K', 'child', 'dad', emptyFields(), { coParentId: 'nobody' })).rejects.toThrow()
   })
 
-  it('adds a parent, optionally as spouse of the existing parent', async () => {
+  it('adds a parent as spouse of the existing parent', async () => {
     const people = [person('kid', { parents: ['p1'] }), person('p1')]
     const { store } = memoryStore(people)
-    const id = await store.addRelative('K', 'parent', 'kid', emptyFields(), { alsoSpouseOf: 'p1' })
+    const id = await store.addRelative('K', 'parent', 'kid', emptyFields())
     expect(store.people.get('kid')!.parents).toEqual(['p1', id])
     expect(store.people.get('p1')!.spouses).toEqual([id])
+    expect(store.people.get(id)!.spouses).toEqual(['p1'])
     await expect(store.addRelative('K', 'parent', 'kid', emptyFields())).rejects.toThrow()
   })
 
@@ -219,6 +248,11 @@ describe('store', () => {
     const { store } = memoryStore(family())
     const half = await store.addRelative('K', 'sibling', 'a', emptyFields(), { parentIds: ['dad', 'mom2'] })
     expect(store.people.get(half)!.parents).toEqual(['dad', 'mom2'])
+    // Two parents become a couple.
+    const other = await store.addRelative('K', 'sibling', 'c', emptyFields(), { parentIds: ['mom2', 'mom'] })
+    expect(store.people.get(other)!.parents).toEqual(['mom2', 'mom'])
+    expect(store.people.get('mom')!.spouses).toContain('mom2')
+    expect(store.people.get('mom2')!.spouses).toContain('mom')
     const only = await store.addRelative('K', 'sibling', 'a', emptyFields(), { parentIds: ['dad'] })
     expect(store.people.get(only)!.parents).toEqual(['dad'])
     await expect(store.addRelative('K', 'sibling', 'a', emptyFields(), { parentIds: ['mom2'] })).rejects.toThrow()
@@ -245,6 +279,50 @@ describe('store', () => {
     expect(store.linkProblem('spouse', 'a', 'c')).toBeNull()
   })
 
+  it('links the existing parent and a newly linked one as spouses', async () => {
+    const { store } = memoryStore([person('kid', { parents: ['p1'] }), person('p1'), person('p2'), person('kid2'), person('p3')])
+    await store.link('K', 'parent', 'kid', 'p2')
+    expect(store.people.get('p1')!.spouses).toEqual(['p2'])
+    expect(store.people.get('p2')!.spouses).toEqual(['p1'])
+    await store.link('K', 'child', 'p3', 'kid2')
+    expect(store.people.get('p3')!.spouses).toEqual([])
+    await store.link('K', 'child', 'p1', 'kid2')
+    expect(store.people.get('p1')!.spouses).toEqual(['p2', 'p3'])
+  })
+
+  it('links a spouse as the other parent of single-parent children', async () => {
+    const people = [person('p1'), person('k1', { parents: ['p1'] }), person('x'), person('k2', { parents: ['p1', 'x'] }), person('s')]
+    const { store } = memoryStore(people)
+    await expect(store.link('K', 'spouse', 'p1', 's', { alsoParentOf: ['k2'] })).rejects.toThrow()
+    // A child can't become their own parent.
+    await expect(store.link('K', 'spouse', 'p1', 'k1', { alsoParentOf: ['k1'] })).rejects.toThrow()
+    await store.link('K', 'spouse', 'p1', 's', { alsoParentOf: ['k1'] })
+    expect(store.people.get('k1')!.parents).toEqual(['p1', 's'])
+    expect(store.people.get('s')!.spouses).toEqual(['p1'])
+    expect(store.people.get('p1')!.spouses).toEqual(['s'])
+  })
+
+  it('refuses to unlink spouses who share a child', async () => {
+    const { store } = memoryStore(family())
+    expect(store.unlinkProblem('spouse', 'dad', 'mom')).toBeTruthy()
+    expect(store.unlinkProblem('parent', 'a', 'dad')).toBeNull()
+    await expect(store.unlink('K', 'spouse', 'dad', 'mom')).rejects.toThrow()
+    expect(store.people.get('dad')!.spouses).toContain('mom')
+  })
+
+  it('sets the marriage of co-parents who are not spouses, linking them', async () => {
+    const { store, changes } = memoryStore([...family(), person('x'), person('k', { parents: ['mom', 'x'] })])
+    await store.setMarriage('K', 'x', 'mom', { married: '', divorced: '', status: 'unmarried' })
+    expect(changes).toHaveLength(1)
+    expect(store.people.get('x')!.spouses).toEqual(['mom'])
+    expect(store.people.get('mom')!.spouses).toEqual(['dad', 'x'])
+    expect(store.people.get('x')!.marriages).toEqual({ mom: { married: '', divorced: '', status: 'unmarried' } })
+    expect(store.people.get('mom')!.marriages).toEqual({ x: { married: '', divorced: '', status: 'unmarried' } })
+    // Any date means married.
+    await store.setMarriage('K', 'x', 'mom', { married: '1990', divorced: '', status: 'unmarried' })
+    expect(store.people.get('mom')!.marriages.x.status).toBe('married')
+  })
+
   it('links and unlinks spouses symmetrically', async () => {
     const { store } = memoryStore(family())
     await store.link('K', 'spouse', 'mom', 'mom2')
@@ -255,7 +333,7 @@ describe('store', () => {
 
   it('sets marriage dates on both spouses, clears them, and drops them on unlink', async () => {
     const { store, changes } = memoryStore(family())
-    const m = { married: '1980-06', divorced: '1988' }
+    const m = { married: '1980-06', divorced: '1988', status: 'married' as const }
     await store.setMarriage('K', 'mom', 'dad', m)
     expect(store.people.get('dad')!.marriages).toEqual({ mom: m })
     expect(store.people.get('mom')!.marriages).toEqual({ dad: m })
@@ -264,16 +342,19 @@ describe('store', () => {
     expect(changes.length).toBe(1) // unchanged: no commit
     await expect(store.setMarriage('K', 'mom', 'mom2', m)).rejects.toThrow()
 
-    await store.setMarriage('K', 'dad', 'mom2', { married: '1990', divorced: '' })
-    await store.setMarriage('K', 'dad', 'mom2', { married: '', divorced: '' })
+    await store.setMarriage('K', 'dad', 'mom2', { married: '1990', divorced: '', status: '' })
+    await store.setMarriage('K', 'dad', 'mom2', { married: '', divorced: '', status: '' })
     expect(store.people.get('dad')!.marriages).toEqual({ mom: m })
     expect(store.people.get('mom2')!.marriages).toEqual({})
 
-    await store.unlink('K', 'spouse', 'dad', 'mom')
-    expect(store.people.get('dad')!.marriages).toEqual({})
-    expect(store.people.get('mom')!.marriages).toEqual({})
+    // Spouses without children together can be unlinked, which drops their marriage.
+    await store.link('K', 'spouse', 'b', 'c')
+    await store.setMarriage('K', 'b', 'c', m)
+    await store.unlink('K', 'spouse', 'b', 'c')
+    expect(store.people.get('b')!.marriages).toEqual({})
+    expect(store.people.get('c')!.marriages).toEqual({})
     await store.revert('K', changes.at(-1)!)
-    expect(store.people.get('mom')!.marriages).toEqual({ dad: m })
+    expect(store.people.get('c')!.marriages).toEqual({ b: m })
   })
 
   it('delete strips references, and revert restores everything', async () => {
@@ -307,6 +388,12 @@ describe('seed format', () => {
       ['id0', ['id1'], [], 0], ['id1', ['id0'], [], 1], ['id2', [], ['id0', 'id1'], 2],
     ])
     expect(() => seedToPeople([{ key: 'a', parents: ['nope'] }], () => 'q')).toThrow()
+  })
+
+  it("makes a child's two parents spouses", () => {
+    let n = 0
+    const people = seedToPeople([{ key: 'x' }, { key: 'y' }, { key: 'z', parents: ['x', 'y'] }], () => `id${n++}`)
+    expect(people.map(p => p.spouses)).toEqual([['id1'], ['id0'], []])
   })
 })
 

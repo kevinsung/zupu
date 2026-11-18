@@ -1,6 +1,9 @@
 import { type Person, normalizePerson } from './model'
 
-/** Shape of seed/family.json: people keyed by short local keys; spouses may be listed on one side only. */
+/**
+ * Shape of seed/family.json: people keyed by short local keys; spouses may be listed on one side
+ * only, and a child's two parents are made spouses if they aren't listed as such.
+ */
 export interface SeedEntry {
   key: string
   nameZh?: string
@@ -31,11 +34,12 @@ export function seedToPeople(entries: SeedEntry[], newId: () => string): Person[
     return normalizePerson(resolve(key), { ...fields, parents: parents.map(resolve), spouses: spouses.map(resolve), order: i })
   })
   const byId = new Map(people.map(p => [p.id, p]))
-  for (const p of people) {
-    for (const s of p.spouses) {
-      const sp = byId.get(s)!
-      if (!sp.spouses.includes(p.id)) sp.spouses.push(p.id)
-    }
+  const couple = (a: Person, b: Person) => {
+    if (a === b) return
+    if (!a.spouses.includes(b.id)) a.spouses.push(b.id)
+    if (!b.spouses.includes(a.id)) b.spouses.push(a.id)
   }
+  for (const p of people) for (const s of p.spouses) couple(p, byId.get(s)!)
+  for (const p of people) if (p.parents.length === 2) couple(byId.get(p.parents[0])!, byId.get(p.parents[1])!)
   return people
 }

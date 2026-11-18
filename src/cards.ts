@@ -3,10 +3,14 @@ import { t, tn } from './i18n'
 import { icon } from './icons'
 import { type Marriage, type Person, UNKNOWN, age, allNames, displayName, lifespan } from './model'
 
-/** e.g. "結婚 / Married 1962 · 離婚 / Divorced 1975"; '' if nothing is recorded. */
-export function marriageText(m: Marriage | undefined): string {
+/**
+ * e.g. "結婚 / Married 1962 · 離婚 / Divorced 1975", or the status without dates ("已婚 / Married");
+ * '' if nothing is recorded. Partial because history snapshots from before `status` existed lack it.
+ */
+export function marriageText(m: Partial<Marriage> | undefined): string {
   if (!m) return ''
-  return [m.married && `${t.married} ${m.married}`, m.divorced && `${t.divorced} ${m.divorced}`].filter(Boolean).join(' · ')
+  const dates = [m.married && `${t.married} ${m.married}`, m.divorced && `${t.divorced} ${m.divorced}`].filter(Boolean).join(' · ')
+  return dates || (m.status === 'married' ? t.statusMarried : m.status === 'unmarried' ? t.statusUnmarried : '')
 }
 
 /** Secondary line for a person: their other names and years. */

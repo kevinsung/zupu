@@ -17,10 +17,17 @@ export interface PersonFields {
   signal: string
 }
 
-/** Dates are partial dates like birthDate; '' when unknown. */
+export type MarriageStatus = '' | 'married' | 'unmarried'
+export const MARRIAGE_STATUSES: readonly MarriageStatus[] = ['', 'married', 'unmarried']
+
+/**
+ * A couple: two people who are spouses or share a child. Dates are partial dates like birthDate,
+ * '' when unknown. Status '' is unknown; an unmarried couple has no dates, and any date means married.
+ */
 export interface Marriage {
   married: string
   divorced: string
+  status: MarriageStatus
 }
 
 export interface Person extends PersonFields {
@@ -46,8 +53,18 @@ export function emptyFields(): PersonFields {
 /** Every PersonFields key, in form order; taken from emptyFields so the list can't fall out of step. */
 export const FIELD_KEYS = Object.keys(emptyFields()) as (keyof PersonFields)[]
 
-export function isEmptyMarriage(m: Marriage): boolean {
-  return !m.married && !m.divorced
+export function emptyMarriage(): Marriage {
+  return { married: '', divorced: '', status: '' }
+}
+
+/** Takes `Partial` because history snapshots from before `status` existed lack it. */
+export function isEmptyMarriage(m: Partial<Marriage>): boolean {
+  return !m.married && !m.divorced && !m.status
+}
+
+/** Applies the rule that any date means married. */
+export function marriageWithStatus(m: Marriage): Marriage {
+  return m.married || m.divorced ? { ...m, status: 'married' } : m
 }
 
 /** Fill in missing fields so documents written by older versions (or by hand) are safe to use. */
@@ -60,7 +77,8 @@ export function normalizePerson(id: string, raw: Record<string, unknown>): Perso
   const marriages: Record<string, Marriage> = {}
   if (typeof raw.marriages === 'object' && raw.marriages !== null) {
     for (const [sid, m] of Object.entries(raw.marriages as Record<string, Record<string, unknown>>)) {
-      const marriage = { married: str(m?.married), divorced: str(m?.divorced) }
+      const status = MARRIAGE_STATUSES.find(x => x === m?.status) ?? ''
+      const marriage = marriageWithStatus({ married: str(m?.married), divorced: str(m?.divorced), status })
       if (spouses.includes(sid) && !isEmptyMarriage(marriage)) marriages[sid] = marriage
     }
   }
@@ -205,13 +223,14 @@ export function siblingsOf(people: People, id: string): Person[] {
 }
 
 /**
- * For a sibling who shares only one of `me`'s two parents, that parent's id; otherwise null
- * (a full sibling, or `me` has fewer than two parents recorded so we can't tell).
+ * For half siblings, the one parent they share; otherwise null. They're half siblings when their
+ * recorded parents differ but one is shared, so it reads the same from either one's page.
+ * Two people who each have only the same one parent recorded count as full siblings.
  */
 export function halfSiblingVia(me: Person, sib: Person): string | null {
-  if (me.parents.length !== 2) return null
   const shared = me.parents.filter(pid => sib.parents.includes(pid))
-  return shared.length === 1 ? shared[0] : null
+  if (shared.length !== 1 || (me.parents.length < 2 && sib.parents.length < 2)) return null
+  return shared[0]
 }
 
 /**
@@ -277,18 +296,28 @@ export function rankPeople(people: People): Person[] {
   return [...people.values()].map(p => ({ p, ...lineScore(children, p.id) })).sort(bySeniority).map(s => s.p)
 }
 
-/** Spouses in the order they were added, except that those with marriage dates are reordered among themselves by date. */
-export function spousesOf(people: People, p: Person): Person[] {
+/**
+ * Everyone `p` is a couple with: recorded spouses in the order they were added, then anyone else
+ * they share a child with. Co-parents count even if the spouse link was never stored (older data,
+ * or a link removed later), so both partners always list each other.
+ */
+export function partnerIds(people: People, p: Person): string[] {
+  const ids = p.spouses.filter(id => people.has(id))
+  for (const cp of childrenByCoParent(people, p.id).keys()) if (cp && people.has(cp) && !ids.includes(cp)) ids.push(cp)
+  return ids
+}
+
+/** Partners (see partnerIds) in that order, except that those with marriage dates are reordered among themselves by date. */
+export function partnersOf(people: People, p: Person): Person[] {
   const date = (s: Person) => p.marriages[s.id]?.married ?? ''
-  const list = p.spouses.map(id => people.get(id)).filter((s): s is Person => !!s)
+  const list = partnerIds(people, p).map(id => people.get(id)!)
   const dated = list.filter(date).sort((a, b) => (date(a) < date(b) ? -1 : date(a) > date(b) ? 1 : 0))
   let i = 0
   return list.map(s => (date(s) ? dated[i++] : s))
 }
 
 export function coupleLabel(people: People, p: Person): string {
-  const partners = p.spouses.map(id => people.get(id)).filter((s): s is Person => !!s)
-  return [p, ...partners].map(displayName).join(' & ')
+  return [p, ...partnerIds(people, p).map(id => people.get(id))].map(displayName).join(' & ')
 }
 
 /** Whether any of a person's names contains the query, ignoring case; an empty query matches no one. */

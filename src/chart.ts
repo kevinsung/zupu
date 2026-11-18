@@ -1,7 +1,7 @@
 import * as f3 from 'family-chart'
 import 'family-chart/styles/family-chart.css'
 import * as d3 from 'd3'
-import { type People, allNames, byBirth, childrenIndex, displayName, lifespan } from './model'
+import { type People, allNames, byBirth, childrenIndex, displayName, lifespan, partnerIds } from './model'
 import { escapeHtml, reducedMotion } from './dom'
 import { genderWord } from './cards'
 
@@ -184,7 +184,8 @@ export class TreeChart {
       data: { gender: p.gender as 'M' | 'F', person: p },
       rels: {
         parents: p.parents.filter(id => people.has(id)),
-        spouses: p.spouses.filter(id => people.has(id)),
+        // Co-parents too, so a couple is drawn the same way in both directions.
+        spouses: partnerIds(people, p),
         children: children.get(p.id) ?? [],
       },
     }))

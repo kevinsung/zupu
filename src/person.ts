@@ -4,7 +4,7 @@ import { actionSheet, copyText, sectionHead } from './dialog'
 import { type IconName, icon } from './icons'
 import { avatar, datesLine, genderWord, marriageText, personCard, selfCard } from './cards'
 import { type AppCtx, addRelative, deletePerson, editMarriage, editPerson, linkExisting, removeRelationship } from './actions'
-import { type Person, allNames, byBirth, childrenByCoParent, displayName, formatPhone, halfSiblingVia, siblingsOf, spousesOf } from './model'
+import { type Person, allNames, byBirth, childrenByCoParent, displayName, formatPhone, halfSiblingVia, partnersOf, siblingsOf } from './model'
 
 export interface PersonViewOpts {
   /** Shown in the "more" menu on phones, where the tree is a separate tab. */
@@ -13,7 +13,7 @@ export interface PersonViewOpts {
 
 /**
  * One person's page, laid out like a family group: parents above, then the person,
- * then each spouse with the children they had together, then siblings.
+ * then each partner with the children they had together, then siblings.
  * Adding relatives is always available but kept small: a "＋ Add" button in each section
  * header, plus a dashed slot only where a section is empty.
  */
@@ -95,11 +95,11 @@ export function renderPerson(cont: HTMLElement, ctx: AppCtx, id: string, opts: P
     : null
   const notesEl = p.notes ? section('notes-wrap', sectionHead(L('notes')), h('p', { class: 'surface notes' }, p.notes)) : null
 
-  // Spouses in marriage order, each with their marriage dates and the children they had together.
-  // Children whose other parent isn't a spouse (or isn't recorded) get their own group.
+  // Partners (spouses and co-parents) in marriage order, each with their marriage status and the
+  // children they had together. Children whose other parent isn't recorded get their own group.
   const childGroups = childrenByCoParent(people, p.id)
-  const spouses = spousesOf(people, p)
-  const coParents = [...spouses.map(s => s.id), ...[...childGroups.keys()].filter(cp => !p.spouses.includes(cp))]
+  const partners = partnersOf(people, p).map(s => s.id)
+  const coParents = [...partners, ...[...childGroups.keys()].filter(cp => !partners.includes(cp))]
   const marriageLine = (spouse: Person) => {
     const text = marriageText(p.marriages[spouse.id])
     const edit = () => editMarriage(ctx, p, spouse)
@@ -113,7 +113,7 @@ export function renderPerson(cont: HTMLElement, ctx: AppCtx, id: string, opts: P
     const kids = childGroups.get(cpId) ?? []
     return h('div', { class: 'family surface' },
       cp ? card(cp) : h('div', { class: 'family-unknown muted' }, t.unknownOtherParent),
-      cp && p.spouses.includes(cpId) ? marriageLine(cp) : null,
+      cp ? marriageLine(cp) : null,
       kids.length ? h('div', { class: 'family-kids' },
         h('div', { class: 'family-kids-label' }, L('children')),
         h('div', { class: 'cards cols-2' }, ...kids.map(card))) : null)
@@ -148,13 +148,24 @@ export function renderPerson(cont: HTMLElement, ctx: AppCtx, id: string, opts: P
   }
   const rank = (key: string) => (key === 'M' ? 0 : key === 'F' ? 1 : 2)
   const halfGroups = [...halves.entries()].sort(([a], [b]) => rank(a) - rank(b)).map(([, v]) => v)
-  const siblingsEl = section('pv-siblings',
-    sectionHead(L(halfGroups.length ? 'fullSiblings' : 'siblings'),
-      p.parents.length ? addButton(t.addSibling, () => addRelative(ctx, p, 'sibling')) : undefined),
-    full.length
-      ? h('div', { class: 'cards cols-2' }, ...[...full, p].sort(byBirth).map(s => (s === p ? selfCard(p) : card(s))))
-      : h('p', { class: 'muted small' }, t.none))
-  const halfEls = halfGroups.map(g => section(g.cls, sectionHead(g.title), h('div', { class: 'cards cols-2' }, ...g.kids.map(card))))
+  // Siblings come through parents, so with none recorded there's just a note saying so, shaped like the add slots.
+  // The header's "＋ Add" goes on the first sibling section shown.
+  const addSibling = () => addButton(t.addSibling, () => addRelative(ctx, p, 'sibling'))
+  const siblingEls: HTMLElement[] = []
+  if (!p.parents.length) {
+    siblingEls.push(section('pv-siblings', sectionHead(L('siblings')), h('p', { class: 'slot-note' }, h('span', {}, L('siblingNeedsParent')))))
+  } else if (!full.length && !halfGroups.length) {
+    siblingEls.push(section('pv-siblings', sectionHead(L('siblings')), addSlot('addSibling', () => addRelative(ctx, p, 'sibling'))))
+  } else {
+    if (full.length) {
+      siblingEls.push(section('pv-siblings', sectionHead(L(halfGroups.length ? 'fullSiblings' : 'siblings'), addSibling()),
+        h('div', { class: 'cards cols-2' }, ...[...full, p].sort(byBirth).map(s => (s === p ? selfCard(p) : card(s))))))
+    }
+    for (const g of halfGroups) {
+      siblingEls.push(section(g.cls, sectionHead(g.title, siblingEls.length ? undefined : addSibling()),
+        h('div', { class: 'cards cols-2' }, ...g.kids.map(card))))
+    }
+  }
 
-  cont.append(h('div', { class: 'pv' }, parentsEl, hero, contactEl, notesEl, familiesEl, siblingsEl, ...halfEls))
+  cont.append(h('div', { class: 'pv' }, parentsEl, hero, contactEl, notesEl, familiesEl, ...siblingEls))
 }

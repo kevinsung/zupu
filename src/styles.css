@@ -54,9 +54,11 @@ button {
   border: 1px solid var(--line); background: var(--surface); border-radius: 10px;
   padding: .5em .9em; cursor: pointer; min-height: var(--tap); touch-action: manipulation;
 }
-button:hover:not(:disabled) { border-color: var(--muted); }
+button:hover:not(:disabled, [aria-disabled="true"]) { border-color: var(--muted); }
 :is(button, a, input, select, textarea, summary, [tabindex]):focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 button:disabled { opacity: .45; cursor: not-allowed; }
+/* The Remove button for a partner who shares children; it stays focusable to say why. */
+button.danger[aria-disabled="true"] { opacity: .45; cursor: not-allowed; }
 button.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600; }
 button.danger { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 40%, transparent); }
 button.ghost { background: transparent; border-color: transparent; }
@@ -305,10 +307,12 @@ main:not([data-view="home"]) .home-pane, main:not([data-view="tree"]) .tree-pane
 .pcard.self .pcard-sub { color: var(--accent); }
 .cards.compact .pcard-main { min-height: 2.75rem; padding-block: .35rem; }
 .cards.compact .pcard-name { font-size: 1rem; }
-.add-slot {
+.add-slot, .slot-note {
   border: 1.5px dashed var(--line); background: transparent; color: var(--muted); border-radius: var(--radius);
   min-height: var(--tap); text-align: center; width: 100%; font-size: var(--fs-sm);
 }
+/* Text in an add slot's shape, where there's nothing to add yet. */
+.slot-note { display: grid; place-content: center; margin: 0; padding: .5em .9em; }
 .add-slot:hover:not(:disabled) { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
 
 /* Person page */

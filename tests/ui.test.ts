@@ -14,7 +14,7 @@ const seed = [
   person('gm', { nameZh: '祖母', gender: 'F', spouses: ['gp'], order: 1 }),
   person('a', { nameZh: '甲', nameEn: 'Alice', gender: 'F', parents: ['gp', 'gm'], birthDate: '1960', order: 2 }),
   person('b', { nameZh: '乙', gender: 'M', parents: ['gp', 'gm'], order: 3 }),
-  // A half sibling of 甲 and 乙 through 祖父; their mother isn't recorded as his spouse.
+  // A half sibling of 甲 and 乙 through 祖父; his mother is a co-parent of 祖父, not recorded as his spouse.
   person('gm2', { nameZh: '繼祖母', gender: 'F', order: 4 }),
   person('c', { nameZh: '丙', gender: 'M', parents: ['gp', 'gm2'], birthDate: '1970', order: 5 }),
 ]
@@ -125,7 +125,7 @@ describe('app', () => {
     expect(pop.hidden).toBe(true)
     document.body.dispatchEvent(new KeyboardEvent('keydown', { key: '/', bubbles: true }))
     expect(pop.hidden).toBe(false)
-    expect([...pop.querySelectorAll('.pcard-name')].map(e => e.textContent)).toContain('祖父 & 祖母')
+    expect([...pop.querySelectorAll('.pcard-name')].map(e => e.textContent)).toContain('祖父 & 祖母 & 繼祖母')
     expect(input.hasAttribute('role')).toBe(false)
     expect(input.getAttribute('aria-keyshortcuts')).toBe('/')
     input.value = 'alice'
@@ -174,7 +174,7 @@ describe('app', () => {
   })
 
   it('adds a spouse, asking for the editor name first', async () => {
-    buttonWith('新增配偶').click()
+    buttonWith('新增伴侶').click()
     const dlg = $('dialog[open]')
     expect(dlg.querySelector<HTMLInputElement>('input[name=gender][value=M]')!.checked).toBe(true)
     dlg.querySelector<HTMLInputElement>('input[name=nameZh]')!.value = '丈夫'
@@ -300,7 +300,7 @@ describe('app', () => {
     expect(addParent.disabled).toBe(false)
     expect(addParent.getAttribute('aria-disabled')).toBe('true')
     expect(addParent.querySelector('small')!.textContent).toContain('Already has two parents')
-    expect(buttonWith('新增配偶', popover()).hasAttribute('aria-disabled')).toBe(false)
+    expect(buttonWith('新增伴侶', popover()).hasAttribute('aria-disabled')).toBe(false)
     addParent.click()
     expect(document.querySelector('.popover')).toBeTruthy()
     expect(document.querySelectorAll('dialog[open]').length).toBe(dialogs)
@@ -377,7 +377,7 @@ describe('app', () => {
 
   it('adds marriage dates under a spouse and shows them in history', async () => {
     const families = () => $('#person .pv-families')
-    buttonWith('新增結婚日期', families()).click()
+    buttonWith('新增婚姻狀況', families()).click()
     const dlg = topDialog()
     dlg.querySelector<HTMLInputElement>('input[name=married-y]')!.value = '85'
     buttonWith('儲存', dlg).click()
@@ -438,9 +438,12 @@ describe('app', () => {
     const dlg = topDialog()
     const select = dlg.querySelector<HTMLSelectElement>('select')!
     const options = [...select.options]
-    expect(options.map(o => o.value)).toEqual(['gp,gm', 'gp', 'gm'])
+    // 祖父's partners include 繼祖母, a co-parent who isn't recorded as his spouse.
+    expect(options.map(o => o.value)).toEqual(['gp,gm', 'gp,gm2', 'gp', 'gm'])
     expect(options[0].textContent).toBe('祖父 & 祖母')
+    expect(options[1].textContent).toContain('繼祖母')
     expect(options[1].textContent).toContain('同父異母')
+    expect(options[2].textContent).toContain('同父異母')
     select.value = 'gp'
     dlg.querySelector<HTMLInputElement>('input[name=nameZh]')!.value = '丁'
     buttonWith('儲存', dlg).click()
@@ -455,6 +458,62 @@ describe('app', () => {
     expect(document.activeElement).toBe($('#person h1'))
     expect($('#person .pv-parents').textContent).toContain('祖父')
     expect($('#person .pv-parents').textContent).not.toContain('祖母')
+  })
+
+  it("lists co-parents as partners, with marriage info that can be set", async () => {
+    location.hash = '#/p/gp'
+    await vi.waitFor(() => expect($('#person h1').textContent).toBe('祖父'))
+    const family = [...document.querySelectorAll('#person .pv-families .family')].find(f => f.querySelector('.pcard-name')?.textContent === '繼祖母')!
+    expect(family.textContent).toContain('丙')
+    buttonWith('新增婚姻狀況', family).click()
+    const dlg = topDialog()
+    const status = dlg.querySelector<HTMLSelectElement>('select[name=status]')!
+    const year = dlg.querySelector<HTMLInputElement>('input[name=married-y]')!
+    // A date means married; Not married clears and hides the dates.
+    year.value = '1965'
+    year.dispatchEvent(new Event('input', { bubbles: true }))
+    expect(status.value).toBe('married')
+    status.value = 'unmarried'
+    status.dispatchEvent(new Event('change'))
+    expect(year.value).toBe('')
+    expect(year.closest('.row')!.hasAttribute('hidden')).toBe(true)
+    buttonWith('儲存', dlg).click()
+    await closed(dlg)
+    const after = [...document.querySelectorAll('#person .pv-families .family')].find(f => f.querySelector('.pcard-name')?.textContent === '繼祖母')!
+    expect(after.querySelector('.marriage')!.textContent).toContain('未婚 / Not married')
+  })
+
+  it('refuses to remove a spouse who shares children', async () => {
+    $<HTMLButtonElement>('#person .pv-actions .more').click()
+    buttonWith('移除關係', popover()).click()
+    const dlg = topDialog()
+    const spouses = [...dlg.querySelectorAll('section')].find(s => s.textContent!.includes('伴侶'))!
+    const row = [...spouses.querySelectorAll('.pcard')].find(c => c.querySelector('.pcard-name')!.textContent === '祖母')!
+    const remove = row.querySelector('button')!
+    // Focusable, so the reason can be reached; pressing it says why instead of asking to confirm.
+    expect(remove.getAttribute('aria-disabled')).toBe('true')
+    expect(remove.title).toContain('They share children')
+    remove.click()
+    await tick()
+    expect(topDialog()).toBe(dlg)
+    expect(dlg.querySelector('.dlg-error')!.textContent).toContain('They share children')
+    dlg.querySelector<HTMLButtonElement>('.dlg-x')!.click()
+  })
+
+  it('says to add a parent before siblings, and puts Add on the first sibling section', async () => {
+    location.hash = '#/p/gp'
+    await vi.waitFor(() => expect($('#person h1').textContent).toBe('祖父'))
+    // Just a note, with nothing to press.
+    expect($('#person .pv-siblings').textContent).toContain('Add a parent before adding siblings')
+    expect(document.querySelector('#person .pv-siblings button')).toBeNull()
+
+    location.hash = '#/p/c'
+    await vi.waitFor(() => expect($('#person h1').textContent).toBe('丙'))
+    // 丙's siblings are all half siblings through 祖父, judged the same from both pages.
+    expect(document.querySelector('#person .pv-siblings')).toBeNull()
+    expect($('#person .pv-half-paternal .section-head').textContent).toContain('新增')
+    expect($('#person .pv-half-paternal').textContent).toContain('甲')
+    expect($('#person .pv-half-paternal').textContent).toContain('丁')
   })
 
   it('switches the theme from the settings menu and remembers it', async () => {
