@@ -101,14 +101,19 @@ describe('model', () => {
     expect(normalizePerson('p', {}).marriages).toEqual({})
   })
 
-  it('reads marriage status, treating a missing or invalid one as unknown and any date as married', () => {
-    const p = normalizePerson('p', { spouses: ['s', 't', 'u', 'v'], marriages: {
+  it('reads marriage status, treating a missing or invalid one as unknown and dates as implying one', () => {
+    const p = normalizePerson('p', { spouses: ['s', 't', 'u', 'v', 'w', 'x', 'y'], marriages: {
       s: { status: 'unmarried' }, t: { status: 'bogus', married: '' }, u: { status: 'unmarried', divorced: '1970' }, v: { status: 'married' },
+      w: { status: 'divorced' }, x: { status: 'divorced', married: '1960' }, y: { status: 'married', married: '1960', divorced: '1970' },
     } })
     expect(p.marriages).toEqual({
       s: { married: '', divorced: '', status: 'unmarried' },
-      u: { married: '', divorced: '1970', status: 'married' },
+      u: { married: '', divorced: '1970', status: 'divorced' },
       v: { married: '', divorced: '', status: 'married' },
+      w: { married: '', divorced: '', status: 'divorced' },
+      x: { married: '1960', divorced: '', status: 'divorced' },
+      // As stored before there was a divorced status.
+      y: { married: '1960', divorced: '1970', status: 'divorced' },
     })
   })
 
@@ -321,6 +326,11 @@ describe('store', () => {
     // Any date means married.
     await store.setMarriage('K', 'x', 'mom', { married: '1990', divorced: '', status: 'unmarried' })
     expect(store.people.get('mom')!.marriages.x.status).toBe('married')
+    // A divorce date means divorced; divorced with only a marriage date stays divorced.
+    await store.setMarriage('K', 'x', 'mom', { married: '1990', divorced: '2000', status: 'married' })
+    expect(store.people.get('x')!.marriages.mom.status).toBe('divorced')
+    await store.setMarriage('K', 'x', 'mom', { married: '1990', divorced: '', status: 'divorced' })
+    expect(store.people.get('mom')!.marriages.x).toEqual({ married: '1990', divorced: '', status: 'divorced' })
   })
 
   it('links and unlinks spouses symmetrically', async () => {
@@ -333,7 +343,7 @@ describe('store', () => {
 
   it('sets marriage dates on both spouses, clears them, and drops them on unlink', async () => {
     const { store, changes } = memoryStore(family())
-    const m = { married: '1980-06', divorced: '1988', status: 'married' as const }
+    const m = { married: '1980-06', divorced: '1988', status: 'divorced' as const }
     await store.setMarriage('K', 'mom', 'dad', m)
     expect(store.people.get('dad')!.marriages).toEqual({ mom: m })
     expect(store.people.get('mom')!.marriages).toEqual({ dad: m })

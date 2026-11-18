@@ -409,13 +409,15 @@ export function personForm(initial: PersonFields = emptyFields()) {
 }
 
 /**
- * A couple's status and marriage dates. Not married hides (and clears) the dates; typing a date
- * switches to Married. `read()` returns the marriage, or throws a FieldError.
+ * A couple's status and marriage dates. Not married hides (and clears) the dates; typing a divorce
+ * date switches to Divorced, and a marriage date alone to Married unless already Divorced.
+ * `read()` returns the marriage, or throws a FieldError.
  */
 export function marriageForm(initial: Marriage) {
   const option = (value: MarriageStatus, label: string) => h('option', { value, selected: initial.status === value }, label)
   const status = h('select', { name: 'status' },
-    option('', t.statusUnknown), option('married', t.statusMarried), option('unmarried', t.statusUnmarried))
+    option('', t.statusUnknown), option('married', t.statusMarried), option('divorced', t.statusDivorced),
+    option('unmarried', t.statusUnmarried))
   const married = partialDateField('marriedDate', 'married', initial.married)
   const divorced = partialDateField('divorcedDate', 'divorced', initial.divorced)
   const dates = h('div', { class: 'row' }, married.el, divorced.el)
@@ -425,8 +427,10 @@ export function marriageForm(initial: Marriage) {
     if (dates.hidden) for (const i of dateInputs()) i.value = ''
   }
   status.addEventListener('change', sync)
+  const filled = (el: HTMLElement) => [...el.querySelectorAll('input')].some(i => i.value.trim())
   dates.addEventListener('input', () => {
-    if (dateInputs().some(i => i.value.trim())) status.value = 'married'
+    if (filled(divorced.el)) status.value = 'divorced'
+    else if (filled(married.el) && status.value !== 'divorced') status.value = 'married'
   })
   sync()
   const el = h('div', { class: 'form' }, field(L('marriageStatus'), status), dates)

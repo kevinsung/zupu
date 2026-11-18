@@ -483,6 +483,37 @@ describe('app', () => {
     expect(after.querySelector('.marriage')!.textContent).toContain('未婚 / Not married')
   })
 
+  it('records a divorce, with or without a divorce date', async () => {
+    location.hash = '#/p/gp'
+    await vi.waitFor(() => expect($('#person h1').textContent).toBe('祖父'))
+    const family = () => [...document.querySelectorAll('#person .pv-families .family')].find(f => f.querySelector('.pcard-name')?.textContent === '繼祖母')!
+    family().querySelector<HTMLButtonElement>('.marriage button')!.click()
+    let dlg = topDialog()
+    let status = dlg.querySelector<HTMLSelectElement>('select[name=status]')!
+    status.value = 'divorced'
+    status.dispatchEvent(new Event('change'))
+    const married = dlg.querySelector<HTMLInputElement>('input[name=married-y]')!
+    married.value = '1965'
+    married.dispatchEvent(new Event('input', { bubbles: true }))
+    expect(status.value).toBe('divorced')
+    buttonWith('儲存', dlg).click()
+    await closed(dlg)
+    expect(family().querySelector('.marriage')!.textContent).toContain('結婚 / Married 1965 · 已離婚 / Divorced')
+
+    family().querySelector<HTMLButtonElement>('.marriage button')!.click()
+    dlg = topDialog()
+    status = dlg.querySelector<HTMLSelectElement>('select[name=status]')!
+    status.value = 'married'
+    status.dispatchEvent(new Event('change'))
+    const divorced = dlg.querySelector<HTMLInputElement>('input[name=divorced-y]')!
+    divorced.value = '1975'
+    divorced.dispatchEvent(new Event('input', { bubbles: true }))
+    expect(status.value).toBe('divorced')
+    buttonWith('儲存', dlg).click()
+    await closed(dlg)
+    expect(family().querySelector('.marriage')!.textContent).toContain('結婚 / Married 1965 · 離婚 / Divorced 1975')
+  })
+
   it('refuses to remove a spouse who shares children', async () => {
     $<HTMLButtonElement>('#person .pv-actions .more').click()
     buttonWith('移除關係', popover()).click()

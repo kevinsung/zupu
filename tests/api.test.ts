@@ -152,6 +152,18 @@ describe('data', () => {
     expect(people.find(p => p.id === 'dad')!.marriages).toEqual({ mom: unmarried })
     expect(people.find(p => p.id === 'mom')!.marriages).toEqual({ dad: { married: '1985', divorced: '', status: 'married' } })
     expect((await commit([{ type: 'set', person: { ...person('old2', { spouses: ['mom'] }), marriages: { mom: { divorced: '1990' } } } }])).status).toBe(200)
+
+    // Divorced saves with or without dates, and so does married with a divorce date (stored before divorced existed).
+    for (const d of [
+      { married: '', divorced: '', status: 'divorced' as const },
+      { married: '1985', divorced: '1990', status: 'divorced' as const },
+      { married: '1985', divorced: '1990', status: 'married' as const },
+    ]) {
+      expect((await commit([{ type: 'update', id: 'dad', marriages: { mom: d } }])).status, JSON.stringify(d)).toBe(200)
+      ;({ people } = await (await w.call('/api/people')).json() as { people: Person[] })
+      expect(people.find(p => p.id === 'dad')!.marriages).toEqual({ mom: { ...d, status: 'divorced' } })
+    }
+    expect((await commit([{ type: 'update', id: 'dad', marriages: { mom: { divorced: '1990', status: 'unmarried' } } }])).status).toBe(400)
   })
 
   it('refuses to update someone who was deleted meanwhile', async () => {

@@ -17,12 +17,13 @@ export interface PersonFields {
   signal: string
 }
 
-export type MarriageStatus = '' | 'married' | 'unmarried'
-export const MARRIAGE_STATUSES: readonly MarriageStatus[] = ['', 'married', 'unmarried']
+export type MarriageStatus = '' | 'married' | 'divorced' | 'unmarried'
+export const MARRIAGE_STATUSES: readonly MarriageStatus[] = ['', 'married', 'divorced', 'unmarried']
 
 /**
  * A couple: two people who are spouses or share a child. Dates are partial dates like birthDate,
- * '' when unknown. Status '' is unknown; an unmarried couple has no dates, and any date means married.
+ * '' when unknown. Status '' is unknown; an unmarried couple has no dates. A divorce date means
+ * divorced; a marriage date alone means married, unless already divorced (date unknown).
  */
 export interface Marriage {
   married: string
@@ -62,9 +63,14 @@ export function isEmptyMarriage(m: Partial<Marriage>): boolean {
   return !m.married && !m.divorced && !m.status
 }
 
-/** Applies the rule that any date means married. */
+/**
+ * Applies the rules that a divorce date means divorced and a marriage date means married (or
+ * divorced, if already so). Older records with a divorce date say married; they read as divorced.
+ */
 export function marriageWithStatus(m: Marriage): Marriage {
-  return m.married || m.divorced ? { ...m, status: 'married' } : m
+  if (m.divorced) return { ...m, status: 'divorced' }
+  if (m.married && m.status !== 'divorced') return { ...m, status: 'married' }
+  return m
 }
 
 /** Fill in missing fields so documents written by older versions (or by hand) are safe to use. */

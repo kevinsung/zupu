@@ -86,6 +86,7 @@ const pairs = {
   marriageStatus: ['婚姻狀況', 'Status'],
   statusUnknown: ['不詳', 'Unknown'],
   statusMarried: ['已婚', 'Married'],
+  statusDivorced: ['已離婚', 'Divorced'],
   statusUnmarried: ['未婚', 'Not married'],
   addMarriage: ['新增婚姻狀況', 'Add marriage info'],
   editMarriage: ['編輯婚姻', 'Edit marriage'],
