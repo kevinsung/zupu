@@ -140,6 +140,7 @@ export function linkExisting(ctx: AppCtx, p: Person) {
           const other = picker.selected()
           if (!other) throw new Error(t.pickPerson)
           const r = rel.value as LinkRelative
+          // store.link checks this too; checking first spares an editor-name prompt for a link that would fail.
           const problem = ctx.store.linkProblem(r, p.id, other.id)
           if (problem) throw new Error(problem)
           const editor = await ctx.editorName()
