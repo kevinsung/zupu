@@ -1,5 +1,6 @@
 // Talks to the Worker API (worker/index.ts). Keeps everyone roughly in sync by polling a cheap
 // version number while the tab is visible.
+import { t } from './i18n'
 import type { Person } from './model'
 import type { ChangeRecord, NewChange, Op } from './ops'
 
@@ -21,7 +22,8 @@ async function api<T>(path: string, body?: unknown): Promise<T> {
   }
   if (!res.ok) {
     const data = await res.json().catch(() => ({})) as { error?: string }
-    throw new ApiError(res.status, data.error ?? res.statusText)
+    // 409: someone deleted the person being edited; the Worker's message isn't translated.
+    throw new ApiError(res.status, res.status === 409 ? t.personGone : data.error ?? res.statusText)
   }
   return (res.status === 204 ? undefined : await res.json()) as T
 }

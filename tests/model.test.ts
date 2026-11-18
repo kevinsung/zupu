@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+// jsdom because FamilyStore's messages come from i18n, which reads the language setting from localStorage.
 import { describe, expect, it } from 'vitest'
 import { type People, type Person, age, childrenByCoParent, emptyFields, formatPhone, halfSiblingVia, isValidEmail, isValidPartialDate, isValidPhone, normalizePerson, normalizePhone, rootAncestors, searchPeople, seniorAncestor, siblingsOf, spousesOf } from '../src/model'
 import { applyOp, simulate, type ChangeRecord, type NewChange, type Op } from '../src/ops'

@@ -56,7 +56,7 @@ async function commit(env: Env, body: unknown) {
   }
   for (const op of ops) {
     if (op.type === 'update' && !current.has(op.id) && !ops.some(o => o.type === 'set' && o.person.id === op.id)) {
-      return error(409, '此人已被刪除，請重新整理 / This person no longer exists; please reload')
+      return error(409, 'person no longer exists')
     }
   }
 

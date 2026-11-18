@@ -1,5 +1,6 @@
 import { type Marriage, type People, type Person, type PersonFields, FIELD_KEYS, childrenOf, displayName, isEmptyMarriage } from './model'
 import { newId } from './ids'
+import { t } from './i18n'
 import type { ChangeRecord, NewChange, Op, RelList } from './ops'
 
 /** Sends ops to be applied and logged; resolves once `setPeople` has the result. */
@@ -73,7 +74,7 @@ export class FamilyStore {
 
     switch (rel) {
       case 'parent':
-        if (anchor.parents.length >= 2) throw new Error('已有兩位父母 Already has two parents')
+        if (anchor.parents.length >= 2) throw new Error(t.parentsFull)
         ops.push({ type: 'update', id: anchorId, add: { parents: [id] } })
         if (opts.alsoSpouseOf && anchor.parents.includes(opts.alsoSpouseOf)) {
           person.spouses = [opts.alsoSpouseOf]
@@ -87,7 +88,7 @@ export class FamilyStore {
         for (const cid of new Set(opts.alsoParentOf ?? [])) {
           const child = this.get(cid)
           if (child.parents.length !== 1 || child.parents[0] !== anchorId) {
-            throw new Error(`${displayName(child)} 已有其他父母 already has another parent`)
+            throw new Error(`${displayName(child)} ${t.hasOtherParent}`)
           }
           ops.push({ type: 'update', id: cid, add: { parents: [id] } })
         }
@@ -98,13 +99,13 @@ export class FamilyStore {
         label = '新增子女 Added child'
         break
       case 'sibling': {
-        if (anchor.parents.length === 0) throw new Error('請先新增父母 Add a parent first')
+        if (anchor.parents.length === 0) throw new Error(t.siblingNeedsParent)
         const parentIds = opts.parentIds ?? anchor.parents
         if (parentIds.length < 1 || parentIds.length > 2 || new Set(parentIds).size !== parentIds.length) {
-          throw new Error('父母需為一或兩位 Needs one or two different parents')
+          throw new Error(t.needsOneOrTwoParents)
         }
         parentIds.forEach(pid => this.get(pid))
-        if (!parentIds.some(pid => anchor.parents.includes(pid))) throw new Error('需有共同的父母 Must share a parent')
+        if (!parentIds.some(pid => anchor.parents.includes(pid))) throw new Error(t.mustShareParent)
         person.parents = [...parentIds]
         label = '新增兄弟姊妹 Added sibling'
         break
@@ -117,17 +118,17 @@ export class FamilyStore {
 
   /** Why linking would be invalid, or null if it's fine. */
   linkProblem(rel: LinkRelative, anchorId: string, otherId: string): string | null {
-    if (anchorId === otherId) return '不能連結自己 Cannot link a person to themselves'
+    if (anchorId === otherId) return t.cannotLinkSelf
     const anchor = this.get(anchorId)
     const other = this.get(otherId)
     if (rel === 'spouse') {
-      if (anchor.spouses.includes(otherId)) return '已是配偶 Already spouses'
+      if (anchor.spouses.includes(otherId)) return t.alreadySpouses
       return null
     }
     const [child, parent] = rel === 'parent' ? [anchor, other] : [other, anchor]
-    if (child.parents.includes(parent.id)) return '已是父母 Already a parent'
-    if (child.parents.length >= 2) return '已有兩位父母 Already has two parents'
-    if (this.isDescendant(parent.id, child.id)) return '會造成循環 Would create a loop (descendant cannot be a parent)'
+    if (child.parents.includes(parent.id)) return t.alreadyParent
+    if (child.parents.length >= 2) return t.parentsFull
+    if (this.isDescendant(parent.id, child.id)) return t.wouldLoop
     return null
   }
 
@@ -166,7 +167,7 @@ export class FamilyStore {
   /** Set the marriage dates of two spouses, on both of them. */
   async setMarriage(editor: string, aId: string, bId: string, marriage: Marriage) {
     const a = this.get(aId)
-    if (!a.spouses.includes(bId)) throw new Error('不是配偶 Not spouses')
+    if (!a.spouses.includes(bId)) throw new Error(t.notSpouses)
     const cur = a.marriages[bId] ?? { married: '', divorced: '' }
     if (cur.married === marriage.married && cur.divorced === marriage.divorced) return
     const value = isEmptyMarriage(marriage) ? null : marriage
