@@ -1,4 +1,4 @@
-import { normalizePerson, type People, type Person } from '../src/model'
+import { normalizePerson, type People } from '../src/model'
 import { simulate, type ChangeRecord } from '../src/store'
 import { clearCookie, isRateLimited, isSignedIn, passwordMatches, recordFailure, sessionCookie } from './auth'
 import { BadRequest, checkResult, parseCommit } from './validate'
@@ -18,16 +18,16 @@ const error = (status: number, message: string) => json({ error: message }, { st
 const chunks = <T,>(list: T[], size = 90) =>
   Array.from({ length: Math.ceil(list.length / size) }, (_, i) => list.slice(i * size, i * size + size))
 
+const VERSION_SQL = 'SELECT COALESCE(MAX(seq), 0) AS v FROM changes'
+
 async function version(env: Env): Promise<number> {
-  const row = await env.DB.prepare('SELECT COALESCE(MAX(seq), 0) AS v FROM changes').first<{ v: number }>()
+  const row = await env.DB.prepare(VERSION_SQL).first<{ v: number }>()
   return row?.v ?? 0
 }
 
 async function listPeople(env: Env) {
-  const [people, ver] = await env.DB.batch<{ id: string; data: string } | { v: number }>([
-    env.DB.prepare('SELECT id, data FROM people'),
-    env.DB.prepare('SELECT COALESCE(MAX(seq), 0) AS v FROM changes'),
-  ])
+  // One batch (a single transaction), so the version always matches the people returned.
+  const [people, ver] = await env.DB.batch([env.DB.prepare('SELECT id, data FROM people'), env.DB.prepare(VERSION_SQL)])
   return {
     people: (people.results as { id: string; data: string }[]).map(r => normalizePerson(r.id, JSON.parse(r.data))),
     version: (ver.results[0] as { v: number }).v,
@@ -61,11 +61,11 @@ async function commit(env: Env, body: unknown) {
   }
 
   const diffs = simulate(current, ops)
-  diffs.forEach(d => d.after && checkResult(d.after))
+  for (const d of diffs) if (d.after) checkResult(d.after)
 
   const statements = diffs.map(({ id, after }) => {
     if (!after) return env.DB.prepare('DELETE FROM people WHERE id = ?').bind(id)
-    const { id: _id, ...data } = after as Person
+    const { id: _id, ...data } = after
     return env.DB.prepare('INSERT INTO people (id, data) VALUES (?, ?) ON CONFLICT (id) DO UPDATE SET data = excluded.data')
       .bind(id, JSON.stringify(data))
   })
