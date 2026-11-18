@@ -1,8 +1,8 @@
 import './styles.css'
 import { h, wide } from './dom'
 import { L, getLang, setLang, t, type Key, type Lang } from './i18n'
-import { ApiError, backend, getSession, signIn, signOut } from './backend'
-import { FamilyStore, type Backend } from './store'
+import { ApiError, commit, getSession, signIn, signOut, watchPeople } from './backend'
+import { FamilyStore } from './store'
 import { TREE_HINT_ID, TreeChart } from './chart'
 import type { AppCtx } from './actions'
 import { renderPerson } from './person'
@@ -46,7 +46,7 @@ function showLogin() {
       button.disabled = false
       return
     }
-    startApp(backend)
+    startApp()
   })
   root.replaceChildren(form)
   input.focus()
@@ -54,8 +54,8 @@ function showLogin() {
 
 type View = 'person' | 'tree'
 
-function startApp(backend: Backend) {
-  const store = new FamilyStore(backend)
+function startApp() {
+  const store = new FamilyStore(commit)
   let selected = ''
   // Phones open on the tree; tapping the selected person (or the bar under the tree) opens their page.
   let view: View = 'tree'
@@ -101,7 +101,7 @@ function startApp(backend: Backend) {
     store,
     select: id => { location.hash = `#/p/${id}` },
     editorName: async () => editorName() || askEditor(),
-    showHistory: personId => openHistory(ctx, backend, personId),
+    showHistory: personId => openHistory(ctx, personId),
   }
 
   const chart = new TreeChart(chartEl, id => {
@@ -181,7 +181,7 @@ function startApp(backend: Backend) {
     const row = (label: Key, control: Node) =>
       h('div', { class: 'setting' }, h('span', { class: 'setting-label' }, L(label)), control)
     const body = h('div', { class: 'settings' },
-      anchor ? null : menuList([{ icon: 'history', label: L('history'), run: () => openHistory(ctx, backend) }], () => close()),
+      anchor ? null : menuList([{ icon: 'history', label: L('history'), run: () => openHistory(ctx) }], () => close()),
       row('editorLabel', h('button', { type: 'button', class: 'setting-value', onclick: () => { close(); askEditor() } },
         h('span', {}, editorName() || '—'), h('span', { class: 'chip' }, L('change')))),
       row('appearance', segmented<Theme>(t.appearance,
@@ -254,7 +254,7 @@ function startApp(backend: Backend) {
       brand(),
       box.el,
       h('nav', { class: 'topnav', 'aria-label': t.navTop },
-        h('button', { type: 'button', class: 'ghost', onclick: () => openHistory(ctx, backend) },
+        h('button', { type: 'button', class: 'ghost', onclick: () => openHistory(ctx) },
           icon('history'), h('span', {}, L('history'))),
         settingsBtn),
     ),
@@ -291,11 +291,11 @@ function startApp(backend: Backend) {
     status.textContent = `${t.loadFailed}: ${e.message}`
     status.hidden = false
   }
-  backend.subscribePeople(list => {
+  watchPeople(list => {
     status.hidden = true
     store.setPeople(list)
     render(false)
   }, onError)
 }
 
-getSession().then(signedIn => (signedIn ? startApp(backend) : showLogin()))
+getSession().then(signedIn => (signedIn ? startApp() : showLogin()))

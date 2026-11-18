@@ -2,6 +2,7 @@ import {
   type Marriage, type People, type Person, type PersonFields,
   FIELD_KEYS, childrenOf, displayName, emptyFields, isEmptyMarriage,
 } from './model'
+import { newId } from './ids'
 
 export type RelList = 'parents' | 'spouses'
 
@@ -31,12 +32,8 @@ export interface ChangeRecord {
 /** What the client sends; the server computes `diffs` itself from the current data. */
 export type NewChange = Pick<ChangeRecord, 'editor' | 'summary'>
 
-export interface Backend {
-  newId(): string
-  subscribePeople(cb: (people: Person[]) => void, onError: (e: Error) => void): () => void
-  subscribeChanges(cb: (changes: ChangeRecord[]) => void, onError: (e: Error) => void): () => void
-  commit(ops: Op[], change: NewChange): Promise<void>
-}
+/** Sends ops to be applied and logged; resolves once `setPeople` has the result. */
+export type Commit = (ops: Op[], change: NewChange) => Promise<void>
 
 export type NewRelative = 'parent' | 'spouse' | 'child' | 'sibling'
 export type LinkRelative = 'parent' | 'spouse' | 'child'
@@ -44,7 +41,7 @@ export type LinkRelative = 'parent' | 'spouse' | 'child'
 export class FamilyStore {
   people: People = new Map()
 
-  constructor(private backend: Backend) {}
+  constructor(private save: Commit) {}
 
   setPeople(list: Person[]) {
     this.people = new Map(list.map(p => [p.id, p]))
@@ -61,7 +58,7 @@ export class FamilyStore {
   }
 
   private async commit(editor: string, summary: string, ops: Op[]) {
-    await this.backend.commit(ops, { editor, summary })
+    await this.save(ops, { editor, summary })
   }
 
   async updateFields(editor: string, id: string, fields: PersonFields) {
@@ -74,7 +71,7 @@ export class FamilyStore {
 
   /** Create a person with no relationships (only used to start an empty tree). */
   async createPerson(editor: string, fields: PersonFields): Promise<string> {
-    const id = this.backend.newId()
+    const id = newId()
     const person: Person = { ...emptyFields(), ...fields, id, parents: [], spouses: [], marriages: {}, order: Date.now() }
     await this.commit(editor, `新增 Added ${displayName(person)}`, [{ type: 'set', person }])
     return id
@@ -95,7 +92,7 @@ export class FamilyStore {
     opts: { coParentId?: string; alsoSpouseOf?: string; alsoParentOf?: string[]; parentIds?: string[] } = {},
   ): Promise<string> {
     const anchor = this.get(anchorId)
-    const id = this.backend.newId()
+    const id = newId()
     const person: Person = { ...emptyFields(), ...fields, id, parents: [], spouses: [], marriages: {}, order: Date.now() }
     const ops: Op[] = []
     let label: string

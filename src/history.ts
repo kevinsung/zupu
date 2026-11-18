@@ -3,7 +3,8 @@ import { L, locale, t } from './i18n'
 import { confirmDialog, openDialog, toast } from './dialog'
 import { marriageText } from './cards'
 import { FIELD_KEYS, type Person, displayName, formatPhone } from './model'
-import type { Backend, ChangeRecord, PersonDiff } from './store'
+import type { ChangeRecord, PersonDiff } from './store'
+import { watchChanges } from './backend'
 import type { AppCtx } from './actions'
 
 const FIELD_LABELS: Record<string, string> = {
@@ -36,7 +37,7 @@ function diffLines(ctx: AppCtx, d: PersonDiff): Node[] {
 }
 
 /** Change log dialog, grouped by day; stays live while open. With `personId`, only changes that touched that person. */
-export function openHistory(ctx: AppCtx, backend: Backend, personId?: string) {
+export function openHistory(ctx: AppCtx, personId?: string) {
   const list = h('div', { class: 'history' }, h('p', { class: 'muted' }, t.loading))
   const dayFmt = new Intl.DateTimeFormat(locale, { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })
   const timeFmt = new Intl.DateTimeFormat(locale, { hour: 'numeric', minute: '2-digit' })
@@ -90,7 +91,7 @@ export function openHistory(ctx: AppCtx, backend: Backend, personId?: string) {
     const target = li ? controls(li)[focusAt.index] ?? controls(li)[0] : list.querySelector<HTMLElement>('summary')
     ;(target ?? list.closest('dialog')?.querySelector<HTMLElement>('.dlg-x'))?.focus()
   }
-  const unsubscribe = backend.subscribeChanges(render, e => {
+  const unsubscribe = watchChanges(render, e => {
     list.replaceChildren(h('p', { class: 'dlg-error' }, `${t.loadFailed}: ${e.message}`))
   })
   const who = personId ? ctx.store.people.get(personId) : undefined

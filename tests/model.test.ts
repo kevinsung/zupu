@@ -1,26 +1,18 @@
 import { describe, expect, it } from 'vitest'
 import { type People, type Person, age, childrenByCoParent, emptyFields, formatPhone, halfSiblingVia, isValidEmail, isValidPartialDate, isValidPhone, normalizePerson, normalizePhone, rootAncestors, searchPeople, seniorAncestor, siblingsOf, spousesOf } from '../src/model'
-import { applyOp, FamilyStore, simulate, type Backend, type ChangeRecord, type NewChange, type Op } from '../src/store'
+import { applyOp, FamilyStore, simulate, type ChangeRecord, type NewChange, type Op } from '../src/store'
 import { seedToPeople } from '../src/seed-format'
 
 /** In-memory backend mirroring what the Worker does: compute diffs, apply ops, log. */
 function memoryStore(seed: Person[]) {
-  let n = 0
   const people: People = new Map(seed.map(p => [p.id, p]))
   const changes: ChangeRecord[] = []
-  let store: FamilyStore
-  const backend: Backend = {
-    newId: () => `new${++n}`,
-    subscribePeople: () => () => {},
-    subscribeChanges: () => () => {},
-    async commit(ops: Op[], change: NewChange) {
-      const diffs = simulate(people, ops)
-      for (const op of ops) applyOp(people, op)
-      changes.push({ ...change, diffs, id: String(changes.length + 1), at: Date.now() })
-      store.setPeople([...people.values()])
-    },
-  }
-  store = new FamilyStore(backend)
+  const store: FamilyStore = new FamilyStore(async (ops: Op[], change: NewChange) => {
+    const diffs = simulate(people, ops)
+    for (const op of ops) applyOp(people, op)
+    changes.push({ ...change, diffs, id: String(changes.length + 1), at: Date.now() })
+    store.setPeople([...people.values()])
+  })
   store.setPeople(seed)
   return { store, people, changes }
 }

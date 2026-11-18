@@ -1,8 +1,7 @@
 // Talks to the Worker API (worker/index.ts). Keeps everyone roughly in sync by polling a cheap
 // version number while the tab is visible.
-import { newId } from './ids'
 import type { Person } from './model'
-import type { Backend, ChangeRecord } from './store'
+import type { ChangeRecord, NewChange, Op } from './store'
 
 const POLL_MS = 30_000
 
@@ -28,15 +27,13 @@ async function api<T>(path: string, body?: unknown): Promise<T> {
 }
 
 let version = -1
-const peopleListeners = new Set<(people: Person[]) => void>()
+let peopleListener: (people: Person[]) => void = () => {}
 const changeListeners = new Set<(changes: ChangeRecord[]) => void>()
-const errorListeners = new Set<(e: Error) => void>()
-let pollTimer: ReturnType<typeof setInterval> | undefined
 
 async function loadPeople() {
   const data = await api<{ people: Person[]; version: number }>('people')
   version = data.version
-  peopleListeners.forEach(cb => cb(data.people))
+  peopleListener(data.people)
 }
 
 async function loadChanges() {
@@ -45,52 +42,34 @@ async function loadChanges() {
   changeListeners.forEach(cb => cb(changes))
 }
 
-async function refreshIfChanged() {
-  try {
-    const { version: latest } = await api<{ version: number }>('version')
-    if (latest !== version) await Promise.all([loadPeople(), loadChanges()])
-  } catch (e) {
-    errorListeners.forEach(cb => cb(e as Error))
+/** Loads everyone now, then reloads whenever the data version moves. Call once, at startup. */
+export function watchPeople(cb: (people: Person[]) => void, onError: (e: Error) => void) {
+  peopleListener = cb
+  loadPeople().catch(onError)
+  const refreshIfChanged = async () => {
+    if (document.visibilityState !== 'visible') return
+    try {
+      const { version: latest } = await api<{ version: number }>('version')
+      if (latest !== version) await Promise.all([loadPeople(), loadChanges()])
+    } catch (e) {
+      onError(e as Error)
+    }
   }
+  setInterval(refreshIfChanged, POLL_MS)
+  document.addEventListener('visibilitychange', refreshIfChanged)
 }
 
-function onVisible() {
-  if (document.visibilityState === 'visible') refreshIfChanged()
+/** The change log now and after every change, until the returned function is called. */
+export function watchChanges(cb: (changes: ChangeRecord[]) => void, onError: (e: Error) => void): () => void {
+  changeListeners.add(cb)
+  api<{ changes: ChangeRecord[] }>('changes').then(d => cb(d.changes), onError)
+  return () => changeListeners.delete(cb)
 }
 
-export const backend: Backend = {
-  newId,
-
-  subscribePeople(cb, onError) {
-    peopleListeners.add(cb)
-    errorListeners.add(onError)
-    loadPeople().catch(onError)
-    if (!pollTimer) {
-      pollTimer = setInterval(() => { if (document.visibilityState === 'visible') refreshIfChanged() }, POLL_MS)
-      document.addEventListener('visibilitychange', onVisible)
-    }
-    return () => {
-      peopleListeners.delete(cb)
-      errorListeners.delete(onError)
-      if (peopleListeners.size === 0) {
-        clearInterval(pollTimer)
-        pollTimer = undefined
-        document.removeEventListener('visibilitychange', onVisible)
-      }
-    }
-  },
-
-  subscribeChanges(cb, onError) {
-    changeListeners.add(cb)
-    api<{ changes: ChangeRecord[] }>('changes').then(d => cb(d.changes), onError)
-    return () => changeListeners.delete(cb)
-  },
-
-  async commit(ops, change) {
-    await api('commit', { ops, ...change })
-    // Resolve only once the UI has the new data, so callers can navigate to new people.
-    await Promise.all([loadPeople(), loadChanges()])
-  },
+export async function commit(ops: Op[], change: NewChange) {
+  await api('commit', { ops, ...change })
+  // Resolve only once the UI has the new data, so callers can navigate to new people.
+  await Promise.all([loadPeople(), loadChanges()])
 }
 
 export async function getSession(): Promise<boolean> {
