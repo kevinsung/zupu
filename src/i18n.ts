@@ -151,7 +151,6 @@ const pairs = {
   more: ['更多', 'More'],
   menu: ['選單', 'Menu'],
   share: ['分享', 'Share'],
-  familyLines: ['家族', 'Family lines'],
   recent: ['最近查看', 'Recently viewed'],
   everyone: ['所有人', 'Everyone'],
   noneSelected: ['尚未選擇任何人', 'No one selected'],

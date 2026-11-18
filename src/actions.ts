@@ -3,6 +3,7 @@ import { L, t } from './i18n'
 import { confirmDialog, marriageForm, openDialog, personForm, personPicker, toast } from './dialog'
 import { halfTag, personCard } from './cards'
 import { type People, type Person, type PersonFields, childrenOf, displayName, emptyFields, emptyMarriage, partnerIds, partnersOf } from './model'
+import { recentAndEveryone } from './search'
 import type { FamilyStore, LinkRelative, NewRelative } from './store'
 
 export interface AppCtx {
@@ -138,7 +139,7 @@ export function linkExisting(ctx: AppCtx, p: Person) {
     h('option', { value: 'parent' }, t.asParent),
     h('option', { value: 'child' }, t.asChild),
   )
-  const picker = personPicker(() => ctx.store.people, () => {}, { exclude: p.id, selectable: true })
+  const picker = personPicker(() => ctx.store.people, () => {}, { exclude: p.id, selectable: true, idle: recentAndEveryone(() => ctx.store.people, { skip: () => p.id }) })
   // As in Add spouse; only offered while linking a spouse.
   const also = alsoParentOfBox(ctx.store.people, p)
   const syncAlso = () => { if (also) also.el.hidden = rel.value !== 'spouse' }
@@ -160,7 +161,7 @@ export function linkExisting(ctx: AppCtx, p: Person) {
           await ctx.store.link(editor, r, p.id, other.id, r === 'spouse' && also ? also.read() : {})
         },
       },
-    ], { subtitle: displayName(p) })
+    ], { subtitle: displayName(p), cls: 'tall' })
   picker.input.focus()
 }
 

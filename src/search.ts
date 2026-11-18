@@ -1,8 +1,7 @@
 import { h } from './dom'
 import { L, t, type Key } from './i18n'
 import { closePopover, personPicker } from './dialog'
-import { personCard } from './cards'
-import { type People, type Person, coupleLabel, matchesName, rankPeople, rootAncestors } from './model'
+import { type People, type Person, rankPeople } from './model'
 
 const RECENT_KEY = 'ft-recent'
 const RECENT_MAX = 8
@@ -26,22 +25,21 @@ function recentPeople(all: People): Person[] {
   return recentIds().map(id => all.get(id)).filter((p): p is Person => !!p)
 }
 
-/** The top-bar search with an empty query: recently viewed people and the top ancestor of each family line. */
-function idleLists(people: () => People, currentId: () => string, go: (p: Person) => void) {
-  return () => {
+/**
+ * What a person search lists before anything is typed: the people recently viewed, then
+ * everyone, most senior first (see rankPeople). `skip` leaves one person out of both.
+ */
+export function recentAndEveryone(people: () => People, opts: { skip?: () => string | undefined; heading?: 'h2' | 'h3' } = {}) {
+  return (card: (p: Person) => HTMLElement) => {
     const all = people()
-    const recent = recentPeople(all).filter(p => p.id !== currentId())
-    const lines = rootAncestors(all)
-    return [
-      recent.length ? h('section', {}, h('h3', { class: 'section-title' }, L('recent')),
-        h('div', { class: 'cards' }, ...recent.map(p => personCard(p, () => go(p))))) : null,
-      lines.length ? h('section', {}, h('h3', { class: 'section-title' }, L('familyLines')),
-        h('div', { class: 'cards' }, ...lines.map(p => {
-          const c = personCard(p, () => go(p))
-          c.querySelector('.pcard-name')!.textContent = coupleLabel(all, p)
-          return c
-        }))) : null,
-    ].filter((x): x is HTMLElement => !!x)
+    const skip = opts.skip?.()
+    const section = (title: Key, list: Person[]) => {
+      const shown = list.filter(p => p.id !== skip)
+      return shown.length
+        ? h('section', {}, h(opts.heading ?? 'h3', { class: 'section-title' }, L(title)), h('div', { class: 'cards' }, ...shown.map(card)))
+        : null
+    }
+    return [section('recent', recentPeople(all)), section('everyone', rankPeople(all))].filter((x): x is HTMLElement => !!x)
   }
 }
 
@@ -51,15 +49,7 @@ function idleLists(people: () => People, currentId: () => string, go: (p: Person
  * the list scrolls under it.
  */
 export function homeList(people: () => People, select: (id: string) => void) {
-  const go = (p: Person) => select(p.id)
-  const section = (title: Key, list: Person[]) => list.length
-    ? h('section', {}, h('h2', { class: 'section-title' }, L(title)), h('div', { class: 'cards' }, ...list.map(p => personCard(p, () => go(p)))))
-    : null
-  const idle = () => {
-    const all = people()
-    return [section('recent', recentPeople(all)), section('everyone', rankPeople(all))].filter((x): x is HTMLElement => !!x)
-  }
-  const picker = personPicker(people, go, { idle, find: q => rankPeople(people()).filter(p => matchesName(p, q)) })
+  const picker = personPicker(people, p => select(p.id), { idle: recentAndEveryone(people, { heading: 'h2' }) })
   picker.input.classList.add('home-filter')
   const scroller = h('div', { class: 'home-list' }, picker.list)
 
@@ -98,7 +88,7 @@ export function searchBox(people: () => People, select: (id: string) => void, cu
   const pop = h('div', { class: 'search-pop', id: 'search-pop', hidden: true })
   const wrap = h('div', { class: 'search-box' }, input, h('kbd', { 'aria-hidden': 'true' }, '/'), pop)
   const go = (p: Person) => { hide(); input.blur(); select(p.id) }
-  const picker = personPicker(people, go, { input, idle: idleLists(people, currentId, go) })
+  const picker = personPicker(people, go, { input, idle: recentAndEveryone(people, { skip: currentId }) })
   pop.append(picker.list)
   // Outside the drop-down, which is hidden at times.
   wrap.append(picker.live)

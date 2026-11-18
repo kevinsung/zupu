@@ -1,6 +1,6 @@
 import { h, wide } from './dom'
 import { L, lang, t, tn, type Key } from './i18n'
-import { type Marriage, type MarriageStatus, type Person, type PersonFields, emptyFields, isValidEmail, isValidPartialDate, marriageWithStatus, normalizePhone, searchPeople, type People } from './model'
+import { type Marriage, type MarriageStatus, type Person, type PersonFields, emptyFields, isValidEmail, isValidPartialDate, marriageWithStatus, normalizePhone, searchPeople, displayName, type People } from './model'
 import { personCard } from './cards'
 import { type IconName, icon } from './icons'
 
@@ -450,7 +450,7 @@ export function marriageForm(initial: Marriage) {
 export function personPicker(
   people: () => People,
   onPick: (p: Person) => void,
-  opts: { placeholder?: string; exclude?: string; idle?: () => Node[]; selectable?: boolean; input?: HTMLInputElement; find?: (query: string) => Person[] } = {},
+  opts: { placeholder?: string; exclude?: string; idle?: (card: (p: Person) => HTMLElement) => Node[]; selectable?: boolean; input?: HTMLInputElement; find?: (query: string) => Person[] } = {},
 ) {
   const find = opts.find ?? ((q: string) => searchPeople(people(), q))
   const placeholder = opts.placeholder ?? t.search
@@ -465,7 +465,7 @@ export function personPicker(
   }
   let selectedId: string | undefined
   const pick = (p: Person) => {
-    if (opts.selectable) selectedId = p.id
+    if (opts.selectable) { selectedId = p.id; input.value = displayName(p) }
     else input.value = ''
     onPick(p)
     update()
@@ -482,7 +482,7 @@ export function personPicker(
   }
   const update = () => {
     const q = input.value
-    if (!q.trim()) { list.replaceChildren(...(opts.idle?.() ?? [])); announce(''); return }
+    if (!q.trim()) { list.replaceChildren(...(opts.idle?.(card) ?? [])); announce(''); return }
     const results = find(q).filter(p => p.id !== opts.exclude)
     announce(results.length === 0 ? t.noResults : results.length === 1 ? t.resultOne : tn('resultCount', results.length))
     list.replaceChildren(results.length
@@ -490,6 +490,9 @@ export function personPicker(
       : h('p', { class: 'muted pad' }, t.noResults))
   }
   const results = () => [...list.querySelectorAll<HTMLButtonElement>('.pcard-main')]
+  // In a selectable picker the chosen person's name goes in the box, and editing it drops the
+  // choice (registered before update, which redraws the cards).
+  if (opts.selectable) input.addEventListener('input', () => { selectedId = undefined })
   input.addEventListener('input', update)
   input.addEventListener('keydown', e => {
     if (e.key === 'ArrowDown') {

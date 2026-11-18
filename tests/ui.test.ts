@@ -119,13 +119,14 @@ describe('app', () => {
     expect(document.getElementById(stops[0].getAttribute('aria-describedby')!)!.textContent).toContain('Arrow keys')
   })
 
-  it('navigates via search, which lists family lines and recent people', async () => {
+  it('navigates via search, which lists recent people and everyone', async () => {
     const input = $<HTMLInputElement>('.search-trigger')
     const pop = $('.search-pop')
     expect(pop.hidden).toBe(true)
     document.body.dispatchEvent(new KeyboardEvent('keydown', { key: '/', bubbles: true }))
     expect(pop.hidden).toBe(false)
-    expect([...pop.querySelectorAll('.pcard-name')].map(e => e.textContent)).toContain('祖父 & 祖母 & 繼祖母')
+    expect(pop.querySelector('.section-title')!.textContent).toContain('Everyone')
+    expect([...pop.querySelectorAll('.pcard-name')].map(e => e.textContent)).toContain('祖母')
     expect(input.hasAttribute('role')).toBe(false)
     expect(input.getAttribute('aria-keyshortcuts')).toBe('/')
     input.value = 'alice'
@@ -362,14 +363,29 @@ describe('app', () => {
     buttonWith('儲存', dlg).click()
     await tick()
     expect(dlg.querySelector('.dlg-error')!.textContent).toContain('Choose a person')
+    // People are suggested before anything is typed, leaving out the person being linked to.
+    const self = dlg.querySelector('.dlg-sub')!.textContent!
     const input = dlg.querySelector<HTMLInputElement>('input[type=search]')!
+    const names = () => [...dlg.querySelectorAll('.pcard-name')].map(n => n.textContent)
+    expect(names().length).toBeGreaterThan(1)
+    expect(names()).not.toContain(self)
     input.value = '丈夫'
     input.dispatchEvent(new Event('input'))
     buttonWith('丈夫', dlg).click()
     await tick(100)
+    // The choice goes in the box and stays marked in the list.
     expect(dlg.isConnected).toBe(true)
+    expect(input.value).toBe('丈夫')
     expect(dlg.querySelector('.pcard.selected')!.textContent).toContain('丈夫')
     expect($('#person .pv-families').textContent).not.toContain('丈夫')
+    // Editing the name drops the choice.
+    input.value = '丈'
+    input.dispatchEvent(new Event('input'))
+    expect(dlg.querySelector('.pcard.selected')).toBeNull()
+    buttonWith('儲存', dlg).click()
+    await tick()
+    expect(dlg.querySelector('.dlg-error')!.textContent).toContain('Choose a person')
+    buttonWith('丈夫', dlg).click()
     buttonWith('儲存', dlg).click()
     await closed(dlg)
     expect($('#person .pv-families').textContent).toContain('丈夫')

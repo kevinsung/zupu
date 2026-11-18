@@ -322,16 +322,13 @@ export function partnersOf(people: People, p: Person): Person[] {
   return list.map(s => (date(s) ? dated[i++] : s))
 }
 
-export function coupleLabel(people: People, p: Person): string {
-  return [p, ...partnerIds(people, p).map(id => people.get(id))].map(displayName).join(' & ')
-}
-
 /** Whether any of a person's names contains the query, ignoring case; an empty query matches no one. */
 export function matchesName(p: Person, query: string): boolean {
   const q = query.trim().toLowerCase()
   return !!q && allNames(p).some(n => n.toLowerCase().includes(q))
 }
 
-export function searchPeople(people: People, query: string, limit = 20): Person[] {
-  return [...people.values()].filter(p => matchesName(p, query)).slice(0, limit)
+/** Everyone whose names match the query, most senior first (see rankPeople). */
+export function searchPeople(people: People, query: string): Person[] {
+  return rankPeople(people).filter(p => matchesName(p, query))
 }
