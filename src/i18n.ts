@@ -1,11 +1,12 @@
 // Labels as [中文, English] pairs. Each relative picks 中英 (both, the default), 中文 or English.
+import { h } from './dom'
+
 const LANG_KEY = 'ft-lang'
 
 export type Lang = 'both' | 'zh' | 'en'
 
 export function getLang(): Lang {
-  let v: string | null = null
-  try { v = localStorage.getItem(LANG_KEY) } catch {}
+  const v = localStorage.getItem(LANG_KEY)
   return v === 'zh' || v === 'en' ? v : 'both'
 }
 
@@ -195,15 +196,7 @@ export function L(key: Key): Node {
   const [zh, en] = pairs[key]
   if (lang !== 'both' || zh === en) return document.createTextNode(join(zh, en))
   const frag = document.createDocumentFragment()
-  const zhEl = document.createElement('span')
-  zhEl.className = 'zh'
-  zhEl.lang = 'zh-Hant'
-  zhEl.textContent = zh
-  const enEl = document.createElement('span')
-  enEl.className = 'en'
-  enEl.lang = 'en'
-  enEl.textContent = en
-  frag.append(zhEl, ' ', enEl)
+  frag.append(h('span', { class: 'zh', lang: 'zh-Hant' }, zh), ' ', h('span', { class: 'en', lang: 'en' }, en))
   return frag
 }
 
