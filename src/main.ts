@@ -17,10 +17,9 @@ import { type IconName, icon } from './icons'
 const EDITOR_KEY = 'ft-editor'
 const root = document.getElementById('app')!
 
-/** The app name in the top bar. Not a heading: each person's name is the page's h1. */
-function brand() {
-  const [zh, en] = t.title.split(' / ')
-  return h('div', { class: 'brand' }, h('span', {}, zh), en ? h('small', { lang: 'en' }, en) : null)
+/** The app name: the login screen's h1, and plain text in the top bar, where each person's name is the h1. */
+function brand(tag: 'h1' | 'div') {
+  return h(tag, { class: 'brand' }, L('title'))
 }
 
 function showLogin() {
@@ -28,7 +27,7 @@ function showLogin() {
   const error = h('p', { class: 'dlg-error', role: 'alert' })
   const button = h('button', { type: 'submit', class: 'primary' }, L('signIn'))
   const form = h('form', { class: 'login' },
-    h('h1', { class: 'brand' }, h('span', {}, '族譜'), h('small', { lang: 'en' }, 'Family Tree')),
+    brand('h1'),
     h('label', { class: 'field' }, h('span', { class: 'field-label' }, L('password')), input),
     button, error)
   form.addEventListener('submit', async e => {
@@ -69,19 +68,19 @@ function startApp() {
   const emptyEl = h('div', { class: 'empty', hidden: true },
     h('button', { type: 'button', class: 'primary', onclick: () => addFirst() }, icon('plus'), h('span', {}, L('addFirst'))))
 
-  const editorName = () => localStorage.getItem(EDITOR_KEY) ?? ''
+  const savedEditor = () => localStorage.getItem(EDITOR_KEY) ?? ''
   const settingsLabel = h('span', { class: 'settings-name' })
   const settingsBtn = h('button', { type: 'button', class: 'ghost settings-btn', 'aria-haspopup': 'dialog', title: t.settings },
     icon('settings'), settingsLabel, icon('chevronDown', 'caret'))
   const refreshEditor = () => {
-    settingsLabel.textContent = editorName() || t.settings
-    settingsBtn.setAttribute('aria-label', `${t.settings}: ${t.editorLabel} ${editorName() || '—'}`)
+    settingsLabel.textContent = savedEditor() || t.settings
+    settingsBtn.setAttribute('aria-label', `${t.settings}: ${t.editorLabel} ${savedEditor() || '—'}`)
   }
   refreshEditor()
 
   function askEditor(): Promise<string | null> {
     return new Promise(resolve => {
-      const input = h('input', { type: 'text', value: editorName(), autocomplete: 'off', enterkeyhint: 'done', 'aria-label': t.editorLabel })
+      const input = h('input', { type: 'text', value: savedEditor(), autocomplete: 'off', enterkeyhint: 'done', 'aria-label': t.editorLabel })
       const save = () => {
         const name = input.value.trim()
         if (!name) return false
@@ -100,7 +99,7 @@ function startApp() {
   const ctx: AppCtx = {
     store,
     select: id => { location.hash = `#/p/${id}` },
-    editorName: async () => editorName() || askEditor(),
+    editorName: async () => savedEditor() || askEditor(),
     showHistory: personId => openHistory(ctx, personId),
   }
 
@@ -183,7 +182,7 @@ function startApp() {
     const body = h('div', { class: 'settings' },
       anchor ? null : menuList([{ icon: 'history', label: L('history'), run: () => openHistory(ctx) }], () => close()),
       row('editorLabel', h('button', { type: 'button', class: 'setting-value', onclick: () => { close(); askEditor() } },
-        h('span', {}, editorName() || '—'), h('span', { class: 'chip' }, L('change')))),
+        h('span', {}, savedEditor() || '—'), h('span', { class: 'chip' }, L('change')))),
       row('appearance', segmented<Theme>(t.appearance,
         [['auto', L('themeAuto')], ['light', L('themeLight')], ['dark', L('themeDark')]], getTheme(), setTheme)),
       row('language', segmented<Lang>(t.language,
@@ -251,7 +250,7 @@ function startApp() {
 
   root.replaceChildren(
     h('header', { class: 'topbar' },
-      brand(),
+      brand('div'),
       box.el,
       h('nav', { class: 'topnav', 'aria-label': t.navTop },
         h('button', { type: 'button', class: 'ghost', onclick: () => openHistory(ctx) },

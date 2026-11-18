@@ -85,7 +85,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline-offs
 h2 .en, .dlg-head h2 .en { font-weight: 500; }
 
 .brand { margin: 0; display: flex; align-items: baseline; gap: .4rem; white-space: nowrap; font-size: 1.2rem; }
-.brand small { font-size: .7em; font-weight: 500; color: var(--muted); }
+.brand .en { font-size: .7em; font-weight: 500; color: var(--muted); }
 
 /* Small pill buttons and links (contact actions, marriage, settings) */
 .chip {
@@ -183,7 +183,7 @@ main[data-view="person"] .tree-pane, main[data-view="tree"] .person-pane { displ
   .peek { display: none !important; }
 }
 @media (700px <= width < 1024px) and (height >= 500px) {
-  .brand small { display: none; }
+  .brand .en { display: none; }
   .topnav .ghost .en { display: none; }
 }
 
