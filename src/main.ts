@@ -54,7 +54,7 @@ function showLogin() {
 
 type View = 'person' | 'tree'
 
-function startApp(backend: Backend): () => void {
+function startApp(backend: Backend) {
   const store = new FamilyStore(backend)
   let selected = ''
   // Phones open on the tree; tapping the selected person (or the bar under the tree) opens their page.
@@ -291,18 +291,11 @@ function startApp(backend: Backend): () => void {
     status.textContent = `${t.loadFailed}: ${e.message}`
     status.hidden = false
   }
-  const unsubPeople = backend.subscribePeople(list => {
+  backend.subscribePeople(list => {
     status.hidden = true
     store.setPeople(list)
     render(false)
   }, onError)
-
-  return () => {
-    unsubPeople()
-    window.removeEventListener('hashchange', onHash)
-    window.removeEventListener('keydown', onKey)
-    wide.removeEventListener('change', onWide)
-  }
 }
 
 getSession().then(signedIn => (signedIn ? startApp(backend) : showLogin()))
