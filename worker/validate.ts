@@ -1,6 +1,6 @@
 // Strict checks on everything the browser sends, since anyone with the password can call the API.
 import { FIELD_KEYS, type Marriage, type Person, type PersonFields, emptyFields, isValidEmail, isValidPartialDate, isValidPhone } from '../src/model'
-import type { NewChange, Op, RelList } from '../src/store'
+import type { NewChange, Op, RelList } from '../src/ops'
 
 export class BadRequest extends Error {}
 

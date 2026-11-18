@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { type People, type Person, age, childrenByCoParent, emptyFields, formatPhone, halfSiblingVia, isValidEmail, isValidPartialDate, isValidPhone, normalizePerson, normalizePhone, rootAncestors, searchPeople, seniorAncestor, siblingsOf, spousesOf } from '../src/model'
-import { applyOp, FamilyStore, simulate, type ChangeRecord, type NewChange, type Op } from '../src/store'
+import { applyOp, simulate, type ChangeRecord, type NewChange, type Op } from '../src/ops'
+import { FamilyStore } from '../src/store'
 import { seedToPeople } from '../src/seed-format'
 
 /** In-memory backend mirroring what the Worker does: compute diffs, apply ops, log. */

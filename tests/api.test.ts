@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { emptyFields, type Person } from '../src/model'
-import type { ChangeRecord } from '../src/store'
+import type { ChangeRecord } from '../src/ops'
 import { startWorker } from './worker-env'
 
 let w: Awaited<ReturnType<typeof startWorker>>

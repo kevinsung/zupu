@@ -4,5 +4,5 @@
     "lib": ["ES2023"],
     "types": ["@cloudflare/workers-types"]
   },
-  "include": ["worker", "src/model.ts", "src/store.ts"]
+  "include": ["worker", "src/model.ts", "src/ops.ts"]
 }

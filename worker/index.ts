@@ -1,5 +1,5 @@
 import { normalizePerson, type People } from '../src/model'
-import { simulate, type ChangeRecord } from '../src/store'
+import { simulate, type ChangeRecord } from '../src/ops'
 import { clearCookie, isRateLimited, isSignedIn, passwordMatches, recordFailure, sessionCookie } from './auth'
 import { BadRequest, checkResult, parseCommit } from './validate'
 

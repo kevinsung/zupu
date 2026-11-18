@@ -3,7 +3,7 @@ import { L, locale, t } from './i18n'
 import { confirmDialog, openDialog, toast } from './dialog'
 import { marriageText } from './cards'
 import { FIELD_KEYS, displayName, formatPhone } from './model'
-import type { ChangeRecord, PersonDiff } from './store'
+import type { ChangeRecord, PersonDiff } from './ops'
 import { watchChanges } from './backend'
 import type { AppCtx } from './actions'
 

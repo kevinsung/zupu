@@ -56,6 +56,7 @@ Code map:
 - `worker/`: the API (`index.ts`), sessions and rate limiting (`auth.ts`), input validation (`validate.ts`).
 - `migrations/`: the D1 schema.
 - `src/model.ts`: the person type and relationship helpers.
+- `src/ops.ts`: the write format (ops) and how it applies, shared by the browser and the Worker.
 - `src/store.ts`: turns every edit into ops plus a change-log entry.
 - `src/backend.ts`: the API client and polling.
 - `src/chart.ts`: family-chart adapter.

@@ -1,7 +1,7 @@
 // Talks to the Worker API (worker/index.ts). Keeps everyone roughly in sync by polling a cheap
 // version number while the tab is visible.
 import type { Person } from './model'
-import type { ChangeRecord, NewChange, Op } from './store'
+import type { ChangeRecord, NewChange, Op } from './ops'
 
 const POLL_MS = 30_000
 
