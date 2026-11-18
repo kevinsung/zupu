@@ -13,6 +13,10 @@ const STEPS: Record<string, [number, number]> = { ArrowLeft: [-1, 0], ArrowRight
 /** Wraps family-chart so the rest of the app only deals in People and ids. */
 export class TreeChart {
   private chart: f3.Chart | null = null
+  /** The selected person, as of the last render; their card is the tree's tab stop. */
+  private mainId = ''
+  /** Set when a card was chosen from the keyboard, so focus follows it into the redrawn tree. */
+  private refocus = false
 
   /** `compact` uses smaller cards and spacing so more of the tree fits on a phone. */
   constructor(private cont: HTMLElement, private onSelect: (id: string) => void, private compact = false) {
@@ -33,9 +37,6 @@ export class TreeChart {
       }
     })
   }
-
-  /** The selected person, as of the last render; their card is the tree's tab stop. */
-  private mainId = ''
 
   private cards() {
     return [...this.cont.querySelectorAll<HTMLElement>('.ft-card[data-id]')]
@@ -97,7 +98,7 @@ export class TreeChart {
     const dy = shift(r.top, r.bottom, top, bottom)
     if (!dx && !dy) return
     const k = d3.zoomTransform(target).k
-    d3.select(target).transition().duration(reducedMotion.matches ? 0 : 250).call(target.__zoomObj.translateBy, dx / k, dy / k)
+    d3.select(target).transition().duration(this.panMs).call(target.__zoomObj.translateBy, dx / k, dy / k)
   }
 
   /**
@@ -109,11 +110,14 @@ export class TreeChart {
     if (el) this.focusCard(el, false)
   }
 
-  /** Set when a card was chosen from the keyboard, so focus follows it into the redrawn tree. */
-  private refocus = false
-
+  /** Duration of a re-layout. */
   private get transition() {
     return reducedMotion.matches ? 0 : 600
+  }
+
+  /** Duration of a pan or zoom from the keyboard or the zoom buttons. */
+  private get panMs() {
+    return reducedMotion.matches ? 0 : 250
   }
 
   private toData(people: People): f3.Data {
@@ -160,12 +164,13 @@ export class TreeChart {
           const p = d.data.data.person
           const name = displayName(p)
           const sub = allNames(p).filter(n => n !== name).join(' · ')
-          const label = [name, genderWord(p), sub, lifespan(p)].filter(Boolean).join(', ')
+          const years = lifespan(p)
+          const label = [name, genderWord(p), sub, years].filter(Boolean).join(', ')
           const main = p.id === this.mainId
           return `<div class="ft-card ft-${p.gender || 'U'}" data-id="${escapeHtml(p.id)}" tabindex="${main ? 0 : -1}" role="button"${main ? ' aria-current="true"' : ''} aria-label="${escapeHtml(label)}" aria-describedby="${TREE_HINT_ID}">
             <div class="ft-name">${escapeHtml(name)}</div>
             ${sub ? `<div class="ft-sub">${escapeHtml(sub)}</div>` : ''}
-            ${lifespan(p) ? `<div class="ft-years">${escapeHtml(lifespan(p))}</div>` : ''}
+            ${years ? `<div class="ft-years">${escapeHtml(years)}</div>` : ''}
           </div>`
         })
         .setOnCardClick((_e: MouseEvent, d: { data: { id: string } }) => this.onSelect(d.data.id))
@@ -222,6 +227,6 @@ export class TreeChart {
 
   zoom(factor: number) {
     const el = this.zoomTarget()
-    if (el?.__zoomObj) d3.select(el).transition().duration(reducedMotion.matches ? 0 : 250).call(el.__zoomObj.scaleBy, factor)
+    if (el?.__zoomObj) d3.select(el).transition().duration(this.panMs).call(el.__zoomObj.scaleBy, factor)
   }
 }
