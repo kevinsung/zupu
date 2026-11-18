@@ -10,3 +10,4 @@ backups/
 # Screenshots may show family data
 *.png
 !public/apple-touch-icon.png
+*.tsbuildinfo
