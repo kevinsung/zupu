@@ -1,6 +1,6 @@
 import {
   type Marriage, type People, type Person, type PersonFields,
-  FIELD_KEYS, childrenOf, displayName, emptyFields, isEmptyMarriage,
+  FIELD_KEYS, childrenOf, displayName, isEmptyMarriage,
 } from './model'
 import { newId } from './ids'
 
@@ -34,6 +34,11 @@ export type NewChange = Pick<ChangeRecord, 'editor' | 'summary'>
 
 /** Sends ops to be applied and logged; resolves once `setPeople` has the result. */
 export type Commit = (ops: Op[], change: NewChange) => Promise<void>
+
+/** A new person with no relationships yet, ordered after everyone entered so far. */
+function newPerson(fields: PersonFields): Person {
+  return { ...fields, id: newId(), parents: [], spouses: [], marriages: {}, order: Date.now() }
+}
 
 export type NewRelative = 'parent' | 'spouse' | 'child' | 'sibling'
 export type LinkRelative = 'parent' | 'spouse' | 'child'
@@ -71,10 +76,9 @@ export class FamilyStore {
 
   /** Create a person with no relationships (only used to start an empty tree). */
   async createPerson(editor: string, fields: PersonFields): Promise<string> {
-    const id = newId()
-    const person: Person = { ...emptyFields(), ...fields, id, parents: [], spouses: [], marriages: {}, order: Date.now() }
+    const person = newPerson(fields)
     await this.commit(editor, `新增 Added ${displayName(person)}`, [{ type: 'set', person }])
-    return id
+    return person.id
   }
 
   /**
@@ -92,8 +96,8 @@ export class FamilyStore {
     opts: { coParentId?: string; alsoSpouseOf?: string; alsoParentOf?: string[]; parentIds?: string[] } = {},
   ): Promise<string> {
     const anchor = this.get(anchorId)
-    const id = newId()
-    const person: Person = { ...emptyFields(), ...fields, id, parents: [], spouses: [], marriages: {}, order: Date.now() }
+    const person = newPerson(fields)
+    const id = person.id
     const ops: Op[] = []
     let label: string
 
