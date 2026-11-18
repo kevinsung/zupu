@@ -1,6 +1,6 @@
 // Runs the real Worker handler against a throwaway local D1 database (via wrangler/miniflare).
-import { readFileSync } from 'node:fs'
-import { getPlatformProxy } from 'wrangler'
+import { readFileSync, readdirSync } from 'node:fs'
+import { getPlatformProxy, unstable_splitSqlQuery } from 'wrangler'
 
 type Handler = { fetch(request: Request, env: unknown, ctx: unknown): Promise<Response> }
 
@@ -13,9 +13,11 @@ export async function startWorker(password = 'correct horse') {
   })
   const env = { ...proxy.env, FAMILY_PASSWORD: password }
 
-  const migration = readFileSync('migrations/0001_init.sql', 'utf8').replace(/--.*$/gm, '')
-  const statements = migration.split(';').map(s => s.trim()).filter(Boolean)
-  await env.DB.batch(statements.map(s => env.DB.prepare(s)))
+  // Every migration, in order, split the way `wrangler d1 migrations apply` does.
+  for (const file of readdirSync('migrations').filter(f => f.endsWith('.sql')).sort()) {
+    const statements = unstable_splitSqlQuery(readFileSync(`migrations/${file}`, 'utf8'))
+    await env.DB.batch(statements.map(s => env.DB.prepare(s)))
+  }
 
   let cookie = ''
   async function call(path: string, init: RequestInit = {}, ip = '203.0.113.1'): Promise<Response> {
