@@ -57,8 +57,6 @@ export function openDialog(title: string | Node, body: Node, actions: DialogActi
         if (invalid) {
           invalid.setAttribute('aria-invalid', 'true')
           describedBy(invalid, errorId, true)
-          // A collapsed section (Contact) hides the input, and focus() would silently fail.
-          for (let d = invalid.closest('details'); d; d = d.parentElement?.closest('details') ?? null) d.open = true
           invalid.focus()
         } else {
           error.scrollIntoView?.({ block: 'nearest' })
@@ -371,7 +369,6 @@ export function personForm(initial: PersonFields = emptyFields()) {
     h('label', { class: 'seg-option' }, h('input', { type: 'radio', name: 'gender', value, checked: initial.gender === value }), h('span', {}, label))
   const gender = h('div', { class: 'seg seg-radios', role: 'radiogroup', 'aria-label': t.gender },
     radio('M', L('male')), radio('F', L('female')), radio('', L('unknownGender')))
-  const hasContact = !!(initial.email || initial.phone || initial.address || initial.line || initial.signal)
 
   const el = h('div', { class: 'form' },
     field(L('nameZh'), nameZh),
@@ -379,13 +376,10 @@ export function personForm(initial: PersonFields = emptyFields()) {
     field(L('otherNames'), otherNames, t.otherNamesHint),
     h('div', { class: 'field' }, h('span', { class: 'field-label' }, L('gender')), gender),
     h('div', { class: 'row' }, birthDate.el, deathDate.el),
-    h('details', { class: 'form-group', open: hasContact },
-      h('summary', {}, icon('chevronRight'), h('span', {}, L('contact'))),
-      h('div', { class: 'form' },
-        h('div', { class: 'row' }, field(L('email'), email), field(L('phone'), phone, t.phoneHint)),
-        field(L('line'), line, t.lineHint),
-        field(L('signal'), signal, t.signalHint),
-        field(L('address'), address))),
+    h('div', { class: 'row' }, field(L('email'), email), field(L('phone'), phone, t.phoneHint)),
+    field(L('line'), line, t.lineHint),
+    field(L('signal'), signal, t.signalHint),
+    field(L('address'), address),
     field(L('notes'), notes),
   )
 

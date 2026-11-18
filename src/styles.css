@@ -466,15 +466,6 @@ fieldset.field > legend { padding: 0; margin-bottom: .3rem; }
 .date-parts input { text-align: center; font-variant-numeric: tabular-nums; }
 [aria-invalid="true"] { border-color: var(--danger); box-shadow: 0 0 0 1px var(--danger); }
 @media (max-width: 479px) { .row { grid-template-columns: 1fr; } }
-.form-group { border-top: 1px solid var(--line); padding-top: .25rem; }
-.form-group > summary {
-  cursor: pointer; font-size: var(--fs-sm); font-weight: 600; color: var(--muted); padding: .6rem 0; list-style: none;
-  display: flex; align-items: center; gap: .4rem;
-}
-.form-group > summary::-webkit-details-marker { display: none; }
-.form-group > summary .icon { width: 1.1em; height: 1.1em; transition: transform .15s; }
-.form-group[open] > summary .icon { transform: rotate(90deg); }
-.form-group[open] > summary { margin-bottom: .5rem; }
 .checkbox { display: inline-flex; align-items: center; gap: .5rem; }
 .checkbox input { width: auto; margin: 0; accent-color: var(--accent); }
 

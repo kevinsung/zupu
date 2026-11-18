@@ -402,16 +402,11 @@ describe('app', () => {
     const phone = dlg.querySelector<HTMLInputElement>('[name=phone]')!
     expect(document.getElementById(phone.getAttribute('aria-describedby')!)!.textContent).toContain('country code')
     expect(phone.closest('label')!.textContent).not.toContain('country code')
-    // No contact info yet, so the Contact section starts collapsed.
-    const contactGroup = dlg.querySelector('details')!
-    expect(contactGroup.open).toBe(false)
     set('email', 'alice@')
     buttonWith('儲存', dlg).click()
     await tick()
     expect(dlg.querySelector('.dlg-error')!.textContent).toContain('Invalid email')
     expect(dlg.querySelector('[name=email]')!.getAttribute('aria-invalid')).toBe('true')
-    // The error opened the section so the bad input could take focus.
-    expect(contactGroup.open).toBe(true)
     expect(document.activeElement).toBe(dlg.querySelector('[name=email]'))
     set('phone', '201-555-0123')
     set('email', 'alice@example.com')
