@@ -71,7 +71,7 @@ export function openDialog(title: string | Node, body: Node, actions: DialogActi
     })
     return btn
   }
-  const inHeader = actions.length === 1 && actions[0].primary && !opts.cls?.includes('confirm')
+  const inHeader = actions.length === 1 && actions[0].primary
   const x = h('button', { type: 'button', class: 'icon dlg-x', 'aria-label': t.close, title: t.close, onclick: dismiss }, icon('close'))
   const heading = opts.head ?? h('div', { class: 'dlg-title' },
     h('h2', { id: titleId }, title),
