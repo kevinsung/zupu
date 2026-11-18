@@ -29,3 +29,5 @@ const query = (q: string, fallback: boolean): Query =>
  */
 export const wide = query('(min-width: 700px) and (min-height: 500px)', true)
 export const reducedMotion = query('(prefers-reduced-motion: reduce)', false)
+/** A touch screen, where the system share sheet beats copying a link. */
+export const coarsePointer = query('(pointer: coarse)', false)

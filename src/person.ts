@@ -1,6 +1,6 @@
-import { h } from './dom'
+import { coarsePointer, h } from './dom'
 import { L, t, type Key } from './i18n'
-import { actionSheet, copyText, sectionHead, toast } from './dialog'
+import { actionSheet, copyText, sectionHead } from './dialog'
 import { type IconName, icon } from './icons'
 import { avatar, datesLine, genderWord, marriageText, personCard, selfCard } from './cards'
 import { type AppCtx, addRelative, deletePerson, editMarriage, editPerson, linkExisting, removeRelationship } from './actions'
@@ -58,13 +58,10 @@ export function renderPerson(cont: HTMLElement, ctx: AppCtx, id: string, opts: P
     opts.showInTree ? { icon: 'tree', label: L('showInTree'), run: opts.showInTree } : null,
     { icon: 'trash', label: L('delete'), run: () => deletePerson(ctx, p), danger: true },
   ], moreBtn))
-  const share = async () => {
+  const share = () => {
     const url = location.href
-    if (navigator.share && matchMedia?.('(pointer: coarse)').matches) {
-      await navigator.share({ title: `${name} — ${t.title}`, url }).catch(() => {})
-      return
-    }
-    await navigator.clipboard.writeText(url).then(() => toast(t.copied), () => toast(url))
+    if (navigator.share && coarsePointer.matches) navigator.share({ title: `${name} — ${t.title}`, url }).catch(() => {})
+    else copyText(url)
   }
   const hero = h('section', { class: `pv-hero g-${p.gender || 'U'}` },
     avatar(p, 'avatar-lg'),
