@@ -1,7 +1,7 @@
 import * as f3 from 'family-chart'
 import 'family-chart/styles/family-chart.css'
 import * as d3 from 'd3'
-import { type People, allNames, displayName, lifespan } from './model'
+import { type People, allNames, byBirth, childrenIndex, displayName, lifespan } from './model'
 import { escapeHtml, reducedMotion } from './dom'
 import { genderWord } from './cards'
 
@@ -117,14 +117,11 @@ export class TreeChart {
   }
 
   private toData(people: People): f3.Data {
-    const children = new Map<string, string[]>()
-    for (const p of people.values()) {
-      for (const parent of p.parents) if (people.has(parent)) children.set(parent, [...(children.get(parent) ?? []), p.id])
-    }
+    const children = childrenIndex(people)
     return [...people.values()].map(p => ({
       id: p.id,
       // family-chart types gender as M|F but renders anything else as "genderless".
-      data: { gender: p.gender as 'M' | 'F', order: p.order, birthDate: p.birthDate, person: p },
+      data: { gender: p.gender as 'M' | 'F', person: p },
       rels: {
         parents: p.parents.filter(id => people.has(id)),
         spouses: p.spouses.filter(id => people.has(id)),
@@ -157,11 +154,7 @@ export class TreeChart {
         .setCardYSpacing(this.compact ? 72 : 85)
         .setSingleParentEmptyCard(false)
         .setShowSiblingsOfMain(true)
-        .setSortChildrenFunction((a, b) => {
-          const [x, y] = [a.data, b.data]
-          if (x.birthDate && y.birthDate && x.birthDate !== y.birthDate) return x.birthDate < y.birthDate ? -1 : 1
-          return x.order - y.order
-        })
+        .setSortChildrenFunction((a, b) => byBirth(a.data.person, b.data.person))
       this.chart.setCardHtml()
         .setCardInnerHtmlCreator(d => {
           const p = d.data.data.person

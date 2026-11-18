@@ -34,11 +34,6 @@ export interface Person extends PersonFields {
 
 export type People = Map<string, Person>
 
-export const FIELD_KEYS: (keyof PersonFields)[] = [
-  'nameZh', 'nameEn', 'otherNames', 'gender', 'birthDate', 'deathDate', 'notes',
-  'email', 'phone', 'address', 'line', 'signal',
-]
-
 export const UNKNOWN = '？？？'
 
 export function emptyFields(): PersonFields {
@@ -48,6 +43,9 @@ export function emptyFields(): PersonFields {
   }
 }
 
+/** Every PersonFields key, in form order; taken from emptyFields so the list can't fall out of step. */
+export const FIELD_KEYS = Object.keys(emptyFields()) as (keyof PersonFields)[]
+
 export function isEmptyMarriage(m: Marriage): boolean {
   return !m.married && !m.divorced
 }
@@ -56,7 +54,8 @@ export function isEmptyMarriage(m: Marriage): boolean {
 export function normalizePerson(id: string, raw: Record<string, unknown>): Person {
   const str = (v: unknown) => (typeof v === 'string' ? v : '')
   const ids = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [])
-  const gender = raw.gender === 'M' || raw.gender === 'F' ? raw.gender : ''
+  const fields: Record<keyof PersonFields, string> = emptyFields()
+  for (const k of FIELD_KEYS) fields[k] = str(raw[k])
   const spouses = ids(raw.spouses)
   const marriages: Record<string, Marriage> = {}
   if (typeof raw.marriages === 'object' && raw.marriages !== null) {
@@ -67,18 +66,8 @@ export function normalizePerson(id: string, raw: Record<string, unknown>): Perso
   }
   return {
     id,
-    nameZh: str(raw.nameZh),
-    nameEn: str(raw.nameEn),
-    otherNames: str(raw.otherNames),
-    gender,
-    birthDate: str(raw.birthDate),
-    deathDate: str(raw.deathDate),
-    notes: str(raw.notes),
-    email: str(raw.email),
-    phone: str(raw.phone),
-    address: str(raw.address),
-    line: str(raw.line),
-    signal: str(raw.signal),
+    ...fields,
+    gender: raw.gender === 'M' || raw.gender === 'F' ? raw.gender : '',
     parents: ids(raw.parents),
     spouses,
     marriages,
@@ -86,14 +75,18 @@ export function normalizePerson(id: string, raw: Record<string, unknown>): Perso
   }
 }
 
+/** Year, month and day of 'YYYY', 'YYYY-MM' or 'YYYY-MM-DD' (0 for a missing part); null if malformed. */
+function parsePartialDate(s: string): { y: number; m: number; d: number } | null {
+  const match = /^(\d{4})(?:-(\d{2})(?:-(\d{2}))?)?$/.exec(s)
+  if (!match) return null
+  const [, y, m = '', d = ''] = match
+  if ((m && (+m < 1 || +m > 12)) || (d && (+d < 1 || +d > 31))) return null
+  return { y: +y, m: +m, d: +d }
+}
+
 /** Accepts '', 'YYYY', 'YYYY-MM' or 'YYYY-MM-DD'. */
 export function isValidPartialDate(s: string): boolean {
-  if (s === '') return true
-  const m = /^(\d{4})(?:-(\d{2})(?:-(\d{2}))?)?$/.exec(s)
-  if (!m) return false
-  const month = m[2] ? Number(m[2]) : 1
-  const day = m[3] ? Number(m[3]) : 1
-  return month >= 1 && month <= 12 && day >= 1 && day <= 31
+  return s === '' || parsePartialDate(s) !== null
 }
 
 export function isValidEmail(s: string): boolean {
@@ -119,7 +112,7 @@ export function formatPhone(s: string): string {
   return parsePhoneNumberFromString(s)?.formatInternational() ?? s
 }
 
-export function displayName(p: Person | undefined): string {
+export function displayName(p: Person | null | undefined): string {
   if (!p) return UNKNOWN
   return p.nameZh || p.nameEn || p.otherNames || UNKNOWN
 }
@@ -149,14 +142,10 @@ export interface Age {
 
 /** Age today, or at death if a death date is recorded; null when the birth date is unknown. */
 export function age(p: Person, today = new Date()): Age | null {
-  const parse = (s: string) => {
-    const m = /^(\d{4})(?:-(\d{2})(?:-(\d{2}))?)?$/.exec(s)
-    return m ? { y: Number(m[1]), m: m[2] ? Number(m[2]) : 0, d: m[3] ? Number(m[3]) : 0 } : null
-  }
-  const b = parse(p.birthDate)
+  const b = parsePartialDate(p.birthDate)
   if (!b) return null
   const atDeath = !!p.deathDate
-  const e = atDeath ? parse(p.deathDate) : { y: today.getFullYear(), m: today.getMonth() + 1, d: today.getDate() }
+  const e = atDeath ? parsePartialDate(p.deathDate) : { y: today.getFullYear(), m: today.getMonth() + 1, d: today.getDate() }
   if (!e) return null
   let years = e.y - b.y
   let approx = !b.m || !e.m
@@ -171,7 +160,8 @@ export function age(p: Person, today = new Date()): Age | null {
   return { years, approx, atDeath }
 }
 
-export function byBirth(a: Person, b: Person): number {
+/** Earlier birth date first; without both dates (or on a tie), the order they were entered. */
+export function byBirth(a: Pick<Person, 'birthDate' | 'order'>, b: Pick<Person, 'birthDate' | 'order'>): number {
   if (a.birthDate && b.birthDate && a.birthDate !== b.birthDate) return a.birthDate < b.birthDate ? -1 : 1
   return a.order - b.order
 }
@@ -185,9 +175,24 @@ export function childrenByCoParent(people: People, id: string): Map<string, Pers
   const groups = new Map<string, Person[]>()
   for (const c of childrenOf(people, id)) {
     const other = c.parents.find(p => p !== id) ?? ''
-    groups.set(other, [...(groups.get(other) ?? []), c])
+    const group = groups.get(other)
+    if (group) group.push(c)
+    else groups.set(other, [c])
   }
   return groups
+}
+
+/** Children's ids keyed by parent id, for walking down many generations at once. */
+export function childrenIndex(people: People): Map<string, string[]> {
+  const index = new Map<string, string[]>()
+  for (const p of people.values()) {
+    for (const parent of p.parents) {
+      const kids = index.get(parent)
+      if (kids) kids.push(p.id)
+      else index.set(parent, [p.id])
+    }
+  }
+  return index
 }
 
 /** Anyone sharing at least one parent. */
@@ -237,10 +242,7 @@ export function rootAncestors(people: People): Person[] {
  * descendants, then born earliest, then entered first.
  */
 export function seniorAncestor(people: People): Person | undefined {
-  const children = new Map<string, string[]>()
-  for (const p of people.values()) {
-    for (const parent of p.parents) children.set(parent, [...(children.get(parent) ?? []), p.id])
-  }
+  const children = childrenIndex(people)
   // Walk down a generation at a time; `seen` keeps cousin marriages (or bad data) from double counting.
   const score = (root: Person) => {
     const seen = new Set([root.id])
@@ -257,8 +259,7 @@ export function seniorAncestor(people: People): Person | undefined {
   scored.sort((a, b) =>
     b.generations - a.generations ||
     b.descendants - a.descendants ||
-    (a.p.birthDate && b.p.birthDate && a.p.birthDate !== b.p.birthDate ? (a.p.birthDate < b.p.birthDate ? -1 : 1) : 0) ||
-    a.p.order - b.p.order)
+    byBirth(a.p, b.p))
   return scored[0]?.p
 }
 
