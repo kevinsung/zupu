@@ -46,6 +46,7 @@ beforeAll(async () => {
   HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', '') }
   HTMLDialogElement.prototype.close = function () { this.removeAttribute('open') }
   Object.assign(SVGElement.prototype, { getBBox: () => ({ x: 0, y: 0, width: 100, height: 50 }) })
+  vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} })
   vi.stubGlobal('DOMMatrix', class { a = 1; b = 0; c = 0; d = 1; e = 0; f = 0; isIdentity = true })
   await import('../src/main')
   await tick(300)
@@ -425,6 +426,46 @@ describe('app', () => {
     expect(buttonWith('English', popover()).querySelector('[lang=en]')).toBeTruthy()
     expect(buttonWith('中文', popover()).querySelector('[lang=zh-Hant]')).toBeTruthy()
     settings.click()
+  })
+
+  it('switches the tree direction from the settings menu and remembers it', async () => {
+    const settings = $<HTMLButtonElement>('.settings-btn')
+    const chart = $('#chart')
+    // Auto by default. jsdom has no layout, so the pane measures 0×0, which Auto lays out horizontally.
+    expect(chart.dataset.orientation).toBe('horizontal')
+    settings.click()
+    expect(buttonWith('自動', popover()).getAttribute('aria-pressed')).toBe('true')
+    buttonWith('直式', popover()).click()
+    expect(localStorage.getItem('ft-tree-direction')).toBe('vertical')
+    expect(chart.dataset.orientation).toBe('vertical')
+    expect(document.querySelectorAll('.ft-card[data-id]').length).toBeGreaterThanOrEqual(4)
+    buttonWith('自動', popover()).click()
+    expect(localStorage.getItem('ft-tree-direction')).toBeNull()
+    expect(chart.dataset.orientation).toBe('horizontal')
+    settings.click()
+  })
+
+  it('hides the person pane, and brings it back from the bar or the selected card', async () => {
+    const toggle = $<HTMLButtonElement>('.pane-toggle')
+    const main = $('main')
+    expect(toggle.getAttribute('aria-label')).toBe('隱藏人物欄 / Hide person panel')
+    expect(toggle.getAttribute('aria-controls')).toBe($('.person-pane').id)
+    toggle.click()
+    expect(main.dataset.pane).toBe('hidden')
+    expect(localStorage.getItem('ft-person-pane')).toBe('hidden')
+    expect(toggle.getAttribute('aria-label')).toBe('顯示人物欄 / Show person panel')
+    // The bar under the tree names the selected person and opens the pane.
+    expect($('.peek').textContent).toContain($('#person h1').textContent)
+    $<HTMLButtonElement>('.peek').click()
+    expect(main.dataset.pane).toBeUndefined()
+    expect(localStorage.getItem('ft-person-pane')).toBeNull()
+    expect(document.activeElement).toBe($('#person h1'))
+    // So does choosing the selected person's card.
+    toggle.click()
+    const card = $('.ft-card[tabindex="0"]')
+    card.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+    expect(main.dataset.pane).toBeUndefined()
+    expect(document.activeElement).toBe($('#person h1'))
   })
 
   it("moves focus to the tree after Show in tree on a phone", async () => {

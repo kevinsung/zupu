@@ -8,6 +8,42 @@ import { genderWord } from './cards'
 /** Id of a visually hidden element (in the tree pane) that explains the arrow keys. */
 export const TREE_HINT_ID = 'tree-keys-hint'
 
+const DIRECTION_KEY = 'ft-tree-direction'
+
+type Orientation = 'vertical' | 'horizontal'
+
+/**
+ * Which way generations run: down the screen, across it, or (the default) whichever suits the
+ * tree pane's shape, so a wide pane gets a vertical tree and a tall one a horizontal tree.
+ */
+export type TreeDirection = 'auto' | Orientation
+
+export function getTreeDirection(): TreeDirection {
+  const v = localStorage.getItem(DIRECTION_KEY)
+  return v === 'vertical' || v === 'horizontal' ? v : 'auto'
+}
+
+export function setTreeDirection(direction: TreeDirection) {
+  if (direction === 'auto') localStorage.removeItem(DIRECTION_KEY)
+  else localStorage.setItem(DIRECTION_KEY, direction)
+}
+
+export interface TreeLayout {
+  direction: TreeDirection
+  /** Smaller cards and spacing so more of the tree fits on a phone. */
+  compact: boolean
+}
+/**
+ * Screen-axis card spacing [x, y] for each layout: card size plus a gap. Cards are 120px wide, or
+ * 116px when compact (#chart .ft-card in styles.css), whichever way the tree runs. Their height
+ * depends on how many lines the name may take: up to two in a vertical tree (cards up to 94px
+ * tall, 83px compact) and one in a horizontal tree, where siblings stack (73px, 64px compact).
+ */
+const SPACING: Record<Orientation, Record<'full' | 'compact', [number, number]>> = {
+  vertical: { full: [145, 120], compact: [135, 105] },
+  horizontal: { full: [160, 85], compact: [140, 72] },
+}
+
 const STEPS: Record<string, [number, number]> = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }
 
 /** Wraps family-chart so the rest of the app only deals in People and ids. */
@@ -18,9 +54,29 @@ export class TreeChart {
   /** Set when a card was chosen from the keyboard, so focus follows it into the redrawn tree. */
   private refocus = false
 
-  /** `compact` uses smaller cards and spacing so more of the tree fits on a phone. */
-  constructor(private cont: HTMLElement, private onSelect: (id: string) => void, private compact = false) {
-    cont.classList.toggle('compact', compact)
+  private layout: TreeLayout = { direction: 'auto', compact: false }
+  /** The orientation the chart is set to, which `auto` may change when the pane is resized. */
+  private drawn: Orientation | null = null
+
+  constructor(private cont: HTMLElement, private onSelect: (id: string) => void, layout: TreeLayout) {
+    this.setLayout(layout)
+    // When the pane is resized (a window, a rotated tablet, the person pane hidden or shown), keep
+    // what was in the middle there, or with `auto`, turn the tree if the pane changed shape.
+    // A hidden pane measures 0×0; it's laid out again when shown.
+    let [w0, h0] = [0, 0]
+    new ResizeObserver(() => {
+      const [w, h] = [cont.clientWidth, cont.clientHeight]
+      const resized = w0 && h0 && (w !== w0 || h !== h0)
+      const [dx, dy] = [(w - w0) / 2, (h - h0) / 2]
+      ;[w0, h0] = [w, h]
+      if (!this.chart || !w || !h) return
+      if (this.applyLayout()) {
+        this.chart.updateTree({ tree_position: 'inherit', transition_time: this.transition })
+        this.center()
+      } else if (resized) {
+        this.panBy(dx, dy)
+      }
+    }).observe(cont)
     // The tree is one tab stop (the selected person's card). Arrow keys move between cards by
     // where they sit on screen, Home goes back to the selected person, and Enter or Space selects.
     cont.addEventListener('keydown', e => {
@@ -134,9 +190,39 @@ export class TreeChart {
     }))
   }
 
+  /** Changes any part of the layout. Call render() afterwards to redraw an existing tree. */
+  setLayout(layout: Partial<TreeLayout>) {
+    this.layout = { ...this.layout, ...layout }
+    this.cont.classList.toggle('compact', this.layout.compact)
+    this.applyLayout()
+  }
+
+  private orientation(): Orientation {
+    const { direction } = this.layout
+    if (direction !== 'auto') return direction
+    return this.cont.clientWidth > this.cont.clientHeight ? 'vertical' : 'horizontal'
+  }
+
+  /** Sets the chart's orientation and spacing for the layout; true if the orientation changed. */
+  private applyLayout() {
+    if (!this.chart) return false
+    const orientation = this.orientation()
+    // Styles key off this: names get fewer lines in a horizontal tree.
+    this.cont.dataset.orientation = orientation
+    // family-chart swaps the spacings for a horizontal tree, so these stay in screen axes.
+    const [x, y] = SPACING[orientation][this.layout.compact ? 'compact' : 'full']
+    if (orientation === 'vertical') this.chart.setOrientationVertical()
+    else this.chart.setOrientationHorizontal()
+    this.chart.setCardXSpacing(x).setCardYSpacing(y)
+    const changed = orientation !== this.drawn
+    this.drawn = orientation
+    return changed
+  }
+
   /** Forget the current chart (its DOM was replaced, e.g. by the empty-tree screen). */
   reset() {
     this.chart = null
+    this.drawn = null
     this.cont.replaceChildren()
   }
 
@@ -151,14 +237,10 @@ export class TreeChart {
     if (!this.chart) {
       this.chart = f3.createChart(this.cont, data)
         .setTransitionTime(this.transition)
-        // Generations run left to right, so siblings and cousins stack in a column rather than
-        // spreading sideways off a narrow screen. Spacings keep their screen axes.
-        .setOrientationHorizontal()
-        .setCardXSpacing(this.compact ? 140 : 190)
-        .setCardYSpacing(this.compact ? 72 : 85)
         .setSingleParentEmptyCard(false)
         .setShowSiblingsOfMain(true)
         .setSortChildrenFunction((a, b) => byBirth(a.data.person, b.data.person))
+      this.applyLayout()
       this.chart.setCardHtml()
         .setCardInnerHtmlCreator(d => {
           const p = d.data.data.person
@@ -187,6 +269,8 @@ export class TreeChart {
       return
     }
     this.chart.updateData(data)
+    // The pane may have changed shape while hidden.
+    this.applyLayout()
     this.chart.updateMainId(mainId)
     this.chart.updateTree({ tree_position: 'inherit', transition_time: this.transition })
     if (recenter) this.center()
@@ -223,6 +307,14 @@ export class TreeChart {
     const k = d3.zoomTransform(el).k
     d3.select(el).transition().duration(transition)
       .call(el.__zoomObj.transform, d3.zoomIdentity.translate(width / 2 - main.x * k, height / 2 - main.y * k).scale(k))
+  }
+
+  /** Moves the tree by screen pixels, at once. */
+  private panBy(dx: number, dy: number) {
+    const el = this.zoomTarget()
+    if (!el?.__zoomObj) return
+    const k = d3.zoomTransform(el).k
+    d3.select(el).call(el.__zoomObj.translateBy, dx / k, dy / k)
   }
 
   zoom(factor: number) {

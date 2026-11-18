@@ -175,12 +175,18 @@ main[data-view="person"] .tree-pane, main[data-view="tree"] .person-pane { displ
 @media (width >= 700px) and (height >= 500px) {
   .topbar { display: flex; }
   .tabbar { display: none; }
-  /* Never narrower than a small phone (360px), which the person page is laid out for. */
-  main { display: grid; grid-template-columns: 1fr clamp(22.5rem, 38vw, 34rem); }
+  /* About a small phone's width (360px), which the person page is laid out for, leaving the rest
+     to the tree. */
+  main { display: grid; grid-template-columns: 1fr 24rem; }
   .pane { position: relative; inset: auto; min-height: 0; }
   main[data-view] .tree-pane, main[data-view] .person-pane { display: block; }
   .person-pane { border-left: 1px solid var(--line); background: var(--bg); }
-  .peek { display: none !important; }
+  /* The person pane hidden: the tree takes the whole width, with the bar that opens the pane
+     under it, kept narrow so it clears the tools in the corner. */
+  main[data-pane="hidden"] { grid-template-columns: 1fr; }
+  main[data-pane="hidden"] .person-pane { display: none; }
+  main:not([data-pane="hidden"]) .peek { display: none !important; }
+  .peek { right: auto; width: min(24rem, calc(100% - var(--tap) - 2.25rem)); }
 }
 @media (700px <= width < 1024px) and (height >= 500px) {
   .brand .en { display: none; }
@@ -192,7 +198,7 @@ main[data-view="person"] .tree-pane, main[data-view="tree"] .person-pane { displ
 #chart { position: absolute; inset: 0; color: var(--ink); user-select: none; -webkit-user-select: none; touch-action: none; }
 #chart.f3 { --background-color: var(--bg); --text-color: var(--ink); font-family: inherit; }
 #chart .ft-card {
-  width: 150px; min-height: 60px; padding: .45rem .5rem; border-radius: 10px; text-align: center;
+  width: 120px; min-height: 60px; padding: .45rem .5rem; border-radius: 10px; text-align: center;
   display: flex; flex-direction: column; justify-content: center; gap: 1px;
   border: 1px solid var(--line); border-top: 4px solid var(--unknown); background: var(--surface); color: var(--ink); cursor: pointer;
   box-shadow: var(--shadow);
@@ -201,7 +207,14 @@ main[data-view="person"] .tree-pane, main[data-view="tree"] .person-pane { displ
 #chart .ft-F { border-top-color: var(--female); background: var(--female-soft); }
 #chart .card-main .ft-card { outline: 3px solid var(--accent); outline-offset: 2px; box-shadow: 0 4px 14px light-dark(rgb(0 0 0 / .15), rgb(0 0 0 / .5)); }
 #chart .ft-card:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
-#chart .ft-name { font-size: 1.05rem; font-weight: 600; line-height: 1.25; }
+/* Long names end in "…" so cards stay within the spacing chart.ts leaves for them: two lines, or
+   one in a horizontal tree. The full name is on the person page and in the card's label. */
+#chart .ft-name {
+  font-size: 1.05rem; font-weight: 600; line-height: 1.25;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2;
+  overflow: hidden; overflow-wrap: anywhere;
+}
+#chart[data-orientation="horizontal"] .ft-name { -webkit-line-clamp: 1; line-clamp: 1; }
 #chart .ft-sub, #chart .ft-years { font-size: .75rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #chart .link { stroke: var(--muted); }
 #chart.compact .ft-card { width: 116px; min-height: 52px; padding: .35rem .35rem; }
@@ -232,6 +245,8 @@ main[data-view="person"] .tree-pane, main[data-view="tree"] .person-pane { displ
 @media not ((width >= 700px) and (height >= 500px)) {
   /* Top right, where the tree is usually empty, clear of the bar that opens the person's page. */
   .chart-tools { top: .75rem; bottom: auto; }
+  /* Phones show the tree and the person one at a time anyway. */
+  .pane-toggle { display: none !important; }
 }
 /* Short screens (a phone on its side): a slimmer tab bar with icon and label side by side, and
    a slimmer bar under the tree. */

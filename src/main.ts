@@ -3,7 +3,7 @@ import { h, wide } from './dom'
 import { L, getLang, setLang, t, type Key, type Lang } from './i18n'
 import { ApiError, commit, getSession, signIn, signOut, watchPeople } from './backend'
 import { FamilyStore } from './store'
-import { TREE_HINT_ID, TreeChart } from './chart'
+import { TREE_HINT_ID, TreeChart, getTreeDirection, setTreeDirection, type TreeDirection } from './chart'
 import type { AppCtx } from './actions'
 import { renderPerson } from './person'
 import { openHistory } from './history'
@@ -15,6 +15,7 @@ import { getTheme, setTheme, type Theme } from './theme'
 import { type IconName, icon } from './icons'
 
 const EDITOR_KEY = 'ft-editor'
+const PANE_KEY = 'ft-person-pane'
 const root = document.getElementById('app')!
 
 /** The app name: the login screen's h1, and plain text in the top bar, where each person's name is the h1. */
@@ -105,14 +106,38 @@ function startApp() {
 
   const chart = new TreeChart(chartEl, id => {
     // In the tree, tapping a card moves the focus there; the person page follows along.
-    if (id === selected) { if (!wide.matches) setView('person') } else ctx.select(id)
-  }, !wide.matches)
+    if (id === selected) openPerson()
+    else ctx.select(id)
+  }, { direction: getTreeDirection(), compact: !wide.matches })
 
-  // Phone-only bar under the tree that names the selected person and opens their page.
+  /** Opens the selected person's page: the phone's Person tab, or the hidden side pane. */
+  function openPerson() {
+    if (!wide.matches) setView('person')
+    else if (paneHidden) setPaneHidden(false, true)
+  }
+
+  // On wide screens the person pane can be hidden to give the tree the whole width.
+  let paneHidden = localStorage.getItem(PANE_KEY) === 'hidden'
+  const paneToggle = h('button', { type: 'button', class: 'pane-toggle', onclick: () => setPaneHidden(!paneHidden) })
+  function setPaneHidden(hidden: boolean, focusPage = false) {
+    paneHidden = hidden
+    if (hidden) localStorage.setItem(PANE_KEY, 'hidden')
+    else localStorage.removeItem(PANE_KEY)
+    if (hidden) main.dataset.pane = 'hidden'
+    else delete main.dataset.pane
+    const label = hidden ? t.showPane : t.hidePane
+    paneToggle.title = label
+    paneToggle.setAttribute('aria-label', label)
+    paneToggle.replaceChildren(icon(hidden ? 'paneShow' : 'paneHide'))
+    if (focusPage) { personPane.scrollTop = 0; focusPersonHeading() }
+  }
+
+  // Bar under the tree that names the selected person and opens their page: on phones, and on
+  // wide screens while the person pane is hidden.
   const peekAvatar = h('span', { class: 'peek-avatar' })
   const peekName = h('strong', {})
   const peekSub = h('span', { class: 'muted' })
-  const peek = h('button', { type: 'button', class: 'peek', onclick: () => setView('person') },
+  const peek = h('button', { type: 'button', class: 'peek', onclick: () => openPerson() },
     peekAvatar, h('span', { class: 'peek-text' }, peekName, peekSub), h('span', { class: 'peek-go' }, h('span', {}, L('viewPerson')), icon('chevronRight')))
 
   const tool = (label: string, name: IconName, onclick: () => void) =>
@@ -124,10 +149,14 @@ function startApp() {
       tool(t.zoomIn, 'plus', () => chart.zoom(1.3)),
       tool(t.zoomOut, 'minus', () => chart.zoom(1 / 1.3)),
       tool(t.center, 'center', () => chart.center()),
-      tool(t.fit, 'fit', () => chart.fit())),
+      tool(t.fit, 'fit', () => chart.fit()),
+      paneToggle),
     peek)
   const personPane = h('section', { class: 'pane person-pane', 'aria-label': t.tabPerson }, personEl)
   const main = h('main', {}, treePane, personPane, emptyEl, status, announcer)
+  personPane.id = 'person-pane'
+  paneToggle.setAttribute('aria-controls', personPane.id)
+  setPaneHidden(paneHidden)
 
   const tab = (v: View | 'search' | 'menu', name: IconName, label: Key, onclick: (e: Event) => void) =>
     h('button', { type: 'button', class: 'tab', 'data-tab': v, onclick }, icon(name, 'tab-icon'), h('span', { class: 'tab-label' }, L(label)))
@@ -174,7 +203,7 @@ function startApp() {
   }
 
 
-  /** Editor name, appearance, language and sign-out: a menu under the top-bar button, or a sheet from the phone's Menu tab. */
+  /** Editor name, appearance, tree direction, language and sign-out: a menu under the top-bar button, or a sheet from the phone's Menu tab. */
   function openSettings(anchor?: HTMLElement) {
     let close = () => {}
     const row = (label: Key, control: Node) =>
@@ -185,6 +214,13 @@ function startApp() {
         h('span', {}, savedEditor() || '—'), h('span', { class: 'chip' }, L('change')))),
       row('appearance', segmented<Theme>(t.appearance,
         [['auto', L('themeAuto')], ['light', L('themeLight')], ['dark', L('themeDark')]], getTheme(), setTheme)),
+      row('treeDirection', segmented<TreeDirection>(t.treeDirection,
+        [['auto', L('treeAuto')], ['horizontal', L('treeHorizontal')], ['vertical', L('treeVertical')]], getTreeDirection(), direction => {
+          setTreeDirection(direction)
+          chart.setLayout({ direction })
+          chartStale = true
+          renderChart(true)
+        })),
       row('language', segmented<Lang>(t.language,
         [['both', h('span', { lang: 'zh-Hant' }, '中英')], ['zh', h('span', { lang: 'zh-Hant' }, '中文')], ['en', h('span', { lang: 'en' }, 'English')]],
         getLang(), lang => { setLang(lang); location.reload() })),
@@ -278,7 +314,10 @@ function startApp() {
     search()
   }
   // Crossing the breakpoint (rotating a tablet, resizing a window) may reveal the tree.
+  // The tree's cards change size too, so redraw it, now or once it's shown.
   const onWide = () => {
+    chart.setLayout({ compact: !wide.matches })
+    chartStale = true
     setView(view)
     if (store.people.has(selected)) renderPersonPane()
   }

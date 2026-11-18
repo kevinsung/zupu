@@ -2,7 +2,7 @@
 // They draw with currentColor, so they follow the text color and theme on every OS (emoji didn't).
 import {
   type IconNode, Check, ChevronDown, ChevronRight, Copy, Ellipsis, History, Link, LocateFixed, LogOut, Maximize,
-  Menu, MessageSquare, Minus, Network, Pencil, Plus, Search, Settings, Share2, Trash2, Unlink, User, X, createElement,
+  Menu, MessageSquare, Minus, Network, PanelRightClose, PanelRightOpen, Pencil, Plus, Search, Settings, Share2, Trash2, Unlink, User, X, createElement,
 } from 'lucide'
 
 const icons = {
@@ -20,6 +20,8 @@ const icons = {
   message: MessageSquare,
   minus: Minus,
   more: Ellipsis,
+  paneHide: PanelRightClose,
+  paneShow: PanelRightOpen,
   person: User,
   plus: Plus,
   search: Search,
