@@ -117,7 +117,7 @@ function startApp(backend: Backend, authApi: AuthApi): () => void {
 
   const tool = (label: string, name: IconName, onclick: () => void) =>
     h('button', { type: 'button', title: label, 'aria-label': label, onclick }, icon(name))
-  const treePane = h('section', { class: 'pane tree-pane', 'aria-label': t.title },
+  const treePane = h('section', { class: 'pane tree-pane', 'aria-label': t.tabTree },
     chartEl,
     h('p', { id: TREE_HINT_ID, class: 'sr-only' }, t.treeKeysHint),
     h('div', { class: 'chart-tools', role: 'group', 'aria-label': t.treeControls },
@@ -126,12 +126,12 @@ function startApp(backend: Backend, authApi: AuthApi): () => void {
       tool(t.center, 'center', () => chart.center()),
       tool(t.fit, 'fit', () => chart.fit())),
     peek)
-  const personPane = h('section', { class: 'pane person-pane' }, personEl)
+  const personPane = h('section', { class: 'pane person-pane', 'aria-label': t.tabPerson }, personEl)
   const main = h('main', {}, treePane, personPane, emptyEl, status, announcer)
 
   const tab = (v: View | 'search' | 'menu', name: IconName, label: Key, onclick: (e: Event) => void) =>
     h('button', { type: 'button', class: 'tab', 'data-tab': v, onclick }, icon(name, 'tab-icon'), h('span', { class: 'tab-label' }, L(label)))
-  const tabbar = h('nav', { class: 'tabbar' },
+  const tabbar = h('nav', { class: 'tabbar', 'aria-label': t.navTabs },
     tab('tree', 'tree', 'tabTree', () => setView('tree')),
     tab('person', 'person', 'tabPerson', () => setView('person')),
     tab('search', 'search', 'tabSearch', () => search()),
@@ -140,6 +140,8 @@ function startApp(backend: Backend, authApi: AuthApi): () => void {
   const treeVisible = () => wide.matches || view === 'tree'
 
   function setView(v: View) {
+    // "Show in tree" (phones) is chosen from the person page, which is about to be hidden.
+    const fromPerson = v === 'tree' && personPane.contains(document.activeElement)
     view = v
     main.dataset.view = v
     tabbar.querySelectorAll<HTMLElement>('.tab').forEach(b => {
@@ -153,6 +155,8 @@ function startApp(backend: Backend, authApi: AuthApi): () => void {
     }
     if (treeVisible() && chartStale) renderChart(true)
     else if (v === 'tree') chart.center(0)
+    // Either way the selected person's card is centered, and drawn by now (family-chart renders synchronously).
+    if (fromPerson && !wide.matches) chart.focusMain()
   }
 
   function renderChart(recenter: boolean) {
@@ -185,7 +189,8 @@ function startApp(backend: Backend, authApi: AuthApi): () => void {
       row('appearance', segmented<Theme>(t.appearance,
         [['auto', L('themeAuto')], ['light', L('themeLight')], ['dark', L('themeDark')]], getTheme(), setTheme)),
       row('language', segmented<Lang>(t.language,
-        [['both', '中英'], ['zh', '中文'], ['en', 'English']], getLang(), lang => { setLang(lang); location.reload() })),
+        [['both', h('span', { lang: 'zh-Hant' }, '中英')], ['zh', h('span', { lang: 'zh-Hant' }, '中文')], ['en', h('span', { lang: 'en' }, 'English')]],
+        getLang(), lang => { setLang(lang); location.reload() })),
       menuList([{ icon: 'signOut', label: L('signOut'), run: signOut }], () => close()))
     close = openMenu(anchor ? t.settings : t.menu, body, anchor)
   }
@@ -250,7 +255,7 @@ function startApp(backend: Backend, authApi: AuthApi): () => void {
     h('header', { class: 'topbar' },
       brand(),
       box.el,
-      h('nav', { class: 'topnav' },
+      h('nav', { class: 'topnav', 'aria-label': t.navTop },
         h('button', { type: 'button', class: 'ghost', onclick: () => openHistory(ctx, backend) },
           icon('history'), h('span', {}, L('history'))),
         settingsBtn),

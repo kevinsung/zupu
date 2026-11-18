@@ -67,6 +67,13 @@ describe('app', () => {
     expect($('#person h1').textContent).toBe('祖父')
     expect(location.hash).toMatch(/^#\/p\//)
     expect(document.querySelectorAll('.ft-card').length).toBeGreaterThanOrEqual(4)
+    // Landmarks are named, and the two navs differently.
+    expect($('.tree-pane').getAttribute('aria-label')).toBe('族譜 / Tree')
+    expect($('.person-pane').getAttribute('aria-label')).toBe('人物 / Person')
+    const navs = [...document.querySelectorAll('nav')].map(n => n.getAttribute('aria-label'))
+    expect(navs.length).toBe(2)
+    expect(new Set(navs).size).toBe(2)
+    expect(navs.every(Boolean)).toBe(true)
   })
 
   it("makes the tree one tab stop, on the selected person's card", async () => {
@@ -87,6 +94,7 @@ describe('app', () => {
     expect(pop.hidden).toBe(false)
     expect([...pop.querySelectorAll('.pcard-name')].map(e => e.textContent)).toContain('祖父 & 祖母')
     expect(input.hasAttribute('role')).toBe(false)
+    expect(input.getAttribute('aria-keyshortcuts')).toBe('/')
     input.value = 'alice'
     input.dispatchEvent(new Event('input'))
     await vi.waitFor(() => expect($('.search-box [aria-live]').textContent).toBe('1 筆結果 / 1 result'))
@@ -134,6 +142,8 @@ describe('app', () => {
     edit.click()
     const dlg = $('dialog[open]')
     expect(dlg.querySelector('.dlg-sub')!.textContent).toBe('甲')
+    // The dialog is described by the subtitle, so "Edit" is announced with whom it's about.
+    expect(document.getElementById(dlg.getAttribute('aria-describedby')!)).toBe(dlg.querySelector('.dlg-sub'))
     const year = dlg.querySelector<HTMLInputElement>('input[name=birthDate-y]')!
     const month = dlg.querySelector<HTMLInputElement>('input[name=birthDate-m]')!
     expect(year.value).toBe('1960')
@@ -146,6 +156,8 @@ describe('app', () => {
     expect(dlg.querySelector('.dlg-error')!.textContent).toContain('Birth date: 填了月份也請填年份 / enter the year too')
     expect(year.getAttribute('aria-invalid')).toBe('true')
     expect(document.activeElement).toBe(year)
+    // The bad box is described by the error message.
+    expect(document.getElementById(year.getAttribute('aria-describedby')!)).toBe(dlg.querySelector('.dlg-error'))
     year.value = '60'
     buttonWith('儲存', dlg).click()
     await tick()
@@ -156,11 +168,14 @@ describe('app', () => {
     await tick()
     expect(dlg.querySelector('.dlg-error')!.textContent).toContain('1 to 12')
     expect(year.hasAttribute('aria-invalid')).toBe(false)
+    expect(year.hasAttribute('aria-describedby')).toBe(false)
     expect(month.getAttribute('aria-invalid')).toBe('true')
     month.value = '3'
     buttonWith('儲存', dlg).click()
     await closed(dlg)
     expect($('#person .pv-dates').textContent).toContain('1960-03')
+    // Gender is shown as a word, not only by color.
+    expect($('#person .pv-dates').textContent).toContain('女 / female')
     // Saving re-rendered the page and its Edit button, so focus goes to the person's name.
     expect(edit.isConnected).toBe(false)
     expect(document.activeElement).toBe($('#person h1'))
@@ -174,11 +189,53 @@ describe('app', () => {
     expect(items.length).toBe(3) // seed + spouse + edit
     expect(items[0].textContent).toContain('Tester')
     expect(items[0].textContent).toContain('1960 → 1960-03')
-    buttonWith('還原', items[0]).click()
+    const ids = [...items].map(li => (li as HTMLElement).dataset.id)
+    expect(new Set(ids).size).toBe(3)
+    // Open two items' details and revert from the first.
+    items[0].querySelector('details')!.open = true
+    items[1].querySelector('details')!.open = true
+    const revert = buttonWith('還原', items[0])
+    revert.focus()
+    revert.click()
     await tick()
     buttonWith('還原', [...document.querySelectorAll('dialog[open]')].at(-1)!).click()
     await tick(300)
     expect($('#person .pv-dates').textContent).not.toContain('1960-03')
+    // The revert added a change and rebuilt the list, keeping open details and the focused button.
+    const after = [...dlg.querySelectorAll<HTMLElement>('.history-item')]
+    expect(after.length).toBe(4)
+    expect(revert.isConnected).toBe(false)
+    const byId = (id: string | undefined) => after.find(li => li.dataset.id === id)!
+    expect(byId(ids[0]).querySelector('details')!.open).toBe(true)
+    expect(byId(ids[1]).querySelector('details')!.open).toBe(true)
+    expect(byId(ids[2]).querySelector('details')!.open).toBe(false)
+    expect(after[0].querySelector('details')!.open).toBe(false)
+    expect(document.activeElement).toBe(buttonWith('還原', byId(ids[0])))
+    dlg.querySelector<HTMLButtonElement>('.dlg-x')!.click()
+  })
+
+  it('closes a menu when focus leaves it', async () => {
+    const more = $<HTMLButtonElement>('#person .pv-actions .more')
+    more.click()
+    const items = [...popover().querySelectorAll<HTMLButtonElement>('.menu-item')]
+    expect(document.activeElement).toBe(items[0])
+    // Moving within the menu keeps it open.
+    items[0].dispatchEvent(new FocusEvent('focusout', { bubbles: true, relatedTarget: items[1] }))
+    expect(document.querySelector('.popover')).toBeTruthy()
+    // A second click on its button closes it, even where (Safari) the press blurs the menu to <body>.
+    more.dispatchEvent(new Event('pointerdown', { bubbles: true }))
+    items[0].dispatchEvent(new FocusEvent('focusout', { bubbles: true, relatedTarget: null }))
+    expect(document.querySelector('.popover')).toBeTruthy()
+    more.dispatchEvent(new Event('pointerup', { bubbles: true }))
+    more.click()
+    expect(document.querySelector('.popover')).toBeNull()
+    more.click()
+    items.splice(0, items.length, ...popover().querySelectorAll<HTMLButtonElement>('.menu-item'))
+    // Tabbing out of it (here, to the name) closes it and returns to its button.
+    items[0].dispatchEvent(new FocusEvent('focusout', { bubbles: true, relatedTarget: $('#person h1') }))
+    expect(document.querySelector('.popover')).toBeNull()
+    expect(more.getAttribute('aria-expanded')).toBe('false')
+    expect(document.activeElement).toBe(more)
   })
 
   it("shows one person's history from the more menu", async () => {
@@ -203,6 +260,29 @@ describe('app', () => {
     dlg.querySelector<HTMLButtonElement>('.dlg-x')!.click()
   })
 
+  it('shows a failure inside the open dialog, not behind it', async () => {
+    $<HTMLButtonElement>('#person .pv-actions .more').click()
+    buttonWith('移除關係', popover()).click()
+    const dlg = topDialog()
+    const row = [...dlg.querySelectorAll('.pcard')].find(c => c.textContent!.includes('丈夫'))!
+    vi.stubGlobal('fetch', (path: string, init?: RequestInit) => path === '/api/commit'
+      ? Promise.resolve(new Response(JSON.stringify({ error: 'offline' }), { status: 500 }))
+      : w.call(path, init))
+    try {
+      buttonWith('移除', row).click()
+      await tick()
+      buttonWith('移除', topDialog()).click()
+      await vi.waitFor(() => expect(dlg.querySelector('.dlg-error')!.textContent).toContain('Save failed: offline'))
+    } finally {
+      vi.stubGlobal('fetch', (path: string, init?: RequestInit) => w.call(path, init))
+    }
+    expect(topDialog()).toBe(dlg)
+    expect(dlg.querySelector('.dlg-error')!.getAttribute('role')).toBe('alert')
+    expect(document.querySelector('.toast')!.classList.contains('show')).toBe(false)
+    dlg.querySelector<HTMLButtonElement>('.dlg-x')!.click()
+    expect($('#person .pv-families').textContent).toContain('丈夫')
+  })
+
   it('removes a relationship from the more menu', async () => {
     $<HTMLButtonElement>('#person .pv-actions .more').click()
     buttonWith('移除關係', popover()).click()
@@ -210,6 +290,10 @@ describe('app', () => {
     const dlg = topDialog()
     expect(dlg.textContent).toContain('丈夫')
     const row = [...dlg.querySelectorAll('.pcard')].find(c => c.textContent!.includes('丈夫'))!
+    // The row's only control is its Remove button, which says whom it removes; the name isn't a dead button.
+    expect(row.querySelectorAll('button').length).toBe(1)
+    expect(row.querySelector('.pcard-main')!.tagName).toBe('DIV')
+    expect(row.querySelector('button')!.getAttribute('aria-label')).toBe('移除 / Remove 丈夫')
     buttonWith('移除', row).click()
     await tick()
     buttonWith('移除', topDialog()).click()
@@ -260,11 +344,28 @@ describe('app', () => {
     buttonWith('編輯', $('#person')).click()
     const dlg = [...document.querySelectorAll<HTMLElement>('dialog[open]')].at(-1)!
     const set = (name: string, value: string) => { dlg.querySelector<HTMLInputElement>(`[name=${name}]`)!.value = value }
+    // Hints are descriptions, not part of the label.
+    const phone = dlg.querySelector<HTMLInputElement>('[name=phone]')!
+    expect(document.getElementById(phone.getAttribute('aria-describedby')!)!.textContent).toContain('country code')
+    expect(phone.closest('label')!.textContent).not.toContain('country code')
+    // No contact info yet, so the Contact section starts collapsed.
+    const contactGroup = dlg.querySelector('details')!
+    expect(contactGroup.open).toBe(false)
     set('email', 'alice@')
     buttonWith('儲存', dlg).click()
     await tick()
     expect(dlg.querySelector('.dlg-error')!.textContent).toContain('Invalid email')
     expect(dlg.querySelector('[name=email]')!.getAttribute('aria-invalid')).toBe('true')
+    // The error opened the section so the bad input could take focus.
+    expect(contactGroup.open).toBe(true)
+    expect(document.activeElement).toBe(dlg.querySelector('[name=email]'))
+    set('phone', '201-555-0123')
+    set('email', 'alice@example.com')
+    buttonWith('儲存', dlg).click()
+    await tick()
+    // The phone hint and the error both describe it; the email is back to normal.
+    expect(phone.getAttribute('aria-describedby')!.split(' ').length).toBe(2)
+    expect(dlg.querySelector('[name=email]')!.hasAttribute('aria-describedby')).toBe(false)
     set('email', 'alice@example.com')
     set('phone', '201-555-0123')
     buttonWith('儲存', dlg).click()
@@ -278,6 +379,9 @@ describe('app', () => {
     expect(contact.querySelector('a[href="mailto:alice@example.com"]')).toBeTruthy()
     expect(contact.querySelector('a[href="tel:+12015550123"]')!.textContent).toBe('+1 201 555 0123')
     expect(contact.textContent).toContain('alice_line')
+    // Each Copy button says what it copies.
+    const copies = [...contact.querySelectorAll('button')].filter(b => b.textContent!.includes('複製')).map(b => b.getAttribute('aria-label'))
+    expect(copies).toEqual(['複製 / Copy 電子郵件 / Email', '複製 / Copy LINE'])
   })
 
   it('adds a half sibling by choosing the parents', async () => {
@@ -317,5 +421,32 @@ describe('app', () => {
     buttonWith('跟隨系統', popover()).click()
     expect(document.documentElement.dataset.theme).toBeUndefined()
     expect(localStorage.getItem('ft-theme')).toBeNull()
+    // Language names are marked with their language.
+    expect(buttonWith('English', popover()).querySelector('[lang=en]')).toBeTruthy()
+    expect(buttonWith('中文', popover()).querySelector('[lang=zh-Hant]')).toBeTruthy()
+    settings.click()
+  })
+
+  it("moves focus to the tree after Show in tree on a phone", async () => {
+    // jsdom has no matchMedia, so `wide` is a plain object we can flip; the page re-renders on navigation.
+    // (Imported here: the module needs the jsdom globals.)
+    const layout = (await import('../src/dom')).wide as { matches: boolean }
+    layout.matches = false
+    try {
+      location.hash = '#/p/b'
+      await vi.waitFor(() => expect($('#person h1').textContent).toBe('乙'))
+      const more = $<HTMLButtonElement>('#person .pv-actions .more')
+      more.focus()
+      more.click()
+      // Phones get the menu as a sheet.
+      buttonWith('在族譜中查看', topDialog()).click()
+      expect(document.querySelectorAll('dialog[open]').length).toBe(0)
+      const card = document.activeElement as HTMLElement
+      expect(card.matches('.ft-card')).toBe(true)
+      expect(card.dataset.id).toBe('b')
+      expect(card.tabIndex).toBe(0)
+    } finally {
+      layout.matches = true
+    }
   })
 })

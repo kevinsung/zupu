@@ -33,7 +33,11 @@ let dialogSeq = 0
  * header. Errors show right below that. Returns a function that closes the dialog.
  */
 export function openDialog(title: string | Node, body: Node, actions: DialogAction[], opts: DialogOpts = {}): () => void {
-  const error = h('p', { class: 'dlg-error', role: 'alert' })
+  const seq = ++dialogSeq
+  const titleId = `dlg-title-${seq}`
+  const subId = `dlg-sub-${seq}`
+  const errorId = `dlg-error-${seq}`
+  const error = h('p', { class: 'dlg-error', role: 'alert', id: errorId })
   const dismiss = () => { opts.onDismiss?.(); close() }
   // The input named by the last validation error (see fieldError), marked until the next attempt.
   let invalid: HTMLElement | undefined
@@ -41,7 +45,10 @@ export function openDialog(title: string | Node, body: Node, actions: DialogActi
     const btn = h('button', { type: 'button', class: [a.primary && 'primary', a.danger && 'danger'].filter(Boolean).join(' ') }, a.label)
     btn.addEventListener('click', async () => {
       error.textContent = ''
-      invalid?.removeAttribute('aria-invalid')
+      if (invalid) {
+        invalid.removeAttribute('aria-invalid')
+        describedBy(invalid, errorId, false)
+      }
       invalid = undefined
       btn.disabled = true
       try {
@@ -51,6 +58,9 @@ export function openDialog(title: string | Node, body: Node, actions: DialogActi
         invalid = (e as FieldError).field
         if (invalid) {
           invalid.setAttribute('aria-invalid', 'true')
+          describedBy(invalid, errorId, true)
+          // A collapsed section (Contact) hides the input, and focus() would silently fail.
+          for (let d = invalid.closest('details'); d; d = d.parentElement?.closest('details') ?? null) d.open = true
           invalid.focus()
         } else {
           error.scrollIntoView?.({ block: 'nearest' })
@@ -62,12 +72,16 @@ export function openDialog(title: string | Node, body: Node, actions: DialogActi
     return btn
   }
   const inHeader = actions.length === 1 && actions[0].primary && !opts.cls?.includes('confirm')
-  const titleId = `dlg-title-${++dialogSeq}`
   const x = h('button', { type: 'button', class: 'icon dlg-x', 'aria-label': t.close, title: t.close, onclick: dismiss }, icon('close'))
   const heading = opts.head ?? h('div', { class: 'dlg-title' },
     h('h2', { id: titleId }, title),
-    opts.subtitle ? h('p', { class: 'dlg-sub' }, opts.subtitle) : null)
-  const dlg = h('dialog', { class: ['dlg', inHeader && 'with-save', opts.cls].filter(Boolean).join(' '), 'aria-labelledby': opts.head ? undefined : titleId },
+    opts.subtitle ? h('p', { class: 'dlg-sub', id: subId }, opts.subtitle) : null)
+  // The subtitle says who the dialog is about ("Edit" alone doesn't), so it's read with the title.
+  const dlg = h('dialog', {
+    class: ['dlg', inHeader && 'with-save', opts.cls].filter(Boolean).join(' '),
+    'aria-labelledby': opts.head ? undefined : titleId,
+    'aria-describedby': !opts.head && opts.subtitle ? subId : undefined,
+  },
     h('div', { class: 'dlg-head' }, ...(inHeader ? [x, heading, button(actions[0])] : [heading, x])),
     !inHeader && actions.length ? h('div', { class: 'dlg-actions' }, ...actions.map(button)) : null,
     h('div', { class: 'dlg-body' }, error, body),
@@ -118,22 +132,42 @@ export function openMenu(title: string, body: HTMLElement, anchor?: HTMLElement)
   if (popover?.anchor === anchor) { closePopover(); return () => {} }
   closePopover()
 
-  const el = h('div', { class: 'popover', role: 'dialog', 'aria-label': title }, body)
+  // tabindex -1: a click on the menu's padding or a label focuses the menu, not <body>, so it
+  // doesn't count as focus leaving (see onFocusOut).
+  const el = h('div', { class: 'popover', role: 'dialog', 'aria-label': title, tabindex: '-1' }, body)
   const close = () => {
     // If focus was in the menu (an item was chosen), hand it back to the button so that a dialog
     // the item opens can return there too.
     const hadFocus = el.contains(document.activeElement)
+    el.removeEventListener('focusout', onFocusOut)
     el.remove()
     if (hadFocus) anchor.focus({ preventScroll: true })
     anchor.setAttribute('aria-expanded', 'false')
     document.removeEventListener('pointerdown', onDown, true)
+    document.removeEventListener('pointerup', onUp, true)
+    document.removeEventListener('pointercancel', onUp, true)
     document.removeEventListener('keydown', onKey, true)
     window.removeEventListener('resize', close)
     if (popover?.el === el) popover = null
   }
+  // Set while a pointer is down. Presses are handled here, not by onFocusOut: Safari doesn't focus
+  // a clicked button, so a second click on the anchor would blur the menu to <body>, closing it
+  // only for the click to open it again.
+  let pressing = false
   const onDown = (e: Event) => {
+    pressing = true
     const target = e.target as Node
     if (!el.contains(target) && !anchor.contains(target)) close()
+  }
+  const onUp = () => { pressing = false }
+  // The menu is at the end of <body>, so Tab from its last item leaves the page (Shift+Tab from the
+  // first lands somewhere unrelated) with the menu still covering content. Close it and go back
+  // to its button.
+  const onFocusOut = (e: FocusEvent) => {
+    const next = e.relatedTarget as Node | null
+    if (pressing || (next && (el.contains(next) || anchor.contains(next)))) return
+    close()
+    anchor.focus({ preventScroll: true })
   }
   const onKey = (e: KeyboardEvent) => {
     if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); anchor.focus(); return }
@@ -145,9 +179,12 @@ export function openMenu(title: string, body: HTMLElement, anchor?: HTMLElement)
     }
   }
   document.body.append(el)
+  el.addEventListener('focusout', onFocusOut)
   anchor.setAttribute('aria-expanded', 'true')
   placeNear(el, anchor)
   document.addEventListener('pointerdown', onDown, true)
+  document.addEventListener('pointerup', onUp, true)
+  document.addEventListener('pointercancel', onUp, true)
   document.addEventListener('keydown', onKey, true)
   window.addEventListener('resize', close)
   popover = { el, anchor, close }
@@ -229,8 +266,18 @@ export function mountToast(): HTMLElement {
 }
 
 let toastTimer: ReturnType<typeof setTimeout> | undefined
-/** Brief message at the bottom of the screen. */
+/**
+ * Brief message at the bottom of the screen. While a modal dialog is open the rest of the page is
+ * inert and under the backdrop, so a toast there could be neither seen nor heard: the message
+ * goes into the top dialog's error line (an alert) instead.
+ */
 export function toast(message: string) {
+  const alert = [...document.querySelectorAll('dialog[open]')].at(-1)?.querySelector<HTMLElement>('.dlg-error')
+  if (alert) {
+    alert.textContent = message
+    alert.scrollIntoView?.({ block: 'nearest' })
+    return
+  }
   const el = mountToast()
   el.textContent = message
   el.classList.add('show')
@@ -240,6 +287,15 @@ export function toast(message: string) {
 
 export function copyText(text: string) {
   navigator.clipboard?.writeText(text).then(() => toast(t.copied), () => toast(text)) ?? toast(text)
+}
+
+/** Adds or removes one id in an element's aria-describedby, keeping any others (e.g. a field hint). */
+function describedBy(el: HTMLElement, id: string, on: boolean) {
+  const ids = new Set((el.getAttribute('aria-describedby') ?? '').split(' ').filter(Boolean))
+  if (on) ids.add(id)
+  else ids.delete(id)
+  if (ids.size) el.setAttribute('aria-describedby', [...ids].join(' '))
+  else el.removeAttribute('aria-describedby')
 }
 
 /** A validation error that names the input at fault, so the dialog can mark and focus it. */
@@ -283,8 +339,18 @@ function partialDateField(label: Key, name: string, initial: string) {
   return { el, read, focus: () => year.focus() }
 }
 
+let hintSeq = 0
+
+/**
+ * A labelled input. A hint goes outside the label, so it's read as a description after the
+ * label rather than as part of the input's name. Same layout: both are .field grids.
+ */
 function field(label: string | Node, input: HTMLElement, hint?: string) {
-  return h('label', { class: 'field' }, h('span', { class: 'field-label' }, label), input, hint ? h('small', {}, hint) : null)
+  const el = h('label', { class: 'field' }, h('span', { class: 'field-label' }, label), input)
+  if (!hint) return el
+  const id = `field-hint-${++hintSeq}`
+  input.setAttribute('aria-describedby', id)
+  return h('div', { class: 'field' }, el, h('small', { id }, hint))
 }
 
 /** Person fields form. `read()` returns the fields, or throws a user-facing message (a FieldError where it can). */

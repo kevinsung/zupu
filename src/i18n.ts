@@ -160,6 +160,8 @@ const pairs = {
   tabPerson: ['人物', 'Person'],
   tabSearch: ['搜尋', 'Search'],
   tabMenu: ['選單', 'Menu'],
+  navTabs: ['分頁', 'Sections'],
+  navTop: ['修改紀錄與設定', 'History and settings'],
   age: ['{n}歲', 'age {n}'],
   ageApprox: ['約{n}歲', 'about {n}'],
   agedAtDeath: ['享年{n}', 'aged {n}'],

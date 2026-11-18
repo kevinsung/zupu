@@ -172,8 +172,9 @@ export function removeRelationship(ctx: AppCtx, p: Person) {
   let close = () => {}
   const section = (label: string, rel: LinkRelative, others: Person[]) => others.length
     ? h('section', {}, h('h3', { class: 'section-title' }, label), h('div', { class: 'cards' }, ...others.map(other =>
-      personCard(other, () => {}, h('button', {
-        type: 'button', class: 'danger small', onclick: async () => {
+      personCard(other, null, h('button', {
+        // Says whose relationship goes; the visible word comes first so voice control still finds it.
+        type: 'button', class: 'danger small', 'aria-label': `${t.remove} ${displayName(other)}`, onclick: async () => {
           if (!(await confirmDialog(`${t.confirmUnlink} ${displayName(p)} — ${displayName(other)}`, t.remove, true))) return
           const editor = await ctx.editorName()
           if (!editor) return

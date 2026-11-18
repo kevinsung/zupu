@@ -3,7 +3,7 @@ import 'family-chart/styles/family-chart.css'
 import * as d3 from 'd3'
 import { type People, allNames, displayName, lifespan } from './model'
 import { escapeHtml, reducedMotion } from './dom'
-import { t } from './i18n'
+import { genderWord } from './cards'
 
 /** Id of a visually hidden element (in the tree pane) that explains the arrow keys. */
 export const TREE_HINT_ID = 'tree-keys-hint'
@@ -69,22 +69,44 @@ export class TreeChart {
     return best
   }
 
-  /** Moves the tab stop and focus to a card, panning the tree if the card is near or past an edge. */
-  private focusCard(el: HTMLElement) {
+  /**
+   * Moves the tab stop and focus to a card, panning the tree if the card is near or past an edge,
+   * or under the bar or zoom tools that sit over the tree.
+   */
+  private focusCard(el: HTMLElement, pan = true) {
     for (const c of this.cards()) c.tabIndex = c === el ? 0 : -1
     el.focus({ preventScroll: true })
     const target = this.zoomTarget()
-    if (!target?.__zoomObj) return
+    if (!pan || !target?.__zoomObj) return
     const r = el.getBoundingClientRect()
-    const box = this.cont.getBoundingClientRect()
+    let { left, top, right, bottom } = this.cont.getBoundingClientRect()
+    // Hidden overlays (display: none) measure 0×0. The bar under the tree spans its width, so it
+    // only lowers the bottom edge; the narrow tools only matter to cards level with them.
+    const overlay = (sel: string) => {
+      const o = this.cont.parentElement?.querySelector(sel)?.getBoundingClientRect()
+      return o && o.width && o.height ? o : null
+    }
+    const peek = overlay('.peek')
+    if (peek) bottom = Math.min(bottom, peek.top)
+    const tools = overlay('.chart-tools')
+    if (tools && r.bottom > tools.top && r.top < tools.bottom) right = Math.min(right, tools.left)
     const m = 24
     const shift = (lo: number, hi: number, min: number, max: number) =>
       lo < min + m ? min + m - lo : hi > max - m ? max - m - hi : 0
-    const dx = shift(r.left, r.right, box.left, box.right)
-    const dy = shift(r.top, r.bottom, box.top, box.bottom)
+    const dx = shift(r.left, r.right, left, right)
+    const dy = shift(r.top, r.bottom, top, bottom)
     if (!dx && !dy) return
     const k = d3.zoomTransform(target).k
     d3.select(target).transition().duration(reducedMotion.matches ? 0 : 250).call(target.__zoomObj.translateBy, dx / k, dy / k)
+  }
+
+  /**
+   * Focuses the selected person's card, e.g. when "Show in tree" hides the page that had focus.
+   * Callers center the tree on that card first, so no panning, which would cut that short.
+   */
+  focusMain() {
+    const el = this.mainCard()
+    if (el) this.focusCard(el, false)
   }
 
   /** Set when a card was chosen from the keyboard, so focus follows it into the redrawn tree. */
@@ -145,8 +167,7 @@ export class TreeChart {
           const p = d.data.data.person
           const name = displayName(p)
           const sub = allNames(p).filter(n => n !== name).join(' · ')
-          const gender = p.gender === 'M' ? t.maleWord : p.gender === 'F' ? t.femaleWord : ''
-          const label = [name, gender, sub, lifespan(p)].filter(Boolean).join(', ')
+          const label = [name, genderWord(p), sub, lifespan(p)].filter(Boolean).join(', ')
           const main = p.id === this.mainId
           return `<div class="ft-card ft-${p.gender || 'U'}" data-id="${escapeHtml(p.id)}" tabindex="${main ? 0 : -1}" role="button"${main ? ' aria-current="true"' : ''} aria-label="${escapeHtml(label)}" aria-describedby="${TREE_HINT_ID}">
             <div class="ft-name">${escapeHtml(name)}</div>

@@ -40,8 +40,15 @@ export function openHistory(ctx: AppCtx, backend: Backend, personId?: string) {
   const list = h('div', { class: 'history' }, h('p', { class: 'muted' }, t.loading))
   const dayFmt = new Intl.DateTimeFormat(locale, { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })
   const timeFmt = new Intl.DateTimeFormat(locale, { hour: 'numeric', minute: '2-digit' })
+  const controls = (li: Element) => [...li.querySelectorAll<HTMLElement>('summary, button')]
   const render = (all: ChangeRecord[]) => {
     const items = personId ? all.filter(c => c.diffs.some(d => d.id === personId)) : all
+    // Every change (a revert from here, too) rebuilds the list. Keep which details were open and
+    // which control had focus, by change id, instead of collapsing them and dropping focus.
+    const open = new Set([...list.querySelectorAll('details[open]')].map(d => d.closest<HTMLElement>('li[data-id]')?.dataset.id))
+    const active = document.activeElement
+    const activeLi = active && list.contains(active) ? active.closest<HTMLElement>('li[data-id]') : null
+    const focusAt = activeLi ? { id: activeLi.dataset.id, index: controls(activeLi).indexOf(active as HTMLElement) } : null
     list.replaceChildren(...(items.length ? [] : [h('p', { class: 'muted' }, t.historyEmpty)]))
     let day = ''
     let ol: HTMLElement | null = null
@@ -60,13 +67,13 @@ export function openHistory(ctx: AppCtx, backend: Backend, personId?: string) {
             displayName(who ?? undefined)),
           h('ul', {}, ...diffLines(ctx, d)))
       })
-      ol.append(h('li', { class: 'history-item' },
+      ol.append(h('li', { class: 'history-item', 'data-id': c.id },
         h('div', { class: 'history-head' },
           h('strong', {}, c.editor),
           h('time', { datetime: date.toISOString() }, timeFmt.format(date)),
         ),
         h('div', { class: 'history-summary' }, c.summary),
-        h('details', {}, h('summary', {}, L('historyDetails')), ...people,
+        h('details', { open: open.has(c.id) }, h('summary', {}, L('historyDetails')), ...people,
           h('button', {
             type: 'button', class: 'danger small', onclick: async () => {
               if (!(await confirmDialog(t.confirmRevert, t.revert, true))) return
@@ -77,6 +84,11 @@ export function openHistory(ctx: AppCtx, backend: Backend, personId?: string) {
           }, L('revert'))),
       ))
     }
+    if (!focusAt) return
+    const li = [...list.querySelectorAll<HTMLElement>('li[data-id]')].find(el => el.dataset.id === focusAt.id)
+    // A new change goes on top and pushes the rest down, so let focus() scroll the control into view.
+    const target = li ? controls(li)[focusAt.index] ?? controls(li)[0] : list.querySelector<HTMLElement>('summary')
+    ;(target ?? list.closest('dialog')?.querySelector<HTMLElement>('.dlg-x'))?.focus()
   }
   const unsubscribe = backend.subscribeChanges(render, e => {
     list.replaceChildren(h('p', { class: 'dlg-error' }, `${t.loadFailed}: ${e.message}`))

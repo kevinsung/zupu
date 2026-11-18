@@ -34,12 +34,20 @@ export function halfTag(parent: Person | undefined): string {
   return parent?.gender === 'M' ? t.halfPaternal : parent?.gender === 'F' ? t.halfMaternal : `${t.halfVia} ${displayName(parent)}`
 }
 
-/** A tappable row for one person; the colored edge shows gender. `extra` goes on the right (e.g. a remove button). */
-export function personCard(p: Person, onclick: () => void, extra?: Node): HTMLElement {
+/** "男 / male", "女 / female", or '' if not recorded. */
+export function genderWord(p: Person): string {
+  return p.gender === 'M' ? t.maleWord : p.gender === 'F' ? t.femaleWord : ''
+}
+
+/**
+ * A tappable row for one person; the colored edge shows gender. `extra` goes on the right (e.g. a
+ * remove button). With `onclick` null the row isn't a link, so `extra` is its only control.
+ */
+export function personCard(p: Person, onclick: (() => void) | null, extra?: Node): HTMLElement {
   const sub = personSubtitle(p)
   // The colored edge shows gender; screen readers get it as a word.
-  const gender = p.gender === 'M' ? t.maleWord : p.gender === 'F' ? t.femaleWord : ''
-  const main = h('button', { type: 'button', class: 'pcard-main', onclick },
+  const gender = genderWord(p)
+  const main = h(onclick ? 'button' : 'div', { type: onclick ? 'button' : undefined, class: 'pcard-main', onclick: onclick ?? undefined },
     h('span', { class: 'pcard-name' }, displayName(p)),
     gender ? h('span', { class: 'sr-only' }, `, ${gender}`) : null,
     sub ? h('span', { class: 'pcard-sub' }, sub) : null)

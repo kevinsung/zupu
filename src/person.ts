@@ -2,7 +2,7 @@ import { h } from './dom'
 import { L, t, type Key } from './i18n'
 import { actionSheet, copyText, sectionHead, toast } from './dialog'
 import { type IconName, icon } from './icons'
-import { avatar, datesLine, marriageText, personCard, selfCard } from './cards'
+import { avatar, datesLine, genderWord, marriageText, personCard, selfCard } from './cards'
 import { type AppCtx, addRelative, deletePerson, editMarriage, editPerson, linkExisting, removeRelationship } from './actions'
 import { type Person, allNames, byBirth, childrenByCoParent, displayName, formatPhone, halfSiblingVia, siblingsOf, spousesOf } from './model'
 
@@ -44,7 +44,8 @@ export function renderPerson(cont: HTMLElement, ctx: AppCtx, id: string, opts: P
   // The person
   const name = displayName(p)
   const otherNames = allNames(p).filter(n => n !== name).join(' · ')
-  const dates = datesLine(p)
+  // Colors show gender everywhere else; here it's also a word, for those who can't tell them apart.
+  const facts = [genderWord(p), datesLine(p)].filter(Boolean).join(' · ')
   const moreBtn = h('button', { type: 'button', class: 'more', 'aria-haspopup': 'menu', 'aria-label': t.more, title: t.more }, icon('more'))
   moreBtn.addEventListener('click', () => actionSheet(name, [
     { icon: 'plus', label: L('addParent'), run: () => addRelative(ctx, p, 'parent'), disabled: p.parents.length >= 2 ? t.parentsFull : undefined },
@@ -69,27 +70,28 @@ export function renderPerson(cont: HTMLElement, ctx: AppCtx, id: string, opts: P
     avatar(p, 'avatar-lg'),
     h('h1', { tabindex: '-1' }, name),
     otherNames ? h('p', { class: 'pv-names' }, otherNames) : null,
-    dates ? h('p', { class: 'pv-dates' }, dates) : null,
+    facts ? h('p', { class: 'pv-dates' }, facts) : null,
     h('div', { class: 'pv-actions' },
       h('button', { type: 'button', class: 'primary', onclick: () => editPerson(ctx, p) }, icon('edit'), h('span', {}, L('edit'))),
       h('button', { type: 'button', onclick: share }, icon('share'), h('span', {}, L('share'))),
       moreBtn))
 
   // Contact: each row has the value and quick actions.
-  const action = (label: Key, name: IconName, attrs: { href?: string; onclick?: () => void }) => attrs.href
+  const action = (label: Key, name: IconName, attrs: { href?: string; onclick?: () => void; 'aria-label'?: string }) => attrs.href
     ? h('a', { class: 'chip', href: attrs.href }, icon(name), h('span', {}, L(label)))
-    : h('button', { type: 'button', class: 'chip', onclick: attrs.onclick }, icon(name), h('span', {}, L(label)))
-  const copy = (value: string) => action('copy', 'copy', { onclick: () => copyText(value) })
+    : h('button', { type: 'button', class: 'chip', onclick: attrs.onclick, 'aria-label': attrs['aria-label'] }, icon(name), h('span', {}, L(label)))
+  // Several rows have a Copy button; each says what it copies ("Copy Email").
+  const copy = (what: Key, value: string) => action('copy', 'copy', { onclick: () => copyText(value), 'aria-label': `${t.copy} ${t[what]}` })
   const contactRow = (label: Key, value: Node | string, ...actions: HTMLElement[]) =>
     h('div', { class: 'crow' },
       h('div', { class: 'crow-text' }, h('span', { class: 'crow-label' }, L(label)), h('span', { class: 'crow-value' }, value)),
       actions.length ? h('div', { class: 'crow-actions' }, ...actions) : null)
   const contactRows = [
     p.phone && contactRow('phone', h('a', { href: `tel:${p.phone}` }, formatPhone(p.phone)), action('text', 'message', { href: `sms:${p.phone}` })),
-    p.email && contactRow('email', h('a', { href: `mailto:${p.email}` }, p.email), copy(p.email)),
-    p.line && contactRow('line', p.line, copy(p.line)),
-    p.signal && contactRow('signal', p.signal, copy(p.signal)),
-    p.address && contactRow('address', h('span', { class: 'address' }, p.address), copy(p.address)),
+    p.email && contactRow('email', h('a', { href: `mailto:${p.email}` }, p.email), copy('email', p.email)),
+    p.line && contactRow('line', p.line, copy('line', p.line)),
+    p.signal && contactRow('signal', p.signal, copy('signal', p.signal)),
+    p.address && contactRow('address', h('span', { class: 'address' }, p.address), copy('address', p.address)),
   ].filter(x => !!x)
   const contactEl = contactRows.length
     ? section('contact', sectionHead(L('contact')), h('div', { class: 'surface crows' }, ...contactRows))

@@ -58,7 +58,7 @@ export function openSearch(people: () => People, select: (id: string) => void, c
 export function searchBox(people: () => People, select: (id: string) => void, currentId: () => string) {
   const input = h('input', {
     type: 'search', class: 'search-trigger', placeholder: t.search, 'aria-label': t.search,
-    autocomplete: 'off', 'aria-controls': 'search-pop',
+    autocomplete: 'off', 'aria-controls': 'search-pop', 'aria-keyshortcuts': '/',
   })
   const pop = h('div', { class: 'search-pop', id: 'search-pop', hidden: true })
   const wrap = h('div', { class: 'search-box' }, input, h('kbd', { 'aria-hidden': 'true' }, '/'), pop)

@@ -217,6 +217,8 @@ main[data-view="person"] .tree-pane, main[data-view="tree"] .person-pane { displ
 }
 .chart-tools button + button { border-top: 1px solid var(--line); }
 .chart-tools button:hover:not(:disabled) { background: var(--bg); }
+/* Inside the ring, which the tools' overflow: hidden would otherwise clip. */
+.chart-tools button:focus-visible { outline-offset: -3px; }
 .peek {
   position: absolute; left: .75rem; right: .75rem; bottom: .75rem; z-index: 2;
   display: flex; align-items: center; gap: .75rem; text-align: left; padding: .55rem .9rem .55rem .6rem;
@@ -484,6 +486,9 @@ fieldset.field > legend { padding: 0; margin-bottom: .3rem; }
   .tab[aria-current="page"] .tab-label { text-decoration: underline; text-underline-offset: .25em; }
   .pcard.selected, .pcard.self, #chart .card-main .ft-card { outline: 3px solid Highlight; }
   .avatar { border: 2px solid CanvasText; }
+  /* The toast is a background-only box, and the invalid field's red border becomes plain. */
+  .toast { border: 1px solid CanvasText; }
+  [aria-invalid="true"] { border: 2px solid Mark; }
 }
 @media (prefers-contrast: more) {
   :root {
