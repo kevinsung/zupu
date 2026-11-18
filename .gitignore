@@ -2,6 +2,7 @@ node_modules/
 dist/
 # Personal family data must never be committed
 seed/
+*.csv
 *.log
 backups/
 .wrangler/
