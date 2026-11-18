@@ -19,7 +19,7 @@ one Worker serves the site and a small API, and the data lives in a D1 (SQLite) 
    npx wrangler d1 create zupu            # found by name; no need to copy the id
    npm run deploy                         # build, create tables, deploy
    npx wrangler secret put FAMILY_PASSWORD   # the password relatives will type
-   npm run seed -- --remote               # import seed/family.json
+   npm run seed -- --remote --file seed/family.json   # one-time import; the file must be named explicitly
    ```
 3. **Address:** the Worker has no public address until you give it one. In the Cloudflare dashboard → Workers → zupu → Settings → Domains & Routes, add a custom domain (its DNS must be on Cloudflare). Deploys leave it in place. Or set `"workers_dev": true` in `wrangler.jsonc` to use `https://zupu.<your-subdomain>.workers.dev`.
 
@@ -47,7 +47,7 @@ Opening the app costs about 100 row reads, and each open tab checks for changes 
 ```sh
 cp .dev.vars.example .dev.vars   # local password: dev
 npm run db:migrate:local
-npm run seed -- --local
+npm run seed -- --local          # imports seed/family.json (gitignored; add your own or pass --file <path>)
 npm run dev                      # Vite + the Worker in workerd, with a local D1 database
 npm test                         # unit tests, Worker API tests, UI smoke test (all local, no account needed)
 ```
