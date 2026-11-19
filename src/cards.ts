@@ -1,7 +1,7 @@
 import { h } from './dom'
 import { t, tn } from './i18n'
 import { icon } from './icons'
-import { type Marriage, type ParentKind, type Person, UNKNOWN, age, allNames, displayName, lifespan } from './model'
+import { type Marriage, type ParentKind, type Person, UNKNOWN, age, allNames, displayName, isDeceased, lifespan } from './model'
 
 /**
  * e.g. "結婚 / Married 1962 · 離婚 / Divorced 1975", or the status where there's no date to say it
@@ -17,9 +17,23 @@ export function marriageText(m: Partial<Marriage> | undefined): string {
   return parts.filter(Boolean).join(' · ') || status
 }
 
-/** Secondary line for a person: their other names and years. */
-export function personSubtitle(p: Person): string {
-  return [allNames(p).filter(n => n !== displayName(p)).join(' · '), lifespan(p)].filter(Boolean).join(' · ')
+/** Years for a card ("1920–1990", "1920–?"), or 已故 / Deceased if marked deceased with no dates; '' if neither. */
+export function cardYears(p: Person): string {
+  return lifespan(p) || (isDeceased(p) ? t.deceased : '')
+}
+
+/** The names a person goes by besides the one they're shown under, e.g. "John Wang · Ah Ming". */
+export function otherNamesLine(p: Person): string {
+  const name = displayName(p)
+  return allNames(p).filter(n => n !== name).join(' · ')
+}
+
+/**
+ * Secondary line for a person: `tag` (e.g. 本人 / Self), years, then other names. The years come
+ * before the names so a long list of names, cut off at the card's edge, doesn't hide them.
+ */
+export function personSubtitle(p: Person, tag = ''): string {
+  return [tag, cardYears(p), otherNamesLine(p)].filter(Boolean).join(' · ')
 }
 
 /** e.g. "1985-03-14 · 41歲 / age 41" or "1920 – 1990-07 · 享年約70 / aged about 70".
@@ -64,7 +78,7 @@ export function genderWord(p: Person): string {
  * `tag` (e.g. from parentKindTag) leads the subtitle.
  */
 export function personCard(p: Person, onclick: (() => void) | null, extra?: Node, tag = ''): HTMLElement {
-  const sub = [tag, personSubtitle(p)].filter(Boolean).join(' · ')
+  const sub = personSubtitle(p, tag)
   // The colored edge shows gender; screen readers get it as a word.
   const gender = genderWord(p)
   const main = h(onclick ? 'button' : 'div', { type: onclick ? 'button' : undefined, class: 'pcard-main', onclick: onclick ?? undefined },
@@ -79,5 +93,5 @@ export function selfCard(p: Person): HTMLElement {
   return h('div', { class: `pcard self g-${p.gender || 'U'}`, 'aria-current': 'page' },
     h('div', { class: 'pcard-main' },
       h('span', { class: 'pcard-name' }, displayName(p)),
-      h('span', { class: 'pcard-sub' }, [t.self, lifespan(p)].filter(Boolean).join(' · '))))
+      h('span', { class: 'pcard-sub' }, personSubtitle(p, t.self))))
 }

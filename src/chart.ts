@@ -1,9 +1,9 @@
 import * as f3 from 'family-chart'
 import 'family-chart/styles/family-chart.css'
 import * as d3 from 'd3'
-import { type People, allNames, byBirth, childrenIndex, displayName, lifespan, partnerIds } from './model'
+import { type People, byBirth, childrenIndex, displayName, partnerIds } from './model'
 import { escapeHtml, reducedMotion } from './dom'
-import { genderWord } from './cards'
+import { cardYears, genderWord, otherNamesLine } from './cards'
 
 /** Id of a visually hidden element (in the tree pane) that explains the arrow keys. */
 export const TREE_HINT_ID = 'tree-keys-hint'
@@ -246,8 +246,8 @@ export class TreeChart {
         .setCardInnerHtmlCreator(d => {
           const p = d.data.data.person
           const name = displayName(p)
-          const sub = allNames(p).filter(n => n !== name).join(' · ')
-          const years = lifespan(p)
+          const sub = otherNamesLine(p)
+          const years = cardYears(p)
           const label = [name, genderWord(p), sub, years].filter(Boolean).join(', ')
           const main = p.id === this.mainId
           return `<div class="ft-card ft-${p.gender || 'U'}" data-id="${escapeHtml(p.id)}" tabindex="${main ? 0 : -1}" role="button"${main ? ' aria-current="true"' : ''} aria-label="${escapeHtml(label)}" aria-describedby="${TREE_HINT_ID}">

@@ -466,6 +466,23 @@ describe('app', () => {
     topDialog().querySelector<HTMLButtonElement>('.dlg-x')!.click()
   })
 
+  it('shows deceased on cards, with years before other names', async () => {
+    location.hash = '#/p/b'
+    await vi.waitFor(() => expect($('#person h1').textContent).toBe('乙'))
+    buttonWith('編輯', $('#person')).click()
+    const dlg = topDialog()
+    dlg.querySelector<HTMLInputElement>('input[name=deceased]')!.checked = true
+    buttonWith('儲存', dlg).click()
+    await closed(dlg)
+    // 乙 has no dates, so the cards say 已故 / Deceased; 甲's years come before her English name.
+    const sub = (id: string) => document.querySelector(`#person .pcard[data-id="${id}"] .pcard-sub`)?.textContent
+    expect(sub('a')).toBe('1960–? · Alice')
+    await vi.waitFor(() => expect($('.ft-card[data-id="b"] .ft-years').textContent).toBe('已故 / Deceased'))
+    location.hash = '#/p/a'
+    await vi.waitFor(() => expect(sub('b')).toBe('已故 / Deceased'))
+    expect(document.querySelector('#person .pcard.self .pcard-sub')!.textContent).toBe('本人 / this person · 1960–? · Alice')
+  })
+
   it('opens ticked for a death date and leaves the deceased flag alone unless changed', async () => {
     const { personForm } = await import('../src/dialog')
     const box = (form: ReturnType<typeof personForm>) => form.el.querySelector<HTMLInputElement>('input[name=deceased]')!
