@@ -92,16 +92,20 @@ function parentKinds(v: unknown, nullable: boolean): Record<string, ParentKind |
   return out
 }
 
+function order(v: unknown): number {
+  check(typeof v === 'number' && Number.isFinite(v), 'invalid order')
+  return v
+}
+
 function person(v: unknown): Person {
   check(isObj(v), 'invalid person')
   // marriages is optional: history snapshots from before it existed lack it.
   // parentKinds likewise.
-  const { id: pid, parents, spouses, marriages: m = {}, parentKinds: pk = {}, order, ...rest } = v
-  check(typeof order === 'number' && Number.isFinite(order), 'invalid order')
+  const { id: pid, parents, spouses, marriages: m = {}, parentKinds: pk = {}, order: ord, ...rest } = v
   return {
     ...(fields(rest, false) as PersonFields),
     id: id(pid), parents: ids(parents), spouses: ids(spouses), marriages: marriages(m, false),
-    parentKinds: parentKinds(pk, false), order,
+    parentKinds: parentKinds(pk, false), order: order(ord),
   }
 }
 
@@ -114,6 +118,7 @@ function op(v: unknown): Op {
       type: 'update',
       id: id(v.id),
       fields: v.fields === undefined ? undefined : fields(v.fields, true),
+      order: v.order === undefined ? undefined : order(v.order),
       add: relLists(v.add),
       remove: relLists(v.remove),
       marriages: v.marriages === undefined ? undefined : marriages(v.marriages, true),

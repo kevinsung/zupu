@@ -793,6 +793,85 @@ describe('app', () => {
     topDialog().querySelector<HTMLButtonElement>('.dlg-x')!.click()
   })
 
+  it('reorders siblings the dates leave open, saves it in history, and reverts', async () => {
+    const kid = (id: string, nameZh: string, order: number, extra = {}) => ({ type: 'set', person: person(id, { nameZh, parents: ['rp'], order, ...extra }) })
+    await w.post('/api/commit', { editor: 'import', summary: 'seed', ops: [
+      { type: 'set', person: person('rp', { nameZh: '排父', gender: 'M' }) },
+      kid('r1', '一', 10), kid('r2', '二', 11), kid('r3', '三', 12),
+      // The same father; both are dated, so nothing is left to set by hand.
+      { type: 'set', person: person('rq', { nameZh: '定父', gender: 'M' }) },
+      kid('d1', '早', 20, { parents: ['rq'], birthDate: '1950' }), kid('d2', '晚', 21, { parents: ['rq'], birthDate: '1960' }),
+      // 1961 is before 1962 though added after; 1962-05 and 1962 don't decide, so entry order stands.
+      kid('m1', '丙一', 30, { parents: ['rm'], birthDate: '1962-05' }), kid('m2', '丙二', 31, { parents: ['rm'], birthDate: '1962' }),
+      kid('m3', '丙三', 32, { parents: ['rm'], birthDate: '1961' }),
+      { type: 'set', person: person('rm', { nameZh: '混父', gender: 'M' }) },
+    ] })
+    document.dispatchEvent(new Event('visibilitychange'))
+    await tick(300)
+    const order = () => [...$('#person .pv-siblings').querySelectorAll('.pcard-name')].map(e => e.textContent)
+    const go = async (id: string, name: string) => {
+      location.hash = `#/p/${id}`
+      await vi.waitFor(() => expect($('#person h1').textContent).toBe(name))
+    }
+    await go('r1', '一')
+    await vi.waitFor(() => expect(order()).toEqual(['一', '二', '三']))
+    buttonWith('排序', $('#person .pv-siblings')).click()
+    let dlg = topDialog()
+    const btn = (id: string, dir: number) => dlg.querySelector<HTMLButtonElement>(`[data-id="${id}"] button[data-dir="${dir}"]`)!
+    // The ends have nowhere to go.
+    expect(btn('r1', -1).getAttribute('aria-disabled')).toBe('true')
+    expect(btn('r3', 1).getAttribute('aria-disabled')).toBe('true')
+    expect(btn('r1', 1).getAttribute('aria-disabled')).toBeNull()
+    // 三 up twice, to the front; focus follows the moved button.
+    btn('r3', -1).click()
+    expect(document.activeElement).toBe(btn('r3', -1))
+    btn('r3', -1).click()
+    expect(document.activeElement).toBe(btn('r3', -1))
+    expect([...dlg.querySelectorAll('.pcard-name')].map(e => e.textContent)).toEqual(['三', '一', '二'])
+    buttonWith('儲存', dlg).click()
+    await closed(dlg)
+    await vi.waitFor(() => expect(order()).toEqual(['三', '一', '二']))
+    // The parent's family list shows it too.
+    await go('rp', '排父')
+    expect([...$('#person .pv-families').querySelectorAll('.pcard-name')].map(e => e.textContent)).toEqual(['三', '一', '二'])
+
+    buttonWith('修改紀錄').click()
+    await tick(300)
+    const item = topDialog().querySelector<HTMLElement>('.history-item')!
+    expect(item.textContent).toContain('調整出生順序 Changed birth order: 三, 一, 二')
+    expect(item.textContent).toContain('出生順序已調整 / Birth order changed')
+    expect(item.textContent).not.toMatch(/\d{9}/)
+    item.querySelector('details')!.open = true
+    buttonWith('還原', item).click()
+    await tick()
+    buttonWith('還原', topDialog()).click()
+    await vi.waitFor(() => expect([...$('#person .pv-families').querySelectorAll('.pcard-name')].map(e => e.textContent)).toEqual(['一', '二', '三']))
+    topDialog().querySelector<HTMLButtonElement>('.dlg-x')!.click()
+
+    // Dates win: no Reorder button where they order everyone.
+    await go('d1', '早')
+    expect(buttonWith('排序', $('#person .pv-siblings'))).toBeUndefined()
+    // Between 1962-05 and 1962 they don't, but 丙三 (1961) sits ahead of both.
+    await go('m1', '丙一')
+    await vi.waitFor(() => expect(order()).toEqual(['丙三', '丙一', '丙二']))
+    buttonWith('排序', $('#person .pv-siblings')).click()
+    dlg = topDialog()
+    expect(btn('m3', 1).getAttribute('aria-disabled')).toBe('true')
+    expect(btn('m3', 1).title).toBe('出生日期已決定順序 / Their birth dates already set this order')
+    expect(btn('m1', -1).getAttribute('aria-disabled')).toBe('true')
+    expect(btn('m3', 1).getAttribute('aria-label')).toContain('出生日期已決定順序')
+    // Pressing a locked arrow does nothing, and says nothing.
+    btn('m3', 1).click()
+    expect(dlg.querySelector('.dlg-error')!.textContent).toBe('')
+    expect([...dlg.querySelectorAll('.pcard-name')].map(e => e.textContent)).toEqual(['丙三', '丙一', '丙二'])
+    // The rule is stated up front, and rows show full birth dates so it's clear why.
+    expect(dlg.querySelector('.reorder-hint')!.textContent).toContain('Siblings with birth dates stay in date order')
+    expect([...dlg.querySelectorAll('.pcard-sub')].map(e => e.textContent)).toEqual(['1961', '1962-05', '1962'])
+    btn('m1', 1).click()
+    expect([...dlg.querySelectorAll('.pcard-name')].map(e => e.textContent)).toEqual(['丙三', '丙二', '丙一'])
+    dlg.querySelector<HTMLButtonElement>('.dlg-x')!.click()
+  })
+
   it('shows a banner and blocks editing while the data is the offline copy, then recovers', async () => {
     const online = globalThis.fetch
     const cachedAt = Date.UTC(2026, 0, 2, 3, 4)

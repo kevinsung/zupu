@@ -530,7 +530,9 @@ export function personPicker(
   return { el: h('div', { class: 'picker' }, opts.input ? null : input, list, live), input, list, live, refresh: update, selected }
 }
 
-/** A small header label for a section, with an optional compact action button on the right. */
-export function sectionHead(title: Node, action?: HTMLElement): HTMLElement {
-  return h('div', { class: 'section-head' }, h('h2', { class: 'section-title' }, title), action ?? null)
+/** A small header label for a section, with optional compact action buttons on the right. */
+export function sectionHead(title: Node, ...actions: (HTMLElement | null | undefined)[]): HTMLElement {
+  const shown = actions.filter((a): a is HTMLElement => !!a)
+  return h('div', { class: 'section-head' }, h('h2', { class: 'section-title' }, title),
+    shown.length > 1 ? h('div', { class: 'section-actions' }, ...shown) : shown[0] ?? null)
 }

@@ -20,6 +20,8 @@ function diffLines(ctx: AppCtx, d: PersonDiff): Node[] {
     const fmt = (v: unknown) => (Array.isArray(v) ? ids(v) : (k === 'phone' ? formatPhone(String(v)) : k === 'deceased' && v === 'yes' ? t.deceased : String(v)) || '—')
     lines.push(h('li', {}, `${t[k]}: `, h('del', {}, fmt(a)), ' → ', h('ins', {}, fmt(b))))
   }
+  // The raw values are timestamps, so just say it changed.
+  if (d.before.order !== d.after.order) lines.push(h('li', {}, t.birthOrderChanged))
   // Snapshots from before marriages existed lack the field.
   const [ma, mb] = [d.before.marriages ?? {}, d.after.marriages ?? {}]
   for (const sid of new Set([...Object.keys(ma), ...Object.keys(mb)])) {

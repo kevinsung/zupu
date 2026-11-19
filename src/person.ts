@@ -3,7 +3,7 @@ import { L, t, tName, type Key } from './i18n'
 import { actionSheet, copyText, sectionHead } from './dialog'
 import { type IconName, icon } from './icons'
 import { avatar, datesLine, genderWord, marriageText, parentKindTag, personCard, selfCard } from './cards'
-import { type AppCtx, addRelative, deletePerson, editMarriage, editParentKinds, editPerson, linkExisting, removeRelationship } from './actions'
+import { type AppCtx, addRelative, canReorder, deletePerson, editMarriage, editParentKinds, editPerson, linkExisting, removeRelationship, reorderPeople } from './actions'
 import { type Person, allNames, byBirth, childrenByCoParent, displayName, formatPhone, halfSiblingVia, partnersOf, siblingsOf } from './model'
 
 export interface PersonViewOpts {
@@ -30,6 +30,10 @@ export function renderPerson(cont: HTMLElement, ctx: AppCtx, id: string, opts: P
   const addButton = (label: string, onclick: (e: Event) => void) =>
     h('button', { type: 'button', class: 'section-add', 'aria-label': label, title: label, onclick },
       icon('plus'), h('span', {}, L('add')))
+  const reorderButton = (list: Person[], subtitle: string) => canReorder(list)
+    ? h('button', { type: 'button', class: 'section-add', 'aria-label': t.reorderTitle, title: t.reorderTitle, onclick: () => reorderPeople(ctx, list, subtitle) },
+      icon('arrowUpDown'), h('span', {}, L('reorder')))
+    : null
   const section = (cls: string, head: HTMLElement, ...body: (Node | null)[]) =>
     h('section', { class: `pv-section ${cls}` }, head, ...body)
 
@@ -117,7 +121,8 @@ export function renderPerson(cont: HTMLElement, ctx: AppCtx, id: string, opts: P
       cp ? card(cp) : h('div', { class: 'family-unknown muted' }, t.unknownOtherParent),
       cp ? marriageLine(cp) : null,
       kids.length ? h('div', { class: 'family-kids' },
-        h('div', { class: 'family-kids-label' }, L('children')),
+        h('div', { class: 'family-kids-head' }, h('div', { class: 'family-kids-label' }, L('children')),
+          reorderButton(kids, `${displayName(p)}${cp ? ` & ${displayName(cp)}` : ''}`)),
         h('div', { class: 'cards cols-2' }, ...kids.map(kid => personCard(kid, () => ctx.select(kid.id), undefined, parentKindTag(kid.parentKinds[p.id], 'child'))))) : null)
   })
   const familyAdd = addButton(t.addSpouseOrChild, e => actionSheet(t.addSpouseOrChild, [
@@ -160,11 +165,12 @@ export function renderPerson(cont: HTMLElement, ctx: AppCtx, id: string, opts: P
     siblingEls.push(section('pv-siblings', sectionHead(L('siblings')), addSlot('addSibling', () => addRelative(ctx, p, 'sibling'))))
   } else {
     if (full.length) {
-      siblingEls.push(section('pv-siblings', sectionHead(L(halfGroups.length ? 'fullSiblings' : 'siblings'), addSibling()),
-        h('div', { class: 'cards cols-2' }, ...[...full, p].sort(byBirth).map(s => (s === p ? selfCard(p) : card(s))))))
+      const group = [...full, p].sort(byBirth)
+      siblingEls.push(section('pv-siblings', sectionHead(L(halfGroups.length ? 'fullSiblings' : 'siblings'), reorderButton(group, name), addSibling()),
+        h('div', { class: 'cards cols-2' }, ...group.map(s => (s === p ? selfCard(p) : card(s))))))
     }
     for (const g of halfGroups) {
-      siblingEls.push(section(g.cls, sectionHead(g.title, siblingEls.length ? undefined : addSibling()),
+      siblingEls.push(section(g.cls, sectionHead(g.title, reorderButton(g.kids, name), siblingEls.length ? undefined : addSibling()),
         h('div', { class: 'cards cols-2' }, ...g.kids.map(card))))
     }
   }

@@ -11,6 +11,8 @@ export type Op =
   | { type: 'set'; person: Person }
   | {
     type: 'update'; id: string; fields?: Partial<PersonFields>
+    /** The hand-set sibling order (see byBirth). */
+    order?: number
     add?: Partial<Record<RelList, string[]>>; remove?: Partial<Record<RelList, string[]>>
     marriages?: Record<string, Marriage | null>
     /** Per-parent kind patches; null is back to birth parent. */
@@ -51,7 +53,7 @@ export function applyOp(people: People, op: Op) {
   } else {
     const cur = people.get(op.id)
     if (!cur) return
-    const p: Person = { ...cur, ...op.fields, parents: [...cur.parents], spouses: [...cur.spouses], marriages: { ...cur.marriages }, parentKinds: { ...cur.parentKinds } }
+    const p: Person = { ...cur, ...op.fields, ...(op.order === undefined ? {} : { order: op.order }), parents: [...cur.parents], spouses: [...cur.spouses], marriages: { ...cur.marriages }, parentKinds: { ...cur.parentKinds } }
     for (const key of ['parents', 'spouses'] as const) {
       for (const x of op.add?.[key] ?? []) if (!p[key].includes(x)) p[key].push(x)
       if (op.remove?.[key]) p[key] = p[key].filter(x => !op.remove![key]!.includes(x))

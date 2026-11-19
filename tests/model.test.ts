@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 // jsdom because FamilyStore's messages come from i18n, which reads the language setting from localStorage.
 import { describe, expect, it } from 'vitest'
-import { type People, type Person, age, childrenByCoParent, emptyFields, formatPhone, halfSiblingVia, isDeceased, isValidEmail, isValidPartialDate, isValidPhone, lifespan, normalizePerson, normalizePhone, rankPeople, rootAncestors, searchPeople, seniorAncestor, siblingsOf, partnerIds, partnersOf } from '../src/model'
+import { type People, type Person, age, byBirth, datesDecide, reorderValues, childrenByCoParent, emptyFields, formatPhone, halfSiblingVia, isDeceased, isValidEmail, isValidPartialDate, isValidPhone, lifespan, normalizePerson, normalizePhone, rankPeople, rootAncestors, searchPeople, seniorAncestor, siblingsOf, partnerIds, partnersOf } from '../src/model'
 import { applyOp, simulate, type ChangeRecord, type NewChange, type Op } from '../src/ops'
 import { FamilyStore } from '../src/store'
 import { seedToPeople } from '../src/seed-format'
@@ -499,5 +499,44 @@ describe('contact fields', () => {
     expect(isValidPhone('+886 912 345 678')).toBe(false)
     expect(formatPhone('+886912345678')).toBe('+886 912 345 678')
     expect(formatPhone('+12015550123')).toBe('+1 201 555 0123')
+  })
+
+  it('orders siblings by date only where dates decide, else by hand', () => {
+    const p = (birthDate: string, order: number) => ({ birthDate, order })
+    expect(datesDecide(p('1950', 1), p('1960', 0))).toBe(true)
+    expect(datesDecide(p('1950', 1), p('1950-05', 0))).toBe(false) // a prefix: no
+    expect(datesDecide(p('1950-05', 1), p('1950', 0))).toBe(false)
+    expect(datesDecide(p('1950-05', 1), p('1950-06', 0))).toBe(true)
+    expect(datesDecide(p('1950-05-01', 1), p('1950-05-01', 0))).toBe(false) // twins
+    expect(datesDecide(p('', 1), p('1950', 0))).toBe(false)
+    expect(byBirth(p('1960', 0), p('1950', 1))).toBeGreaterThan(0)
+    expect(byBirth(p('1950', 1), p('1950-05', 0))).toBeGreaterThan(0) // entry order
+    expect(byBirth(p('1950-05-01', 1), p('1950-05-01', 2))).toBeLessThan(0)
+    expect(byBirth(p('', 5), p('1950', 3))).toBeGreaterThan(0)
+  })
+
+  it('hands a sibling group its own order values in a new sequence', () => {
+    const o = (id: string, order: number) => ({ id, order })
+    expect([...reorderValues([o('c', 3), o('a', 1), o('b', 2)])]).toEqual([['c', 1], ['a', 2], ['b', 3]])
+    expect(reorderValues([o('a', 1), o('b', 2), o('c', 3)]).size).toBe(0)
+    // Equal values are bumped so the order stays strict.
+    expect([...reorderValues([o('b', 5), o('a', 5), o('c', 5)])]).toEqual([['a', 6], ['c', 7]])
+    expect([...reorderValues([o('b', 5), o('a', 5)])]).toEqual([['a', 6]])
+  })
+
+  it('reorders siblings through the store, refusing what dates contradict', async () => {
+    const { store, people, changes } = memoryStore([
+      person('p', { gender: 'M' }),
+      person('x', { parents: ['p'], order: 1 }), person('y', { parents: ['p'], order: 2 }), person('z', { parents: ['p'], order: 3 }),
+      person('e', { parents: ['p'], order: 4, birthDate: '1950' }), person('f', { parents: ['p'], order: 5, birthDate: '1960' }),
+    ])
+    await store.reorder('Ed', ['z', 'x', 'y'])
+    expect(['z', 'x', 'y'].map(id => people.get(id)!.order)).toEqual([1, 2, 3])
+    expect(changes.at(-1)!.summary).toContain('Changed birth order')
+    await store.reorder('Ed', ['z', 'x', 'y']) // nothing changes: nothing logged
+    expect(changes.length).toBe(1)
+    await expect(store.reorder('Ed', ['f', 'e'])).rejects.toThrow()
+    await expect(store.reorder('Ed', ['x', 'x'])).rejects.toThrow()
+    expect(changes.length).toBe(1)
   })
 })

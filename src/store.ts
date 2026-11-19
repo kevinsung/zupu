@@ -1,4 +1,4 @@
-import { type Marriage, type ParentKind, type People, type Person, type PersonFields, FIELD_KEYS, childrenOf, displayName, emptyMarriage, isEmptyMarriage, marriageWithStatus, partnerIds } from './model'
+import { type Marriage, type ParentKind, type People, type Person, type PersonFields, FIELD_KEYS, childrenOf, datesDecide, displayName, emptyMarriage, isEmptyMarriage, marriageWithStatus, partnerIds, reorderValues } from './model'
 import { newId } from './ids'
 import { t, tName } from './i18n'
 import type { ChangeRecord, NewChange, Op, RelList } from './ops'
@@ -224,6 +224,25 @@ export class FamilyStore {
     await this.commit(editor, `編輯父母關係 Edited parent relationship: ${this.name(parentId)} → ${this.name(childId)}`, [
       { type: 'update', id: childId, parentKinds: { [parentId]: kind || null } },
     ])
+  }
+
+  /**
+   * Put siblings in the birth order given by `ids`, by rewriting their hidden `order` values among
+   * themselves. Dates still win: a sequence that puts someone before a person with an earlier date is refused.
+   */
+  async reorder(editor: string, ids: string[]) {
+    if (new Set(ids).size !== ids.length) throw new Error('duplicate ids')
+    const group = ids.map(id => this.get(id))
+    for (let i = 0; i < group.length; i++) {
+      for (let j = i + 1; j < group.length; j++) {
+        const [a, b] = [group[i], group[j]]
+        if (datesDecide(a, b) && a.birthDate > b.birthDate) throw new Error(t.datesSetOrder)
+      }
+    }
+    const values = reorderValues(group)
+    if (values.size === 0) return
+    const ops: Op[] = group.filter(p => values.has(p.id)).map(p => ({ type: 'update', id: p.id, order: values.get(p.id) }))
+    await this.commit(editor, `調整出生順序 Changed birth order: ${group.map(displayName).join(', ')}`, ops)
   }
 
   /** Why unlinking would be refused, or null if it's fine. Parents of a shared child stay a couple. */

@@ -1,8 +1,9 @@
 import { h } from './dom'
 import { L, t, tName } from './i18n'
 import { confirmDialog, marriageForm, openDialog, personForm, personPicker, toast } from './dialog'
-import { halfTag, personCard } from './cards'
-import { type ParentKind, PARENT_KINDS, type People, type Person, type PersonFields, childrenOf, displayName, emptyFields, emptyMarriage, partnerIds, partnersOf } from './model'
+import { halfTag, otherNamesLine, personCard } from './cards'
+import { icon } from './icons'
+import { type ParentKind, PARENT_KINDS, type People, type Person, type PersonFields, childrenOf, datesDecide, displayName, emptyFields, emptyMarriage, partnerIds, partnersOf } from './model'
 import { offlineSince } from './backend'
 import { recentAndEveryone } from './search'
 import type { FamilyStore, LinkRelative, NewRelative } from './store'
@@ -257,4 +258,58 @@ export function editParentKinds(ctx: AppCtx, p: Person) {
     return personCard(parent, null, select)
   })
   openDialog(L('editParentKinds'), h('div', { class: 'cards' }, ...rows), [], { subtitle: displayName(p) })
+}
+
+/** True when at least one neighbouring pair in `list` (in birth order) is left to the order set by hand. */
+export function canReorder(list: Person[]): boolean {
+  return list.some((p, i) => i > 0 && !datesDecide(list[i - 1], p))
+}
+
+/**
+ * Birth order of `list` (siblings, already in byBirth order) with up and down buttons per row. A
+ * move swaps a person with their neighbour, so it's disabled where their birth dates already decide
+ * the order. A hint says so up front and each row shows the full birth date, so a locked arrow
+ * explains itself (screen readers get the reason in its name). Save is the only action.
+ */
+export function reorderPeople(ctx: AppCtx, list: Person[], subtitle: string) {
+  if (!canEdit()) return
+  const work = [...list]
+  const cards = h('div', { class: 'cards' })
+  // Which button to focus after a redraw: the moved person's button in the same direction.
+  const render = (focus?: { id: string; dir: -1 | 1 }) => {
+    cards.replaceChildren(...work.map((x, i) => {
+      const btn = (dir: -1 | 1) => {
+        const other = work[i + dir]
+        // Past either end, or across someone their date puts on that side, there's nowhere to go.
+        const problem = other && datesDecide(x, other) ? t.datesSetOrder : undefined
+        const label = `${dir < 0 ? t.moveUp : t.moveDown} ${displayName(x)}`
+        return h('button', {
+          // aria-disabled rather than disabled, so it keeps focus when a move takes the person to an end.
+          type: 'button', class: 'small', 'data-dir': String(dir), 'aria-disabled': problem || !other ? 'true' : undefined, title: problem ?? label,
+          'aria-label': problem ? `${label}: ${problem}` : label, onclick: () => {
+            if (!other || problem) return
+            ;[work[i], work[i + dir]] = [work[i + dir], work[i]]
+            render({ id: x.id, dir })
+          },
+        }, icon(dir < 0 ? 'arrowUp' : 'arrowDown'))
+      }
+      // The full date rather than the cards' years, so '1950' beside '1950-05' shows why they can swap.
+      const sub = [x.birthDate || t.birthDateUnknown, otherNamesLine(x)].filter(Boolean).join(' · ')
+      return h('div', { class: `pcard g-${x.gender || 'U'}`, 'data-id': x.id },
+        h('div', { class: 'pcard-main' }, h('span', { class: 'pcard-name' }, displayName(x)), h('span', { class: 'pcard-sub' }, sub)),
+        h('div', { class: 'move-btns' }, btn(-1), btn(1)))
+    }))
+    if (focus) cards.querySelector<HTMLElement>(`[data-id="${focus.id}"] button[data-dir="${focus.dir}"]`)?.focus()
+  }
+  render()
+  openDialog(L('reorderTitle'), h('div', { class: 'form' }, h('p', { class: 'muted reorder-hint' }, L('reorderHint')), cards), [
+    {
+      label: L('save'), primary: true, run: async () => {
+        if (!canEdit()) return false
+        const editor = await ctx.editorName()
+        if (!editor) return false
+        await ctx.store.reorder(editor, work.map(x => x.id))
+      },
+    },
+  ], { subtitle, cls: 'tall' })
 }

@@ -108,11 +108,20 @@ describe('data', () => {
       [{ type: 'update', id: 'kid', add: { parents: ['zzz'] } }], // would be three parents
       [{ type: 'update', id: 'kid', add: { spouses: ['kid'] } }], // self
       [{ type: 'update', id: 'kid', fields: { order: 3 } }],
+      [{ type: 'update', id: 'kid', order: '3' }],
+      [{ type: 'update', id: 'kid', order: null }],
+      [{ type: 'update', id: 'kid', order: 1e999 }],
       [{ type: 'update', id: 'bad id!' }],
       [{ type: 'nope' }],
     ]
     for (const ops of bad) expect((await commit(ops)).status, JSON.stringify(ops)).toBe(400)
     expect((await commit([{ type: 'delete', id: 'kid' }], '  ')).status).toBe(400) // editor required
+  })
+
+  it('applies an update op with order', async () => {
+    expect((await commit([{ type: 'update', id: 'kid', order: 42 }])).status).toBe(200)
+    const { people } = await (await w.call('/api/people')).json() as { people: Person[] }
+    expect(people.find(p => p.id === 'kid')!.order).toBe(42)
   })
 
   it('saves pinyin', async () => {

@@ -208,10 +208,34 @@ export function age(p: Person, today = new Date()): Age | null {
   return { years, approx, atDeath }
 }
 
-/** Earlier birth date first; without both dates (or on a tie), the order they were entered. */
-export function byBirth(a: Pick<Person, 'birthDate' | 'order'>, b: Pick<Person, 'birthDate' | 'order'>): number {
-  if (a.birthDate && b.birthDate && a.birthDate !== b.birthDate) return a.birthDate < b.birthDate ? -1 : 1
+type Birth = Pick<Person, 'birthDate' | 'order'>
+
+/**
+ * True when the birth dates alone put two people in order: both have one, they differ, and neither
+ * is a prefix of the other ('1950' and '1950-05' don't decide, so the order set by hand does).
+ */
+export function datesDecide(a: Birth, b: Birth): boolean {
+  if (!a.birthDate || !b.birthDate || a.birthDate === b.birthDate) return false
+  return !a.birthDate.startsWith(b.birthDate) && !b.birthDate.startsWith(a.birthDate)
+}
+
+/** Earlier birth date first where the dates decide; otherwise the order set by hand (by default, the order they were entered). */
+export function byBirth(a: Birth, b: Birth): number {
+  if (datesDecide(a, b)) return a.birthDate < b.birthDate ? -1 : 1
   return a.order - b.order
+}
+
+/**
+ * The new `order` values for a group of siblings put in `people`'s sequence: the group's own values,
+ * handed out in ascending order, so others sorted among them don't move. Equal values are bumped so
+ * the order is strict. Only the entries that change.
+ */
+export function reorderValues(people: Pick<Person, 'id' | 'order'>[]): Map<string, number> {
+  const values = people.map(p => p.order).sort((a, b) => a - b)
+  for (let i = 1; i < values.length; i++) values[i] = Math.max(values[i], values[i - 1] + 1)
+  const out = new Map<string, number>()
+  people.forEach((p, i) => { if (p.order !== values[i]) out.set(p.id, values[i]) })
+  return out
 }
 
 export function childrenOf(people: People, id: string): Person[] {
