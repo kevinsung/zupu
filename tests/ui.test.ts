@@ -611,11 +611,14 @@ describe('app', () => {
   })
 
   it('switches the theme from the settings menu and remembers it', async () => {
+    // index.html's status bar color, which follows the theme (the test page has no head of its own).
+    const bar = document.head.appendChild(Object.assign(document.createElement('meta'), { name: 'theme-color', content: '#f6f3ec' }))
     const settings = $<HTMLButtonElement>('.settings-btn')
     settings.click()
     buttonWith('深色', popover()).click()
     expect(document.documentElement.dataset.theme).toBe('dark')
     expect(localStorage.getItem('ft-theme')).toBe('dark')
+    expect(bar.content).toBe('#1a1815')
     settings.click() // a second click closes the menu
     expect(document.querySelector('.popover')).toBeNull()
     settings.click()
@@ -623,6 +626,9 @@ describe('app', () => {
     buttonWith('跟隨系統', popover()).click()
     expect(document.documentElement.dataset.theme).toBeUndefined()
     expect(localStorage.getItem('ft-theme')).toBeNull()
+    // jsdom has no matchMedia, so the system counts as light.
+    expect(bar.content).toBe('#f6f3ec')
+    bar.remove()
     // Language names are marked with their language.
     expect(buttonWith('English', popover()).querySelector('[lang=en]')).toBeTruthy()
     expect(buttonWith('中文', popover()).querySelector('[lang=zh-Hant]')).toBeTruthy()

@@ -8,17 +8,18 @@
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/manifest.webmanifest" />
-    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f6f3ec" />
-    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#1a1815" />
+    <meta name="theme-color" content="#f6f3ec" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="族譜" />
     <title>族譜 / Family Tree</title>
-    <!-- Apply the saved theme before first paint; keep in sync with src/theme.ts. -->
+    <!-- Apply the saved theme, and the matching status bar color, before first paint; keep in sync with src/theme.ts. -->
     <script>
       try {
         const theme = localStorage.getItem('ft-theme')
         if (theme === 'light' || theme === 'dark') document.documentElement.dataset.theme = theme
+        const dark = theme === 'dark' || (theme !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches)
+        if (dark) document.querySelector('meta[name="theme-color"]').content = '#1a1815'
       } catch {}
     </script>
   </head>
