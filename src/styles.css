@@ -153,7 +153,7 @@ svg.caret { width: 1em; height: 1em; }
 
 /* Tab bar (phones) */
 .tabbar {
-  display: grid; grid-template-columns: repeat(4, 1fr); background: var(--surface); border-top: 1px solid var(--line); z-index: 5;
+  display: grid; grid-template-columns: repeat(5, 1fr); background: var(--surface); border-top: 1px solid var(--line); z-index: 5;
 }
 .tab {
   border: none; border-radius: 0; background: none; display: grid; justify-items: center; align-content: center; gap: .1rem;
@@ -167,7 +167,7 @@ svg.tab-icon { width: 1.4rem; height: 1.4rem; }
 /* Main: one pane at a time on phones */
 main { flex: 1; min-height: 0; position: relative; }
 .pane { position: absolute; inset: 0; }
-main:not([data-view="home"]) .home-pane, main:not([data-view="tree"]) .tree-pane, main:not([data-view="person"]) .person-pane { display: none; }
+main:not([data-view="home"]) .home-pane, main:not([data-view="stats"]) .stats-pane, main:not([data-view="tree"]) .tree-pane, main:not([data-view="person"]) .person-pane { display: none; }
 .person-pane { overflow-y: auto; overscroll-behavior: contain; }
 /* Before anyone is picked, the Tree and Person tabs offer the way back to the list. */
 .nobody { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: .25rem; padding: 1rem; text-align: center; }
@@ -195,9 +195,9 @@ main:not([data-view="home"]) .home-pane, main:not([data-view="tree"]) .tree-pane
      to the tree. */
   main { display: grid; grid-template-columns: 1fr 24rem; }
   .pane { position: relative; inset: auto; min-height: 0; }
-  main:not([data-view="home"]) :is(.tree-pane, .person-pane) { display: block; }
+  main:not([data-view="home"], [data-view="stats"]) :is(.tree-pane, .person-pane) { display: block; }
   /* The list of everyone takes the whole width. */
-  main[data-view="home"] { grid-template-columns: 1fr; }
+  main:is([data-view="home"], [data-view="stats"]) { grid-template-columns: 1fr; }
   .person-pane { border-left: 1px solid var(--line); background: var(--bg); }
   /* The person pane hidden: the tree takes the whole width, with the bar that opens the pane
      under it, kept narrow so it clears the tools in the corner. */
@@ -289,6 +289,76 @@ main:not([data-view="home"]) .home-pane, main:not([data-view="tree"]) .tree-pane
 .home-filter { border-radius: 999px; padding-left: 1rem; }
 @media (width >= 700px) and (height >= 500px) {
   .home-head { padding-top: 1.25rem; }
+}
+
+/* Family stats: tiles, then charts. Bars are buttons whose hit area is the whole row or column. */
+.stats-pane { overflow-y: auto; overscroll-behavior: contain; background: var(--bg); }
+.stats-page { max-width: 40rem; margin-inline: auto; padding: .75rem .9rem 2.5rem; }
+.stats-title { font-size: var(--fs-lg); margin: .25rem 0 .75rem; }
+.stats-title:focus { outline: none; }
+.tiles { display: grid; grid-template-columns: repeat(2, 1fr); gap: .5rem; }
+.tile { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); padding: .75rem .9rem; min-width: 0; }
+.tile-value { font-size: var(--fs-xl); font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1.15; }
+.tile-value.range { font-size: 1.35rem; line-height: 1.5; white-space: nowrap; }
+.tile-label { font-size: var(--fs-sm); color: var(--muted); }
+.stat-chart { margin-top: 1.5rem; }
+.stat-title { font-size: var(--fs-md); margin: 0 0 .5rem; }
+.stat-note { margin: .5rem 0 0; font-size: var(--fs-sm); color: var(--muted); }
+.stat-chart :is(.hbar, .col, .split-seg) { background: none; border: 0; border-radius: 0; padding: 0; }
+.stat-chart :is(.col, .split-seg) { min-height: 0; }
+.stat-chart :is(.hbar, .col, .split-seg):disabled { opacity: 1; cursor: default; }
+.stat-chart :is(.hbar, .col, .split-seg).none { color: var(--muted); }
+.hbars { display: grid; gap: 2px; }
+.hbar { display: grid; grid-template-columns: 6.5rem 1fr; align-items: center; gap: .5rem; min-height: 1.75rem; text-align: left; width: 100%; }
+.hbar-label { font-size: var(--fs-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hbar-count { font-size: var(--fs-sm); font-variant-numeric: tabular-nums; padding-left: .4rem; }
+.hbar-track { min-width: 0; height: 1.1rem; border-left: 1px solid var(--line); display: flex; align-items: center; }
+.hbar-fill { display: block; height: 100%; width: calc((100% - 2.25rem) * var(--p)); flex: none; background: var(--accent); border-radius: 0 4px 4px 0; transition: opacity .15s; }
+.hbar:not(.none):hover .hbar-fill { opacity: .8; }
+.hbar.open { background: var(--accent-soft); }
+.cols { display: flex; gap: 2px; height: 11rem; border-bottom: 1px solid var(--line); overflow-x: auto; }
+.col { flex: 1 0 1.5rem; display: flex; flex-direction: column; align-items: center; height: 100%; min-width: 0; padding-bottom: 0; }
+.col-track { flex: 1; width: 100%; display: flex; align-items: flex-end; justify-content: center; }
+.col-fill { display: block; width: 70%; height: var(--h); background: var(--accent); border-radius: 4px 4px 0 0; }
+.col.none .col-fill { background: none; }
+.col-count { font-size: var(--fs-xs); font-variant-numeric: tabular-nums; height: 1rem; line-height: 1rem; visibility: hidden; }
+.col.top .col-count, .col:hover .col-count, .col:focus-visible .col-count, .col.open .col-count { visibility: visible; }
+.col:not(.none):hover .col-fill { opacity: .8; }
+.col.open { background: var(--accent-soft); }
+.col-label { font-size: var(--fs-xs); color: var(--muted); font-variant-numeric: tabular-nums; margin-top: .2rem; height: 1rem; line-height: 1rem; }
+.col-short { display: none; line-height: 1; }
+.cols + .stat-note, .hbars + .stat-note { margin-top: 1.4rem; }
+.stat-chart .cols { margin-bottom: 1.4rem; }
+.split { display: flex; gap: 2px; background: var(--surface); }
+.split-seg { height: 2rem; min-width: 4px; }
+.split-seg:first-child { border-radius: 4px 0 0 4px; }
+.split-seg:last-child { border-radius: 0 4px 4px 0; }
+.split-seg:only-child { border-radius: 4px; }
+.split-seg.g-M, .swatch.g-M { background: var(--male); }
+.split-seg.g-F, .swatch.g-F { background: var(--female); }
+.split-seg.g-U, .swatch.g-U { background: var(--unknown); }
+.split-seg.open { outline: 2px solid var(--ink); outline-offset: 1px; }
+.legend { list-style: none; margin: .6rem 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: .25rem 1rem; font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
+.legend li { display: flex; align-items: center; gap: .4rem; }
+.swatch { width: .8rem; height: .8rem; border-radius: 3px; flex: none; }
+.stat-list { margin-top: .75rem; }
+.stat-list .section-title { margin-bottom: .5rem; }
+.stat-table { margin-top: .6rem; font-size: var(--fs-sm); }
+.stat-table summary { cursor: pointer; color: var(--muted); padding-block: .25rem; }
+.stat-table table { border-collapse: collapse; margin-top: .4rem; width: 100%; font-variant-numeric: tabular-nums; }
+.stat-table :is(th, td) { text-align: left; padding: .25rem .5rem; border-bottom: 1px solid var(--line); font-weight: 400; }
+.stat-table thead th { color: var(--muted); font-weight: 600; }
+.stat-table td:not(:first-child), .stat-table thead th:not(:first-child) { text-align: right; }
+@media (width >= 560px) {
+  .tiles { grid-template-columns: repeat(4, 1fr); }
+}
+@media (width < 560px) {
+  .col-full { display: none; }
+  .col-short { display: grid; justify-items: center; }
+  .col-label { height: 2rem; line-height: 1; }
+}
+@media (width >= 700px) and (height >= 500px) {
+  .stats-page { padding-top: 1.25rem; }
 }
 
 /* Person cards (lists of relatives, search results) */
@@ -525,6 +595,8 @@ fieldset.field > legend { padding: 0; margin-bottom: .3rem; }
 @media (forced-colors: active) {
   .seg > button[aria-pressed="true"], .seg-option:has(input:checked) { outline: 2px solid Highlight; outline-offset: -2px; }
   .tab[aria-current="page"] .tab-label { text-decoration: underline; text-underline-offset: .25em; }
+  .hbar-fill, .col-fill, .stat-chart .split-seg { border: 1px solid CanvasText; }
+  .hbar.open, .col.open { outline: 2px solid Highlight; }
   .pcard.selected, .pcard.self, #chart .card-main .ft-card { outline: 3px solid Highlight; }
   .avatar { border: 2px solid CanvasText; }
   /* The toast is a background-only box, and the invalid field's red border becomes plain. */

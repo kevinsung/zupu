@@ -8,6 +8,7 @@ import { type AppCtx, canEdit } from './actions'
 import { renderPerson } from './person'
 import { openHistory } from './history'
 import { homeList, rememberRecent, searchBox } from './search'
+import { statsPage } from './stats'
 import { avatar, personSubtitle } from './cards'
 import { focusPersonHeading, menuList, mountToast, openDialog, openMenu, personForm, segmented, toast } from './dialog'
 import { displayName } from './model'
@@ -61,11 +62,14 @@ function showLogin(signedOut: boolean) {
 }
 
 // 'home' is the list of everyone, the phone's Search tab.
-type View = 'home' | 'person' | 'tree'
+// 'stats' is the family stats page, `#/stats`; like home it takes the whole width.
+type View = 'home' | 'person' | 'tree' | 'stats'
 
 function idFromHash() {
   return /^#\/p\/(.+)$/.exec(location.hash)?.[1] ?? ''
 }
+
+const statsHash = () => location.hash === '#/stats'
 
 function startApp() {
   const store = new FamilyStore(commit)
@@ -73,7 +77,7 @@ function startApp() {
   let selected = ''
   // A link to someone opens on the tree (on phones; tapping the selected person or the bar under
   // the tree opens their page). Otherwise the app opens on the list, with no one selected.
-  let view: View = idFromHash() ? 'tree' : 'home'
+  let view: View = idFromHash() ? 'tree' : statsHash() ? 'stats' : 'home'
   let loaded = false
   let chartStale = true
 
@@ -179,7 +183,9 @@ function startApp() {
   const personPane = h('section', { class: 'pane person-pane', 'aria-label': t.tabPerson }, personEl)
   const home = homeList(() => store.people, id => ctx.select(id))
   const homePane = h('section', { class: 'pane home-pane', 'aria-label': t.tabSearch }, home.el)
-  const main = h('main', {}, homePane, treePane, personPane, emptyEl, status, announcer)
+  const stats = statsPage(() => store.people, id => ctx.select(id))
+  const statsPane = h('section', { class: 'pane stats-pane', 'aria-label': t.stats }, stats.el)
+  const main = h('main', {}, homePane, statsPane, treePane, personPane, emptyEl, status, announcer)
   personPane.id = 'person-pane'
   paneToggle.setAttribute('aria-controls', personPane.id)
   setPaneHidden(paneHidden)
@@ -190,18 +196,24 @@ function startApp() {
     tab('home', 'search', 'tabSearch', () => search()),
     tab('tree', 'tree', 'tabTree', () => openTab('tree')),
     tab('person', 'person', 'tabPerson', () => openTab('person')),
+    tab('stats', 'chart', 'stats', () => openStats()),
     tab('menu', 'menu', 'tabMenu', () => openSettings()))
   const topBrand = brand('a')
+  const statsBtn = h('button', { type: 'button', class: 'ghost', onclick: () => openStats() },
+    icon('chart'), h('span', {}, L('stats')))
 
   // Wide screens show the tree beside the person, but not on the list, which takes the whole width.
-  const treeVisible = () => view !== 'home' && (wide.matches || view === 'tree')
+  const treeVisible = () => view !== 'home' && view !== 'stats' && (wide.matches || view === 'tree')
 
   function setView(v: View) {
     // "Show in tree" (phones) is chosen from the person page, which is about to be hidden.
     const fromPerson = v === 'tree' && personPane.contains(document.activeElement)
     // Going back to the list hides what had focus (Back from a person's page, say).
     const entering = v === 'home' && view !== 'home'
-    const hidingFocus = entering && (treePane.contains(document.activeElement) || personPane.contains(document.activeElement))
+    const hidingFocus = entering && (statsPane.contains(document.activeElement) || treePane.contains(document.activeElement) || personPane.contains(document.activeElement))
+    // Same for the stats page, which can also be left from the list.
+    const enteringStats = v === 'stats' && view !== 'stats'
+    const statsHidingFocus = enteringStats && (homePane.contains(document.activeElement) || treePane.contains(document.activeElement) || personPane.contains(document.activeElement))
     view = v
     main.dataset.view = v
     tabbar.querySelectorAll<HTMLElement>('.tab').forEach(b => {
@@ -211,7 +223,14 @@ function startApp() {
     placeSearch()
     if (v === 'home') topBrand.setAttribute('aria-current', 'page')
     else topBrand.removeAttribute('aria-current')
+    if (v === 'stats') statsBtn.setAttribute('aria-current', 'page')
+    else statsBtn.removeAttribute('aria-current')
     setTitle()
+    if (v === 'stats') {
+      if (enteringStats && loaded) stats.refresh()
+      if (statsHidingFocus) stats.el.querySelector<HTMLElement>('h1')!.focus({ preventScroll: true })
+      return
+    }
     if (v === 'home') {
       // Recently viewed has changed since the list was last built.
       if (entering) home.refresh()
@@ -237,14 +256,20 @@ function startApp() {
   }
 
   function setTitle() {
-    const p = view !== 'home' ? store.people.get(selected) : undefined
-    document.title = p ? `${displayName(p)} — ${t.title}` : t.title
+    const p = view !== 'home' && view !== 'stats' ? store.people.get(selected) : undefined
+    document.title = view === 'stats' ? `${t.stats} — ${t.title}` : p ? `${displayName(p)} — ${t.title}` : t.title
   }
 
   /** The list of everyone. Leaves the person's address, so Back returns to them. */
   function goHome() {
-    if (idFromHash()) location.hash = '#/'
+    if (idFromHash() || statsHash()) location.hash = '#/'
     setView('home')
+  }
+
+  /** The stats page. The address may already be `#/stats` (the phone's Tree tab, with no one picked, keeps it), and then no hashchange comes. */
+  function openStats() {
+    if (statsHash()) setView('stats')
+    else location.hash = '#/stats'
   }
 
   /** The phone's Tree and Person tabs. The person shown gets their address back, as a step Back can undo. */
@@ -323,7 +348,9 @@ function startApp() {
     loaded = true
     emptyEl.hidden = people.size > 0
     home.refresh()
+    stats.refresh()
     // `#/p/<id>` selects that person; someone unknown (deleted, or a bad link) means the list.
+    // On `#/stats` this is '': no one new is selected, but whoever was stays for the phone's tabs.
     const id = idFromHash()
     if (id && !people.has(id)) {
       history.replaceState(null, '', '#/')
@@ -335,7 +362,7 @@ function startApp() {
     if (!people.has(selected)) selected = ''
     if (id === selected && selected) rememberRecent(selected)
     // Picking someone from the list opens the tree around them (beside their page on wide screens).
-    const fromHome = view === 'home' && !!id && id === selected
+    const fromHome = (view === 'home' || view === 'stats') && !!id && id === selected
     if (!selected) {
       chart.reset()
       chartStale = true
@@ -401,6 +428,7 @@ function startApp() {
       box.el,
       homeSlot,
       h('nav', { class: 'topnav', 'aria-label': t.navTop },
+        statsBtn,
         h('button', { type: 'button', class: 'ghost', onclick: () => openHistory(ctx) },
           icon('history'), h('span', {}, L('history'))),
         settingsBtn),
@@ -415,8 +443,9 @@ function startApp() {
   const onHash = () => {
     if (!loaded) return
     const id = idFromHash()
-    if (!id) setView('home')
-    else if (id !== selected || view === 'home') {
+    if (statsHash()) setView('stats')
+    else if (!id) setView('home')
+    else if (id !== selected || view === 'home' || view === 'stats') {
       render(true)
       personPane.scrollTop = 0
     }

@@ -180,6 +180,31 @@ describe('app', () => {
     expect($('#person h1').textContent).toBe('甲')
   })
 
+  it('shows the family stats at #/stats and returns to them with Back', async () => {
+    location.hash = '#/stats'
+    await vi.waitFor(() => expect($('main').dataset.view).toBe('stats'))
+    expect(document.title).toBe('統計 / Stats — 族譜 / Family Tree')
+    expect($('.stats-pane h1').textContent).toContain('族譜統計')
+    expect([...document.querySelectorAll('.tile-value')].map(e => e.textContent)).toEqual(['6', '2', '1960–1970', '6'])
+    expect($('.topnav [aria-current="page"]').textContent).toContain('統計')
+    expect($('.tab[aria-current="page"]').dataset.tab).toBe('stats')
+    // Tapping a bar lists its people; tapping a person opens them.
+    const bar = $('.stat-chart .hbar')
+    bar.click()
+    expect(bar.getAttribute('aria-expanded')).toBe('true')
+    expect($('.stat-list .pcard-name').textContent).toBe('祖父')
+    bar.click()
+    expect($('.stat-list').hidden).toBe(true)
+    bar.click()
+    buttonWith('祖父', $('.stat-list')).click()
+    await vi.waitFor(() => expect(location.hash).toBe('#/p/gp'))
+    await vi.waitFor(() => expect($('main').dataset.view).not.toBe('stats'))
+    history.back()
+    await vi.waitFor(() => expect($('main').dataset.view).toBe('stats'))
+    location.hash = '#/p/a'
+    await vi.waitFor(() => expect($('main').dataset.view).not.toBe('stats'))
+  })
+
   it('adds a spouse, asking for the editor name first', async () => {
     buttonWith('新增伴侶').click()
     const dlg = $('dialog[open]')
