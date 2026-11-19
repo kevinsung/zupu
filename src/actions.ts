@@ -2,7 +2,7 @@ import { h } from './dom'
 import { L, t } from './i18n'
 import { confirmDialog, marriageForm, openDialog, personForm, personPicker, toast } from './dialog'
 import { halfTag, personCard } from './cards'
-import { type People, type Person, type PersonFields, childrenOf, displayName, emptyFields, emptyMarriage, partnerIds, partnersOf } from './model'
+import { type ParentKind, PARENT_KINDS, type People, type Person, type PersonFields, childrenOf, displayName, emptyFields, emptyMarriage, partnerIds, partnersOf } from './model'
 import { recentAndEveryone } from './search'
 import type { FamilyStore, LinkRelative, NewRelative } from './store'
 
@@ -217,4 +217,29 @@ export function removeRelationship(ctx: AppCtx, p: Person) {
   ].filter((x): x is HTMLElement => !!x)
   list.append(...(sections.length ? sections : [h('p', { class: 'muted' }, t.noRelationships)]))
   close = openDialog(L('removeRelationship'), list, [], { subtitle: displayName(p) })
+}
+
+/** One row per parent, each with a relationship select that saves as soon as it changes. */
+export function editParentKinds(ctx: AppCtx, p: Person) {
+  const label: Record<ParentKind | '', string> = { '': t.birthParent, adoptive: t.adoptive }
+  const rows = p.parents.map(id => ctx.store.people.get(id)).filter((x): x is Person => !!x).map(parent => {
+    const current: ParentKind | '' = p.parentKinds[parent.id] ?? ''
+    const select = h('select', { 'aria-label': `${t.parentKind}: ${displayName(parent)}` },
+      ...(['', ...PARENT_KINDS] as (ParentKind | '')[]).map(k => h('option', { value: k, selected: k === current }, label[k])))
+    let saved: ParentKind | '' = current
+    select.addEventListener('change', async () => {
+      const kind = select.value as ParentKind | ''
+      try {
+        const editor = await ctx.editorName()
+        if (!editor) throw new Error()
+        await ctx.store.setParentKind(editor, p.id, parent.id, kind)
+        saved = kind
+      } catch (e) {
+        select.value = saved
+        if ((e as Error).message) toast(`${t.saveFailed}: ${(e as Error).message}`)
+      }
+    })
+    return personCard(parent, null, select)
+  })
+  openDialog(L('editParentKinds'), h('div', { class: 'cards' }, ...rows), [], { subtitle: displayName(p) })
 }

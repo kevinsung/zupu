@@ -21,7 +21,7 @@ function memoryStore(seed: Person[]) {
 }
 
 const person = (id: string, extra: Partial<Person> = {}): Person =>
-  ({ ...emptyFields(), id, parents: [], spouses: [], marriages: {}, order: 0, ...extra })
+  ({ ...emptyFields(), id, parents: [], spouses: [], marriages: {}, parentKinds: {}, order: 0, ...extra })
 
 function family() {
   return [
@@ -117,6 +117,28 @@ describe('model', () => {
       ...['w1', 'w2', 'w3', 'w4'].map(id => person(id, { spouses: ['p'] })),
     ].map(p => [p.id, p]))
     expect(partnersOf(people, people.get('p')!).map(s => s.id)).toEqual(['w4', 'w2', 'w3', 'w1'])
+  })
+
+  it('drops parent kinds for non-parents and invalid values on load', () => {
+    const p = normalizePerson('k', { parents: ['a', 'b'], parentKinds: { a: 'adoptive', b: 'godparent', gone: 'step' } })
+    expect(p.parentKinds).toEqual({ a: 'adoptive' })
+    expect(normalizePerson('k', { parents: ['a', 'b'], parentKinds: { a: 'foster', b: 'step' } }).parentKinds).toEqual({})
+    expect(normalizePerson('k', {}).parentKinds).toEqual({})
+    expect(normalizePerson('k', { parents: ['a'], parentKinds: 'step' }).parentKinds).toEqual({})
+  })
+
+  it('sets and clears parent kinds, dropping one when the parent is unlinked or deleted', () => {
+    const people: People = new Map(family().map(p => [p.id, p]))
+    applyOp(people, { type: 'update', id: 'a', parentKinds: { dad: 'adoptive', mom: 'adoptive' } })
+    expect(people.get('a')!.parentKinds).toEqual({ dad: 'adoptive', mom: 'adoptive' })
+    applyOp(people, { type: 'update', id: 'a', parentKinds: { dad: null } })
+    expect(people.get('a')!.parentKinds).toEqual({ mom: 'adoptive' })
+    applyOp(people, { type: 'update', id: 'a', remove: { parents: ['mom'] } })
+    expect(people.get('a')!.parentKinds).toEqual({})
+    applyOp(people, { type: 'update', id: 'b', parentKinds: { mom: 'adoptive' } })
+    applyOp(people, { type: 'delete', id: 'mom' })
+    applyOp(people, { type: 'update', id: 'b', remove: { parents: ['mom'] } }) // as the store does on delete
+    expect(people.get('b')!.parentKinds).toEqual({})
   })
 
   it('drops empty marriages and marriages to non-spouses on load', () => {
@@ -365,6 +387,20 @@ describe('store', () => {
     expect(store.people.get('mom2')!.spouses).toContain('mom')
     await store.unlink('K', 'spouse', 'mom2', 'mom')
     expect(store.people.get('mom')!.spouses).toEqual(['dad'])
+  })
+
+  it('sets a parent kind, skips no-ops, and reverts', async () => {
+    const { store, changes } = memoryStore(family())
+    await store.setParentKind('K', 'a', 'dad', 'adoptive')
+    expect(store.people.get('a')!.parentKinds).toEqual({ dad: 'adoptive' })
+    expect(changes.at(-1)!.summary).toContain('爸 → 甲')
+    await store.setParentKind('K', 'a', 'dad', 'adoptive')
+    expect(changes.length).toBe(1)
+    await expect(store.setParentKind('K', 'a', 'mom2', 'adoptive')).rejects.toThrow()
+    await store.setParentKind('K', 'a', 'dad', '')
+    expect(store.people.get('a')!.parentKinds).toEqual({})
+    await store.revert('K', changes.at(-1)!)
+    expect(store.people.get('a')!.parentKinds).toEqual({ dad: 'adoptive' })
   })
 
   it('sets marriage dates on both spouses, clears them, and drops them on unlink', async () => {

@@ -301,6 +301,7 @@ main:not([data-view="home"]) .home-pane, main:not([data-view="tree"]) .tree-pane
 .pcard-sub { font-size: .8rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pcard-chev { color: var(--muted); padding-right: .6rem; display: flex; pointer-events: none; }
 .pcard > button.small { margin-right: .5rem; }
+.pcard > select { margin-right: .5rem; width: auto; max-width: 45%; flex: none; }
 .pcard.selected { outline: 3px solid var(--accent); outline-offset: -1px; background: var(--accent-soft); }
 .pcard.selected .pcard-chev { color: var(--accent); }
 .pcard.self { background: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 35%, var(--line)); box-shadow: none; }

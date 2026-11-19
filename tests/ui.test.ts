@@ -8,7 +8,7 @@ import { emptyFields } from '../src/model'
 import { startWorker } from './worker-env'
 
 const person = (id: string, extra: Record<string, unknown> = {}) =>
-  ({ ...emptyFields(), id, parents: [], spouses: [], marriages: {}, order: 0, ...extra })
+  ({ ...emptyFields(), id, parents: [], spouses: [], marriages: {}, parentKinds: {}, order: 0, ...extra })
 const seed = [
   person('gp', { nameZh: '祖父', gender: 'M', spouses: ['gm'] }),
   person('gm', { nameZh: '祖母', gender: 'F', spouses: ['gp'], order: 1 }),
@@ -684,5 +684,37 @@ describe('app', () => {
     } finally {
       layout.matches = true
     }
+  })
+
+  it('labels a parent as adoptive from the more menu, on both pages and in history, and reverts', async () => {
+    location.hash = '#/p/b'
+    await vi.waitFor(() => expect($('#person h1').textContent).toBe('乙'))
+    $<HTMLButtonElement>('#person .pv-actions .more').click()
+    buttonWith('編輯父母關係', popover()).click()
+    const dlg = topDialog()
+    const select = dlg.querySelector<HTMLSelectElement>('select[aria-label="關係類型 / Relationship: 祖父"]')!
+    expect([...select.options].map(o => o.value)).toEqual(['', 'adoptive'])
+    select.value = 'adoptive'
+    select.dispatchEvent(new Event('change'))
+    await vi.waitFor(() => expect($('#person .pv-parents').textContent).toContain('養父母 / Adoptive parent'))
+    const parentCards = [...$('#person .pv-parents').querySelectorAll('.pcard')]
+    expect(parentCards.find(c => c.textContent!.includes('祖母'))!.textContent).not.toContain('養父母')
+    dlg.querySelector<HTMLButtonElement>('.dlg-x')!.click()
+
+    location.hash = '#/p/gp'
+    await vi.waitFor(() => expect($('#person h1').textContent).toBe('祖父'))
+    const kid = [...$('#person .pv-families').querySelectorAll('.pcard')].find(c => c.textContent!.includes('乙'))!
+    expect(kid.textContent).toContain('養子女 / Adopted child')
+
+    buttonWith('修改紀錄').click()
+    await tick(300)
+    const item = topDialog().querySelector<HTMLElement>('.history-item')!
+    expect(item.textContent).toContain('關係類型 / Relationship (祖父): 親生 / Birth → 收養 / Adoptive')
+    item.querySelector('details')!.open = true
+    buttonWith('還原', item).click()
+    await tick()
+    buttonWith('還原', topDialog()).click()
+    await vi.waitFor(() => expect($('#person .pv-families').textContent).not.toContain('養子女'))
+    topDialog().querySelector<HTMLButtonElement>('.dlg-x')!.click()
   })
 })

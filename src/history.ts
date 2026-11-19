@@ -27,6 +27,12 @@ function diffLines(ctx: AppCtx, d: PersonDiff): Node[] {
     lines.push(h('li', {}, `${t.marriage} (${name(sid)}): `,
       h('del', {}, marriageText(ma[sid]) || '—'), ' → ', h('ins', {}, marriageText(mb[sid]) || '—')))
   }
+  const [ka, kb] = [d.before.parentKinds ?? {}, d.after.parentKinds ?? {}]
+  const kindLabel = (k: string | undefined) => (k ? t[k as 'adoptive'] : t.birthParent)
+  for (const pid of new Set([...Object.keys(ka), ...Object.keys(kb)])) {
+    if (ka[pid] === kb[pid]) continue
+    lines.push(h('li', {}, `${t.parentKind} (${name(pid)}): `, h('del', {}, kindLabel(ka[pid])), ' → ', h('ins', {}, kindLabel(kb[pid]))))
+  }
   return lines
 }
 

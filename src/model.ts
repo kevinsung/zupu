@@ -33,12 +33,17 @@ export interface Marriage {
   status: MarriageStatus
 }
 
+export type ParentKind = 'adoptive'
+export const PARENT_KINDS: readonly ParentKind[] = ['adoptive']
+
 export interface Person extends PersonFields {
   id: string
   parents: string[]
   spouses: string[]
   /** Keyed by spouse id, stored on both spouses. Only spouses with some info have an entry. */
   marriages: Record<string, Marriage>
+  /** Keyed by parent id, stored on the child only. A parent with no entry is a birth parent. */
+  parentKinds: Record<string, ParentKind>
   order: number
 }
 
@@ -90,14 +95,23 @@ export function normalizePerson(id: string, raw: Record<string, unknown>): Perso
       if (spouses.includes(sid) && !isEmptyMarriage(marriage)) marriages[sid] = marriage
     }
   }
+  const parents = ids(raw.parents)
+  const parentKinds: Record<string, ParentKind> = {}
+  if (typeof raw.parentKinds === 'object' && raw.parentKinds !== null) {
+    for (const [pid, k] of Object.entries(raw.parentKinds as Record<string, unknown>)) {
+      const kind = PARENT_KINDS.find(x => x === k)
+      if (kind && parents.includes(pid)) parentKinds[pid] = kind
+    }
+  }
   return {
     id,
     ...fields,
     gender: raw.gender === 'M' || raw.gender === 'F' ? raw.gender : '',
     deceased: raw.deceased === 'yes' ? 'yes' : '',
-    parents: ids(raw.parents),
+    parents,
     spouses,
     marriages,
+    parentKinds,
     order: typeof raw.order === 'number' ? raw.order : 0,
   }
 }

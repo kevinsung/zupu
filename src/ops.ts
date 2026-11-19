@@ -1,5 +1,5 @@
 // The write format shared by the browser and the Worker: ops, and how they apply to people.
-import { type Marriage, type People, type Person, type PersonFields, isEmptyMarriage } from './model'
+import { type Marriage, type ParentKind, type People, type Person, type PersonFields, isEmptyMarriage } from './model'
 
 export type RelList = 'parents' | 'spouses'
 
@@ -13,6 +13,8 @@ export type Op =
     type: 'update'; id: string; fields?: Partial<PersonFields>
     add?: Partial<Record<RelList, string[]>>; remove?: Partial<Record<RelList, string[]>>
     marriages?: Record<string, Marriage | null>
+    /** Per-parent kind patches; null is back to birth parent. */
+    parentKinds?: Record<string, ParentKind | null>
   }
   | { type: 'delete'; id: string }
 
@@ -49,7 +51,7 @@ export function applyOp(people: People, op: Op) {
   } else {
     const cur = people.get(op.id)
     if (!cur) return
-    const p: Person = { ...cur, ...op.fields, parents: [...cur.parents], spouses: [...cur.spouses], marriages: { ...cur.marriages } }
+    const p: Person = { ...cur, ...op.fields, parents: [...cur.parents], spouses: [...cur.spouses], marriages: { ...cur.marriages }, parentKinds: { ...cur.parentKinds } }
     for (const key of ['parents', 'spouses'] as const) {
       for (const x of op.add?.[key] ?? []) if (!p[key].includes(x)) p[key].push(x)
       if (op.remove?.[key]) p[key] = p[key].filter(x => !op.remove![key]!.includes(x))
@@ -58,6 +60,12 @@ export function applyOp(people: People, op: Op) {
       if (m && !isEmptyMarriage(m)) p.marriages[sid] = m
       else delete p.marriages[sid]
     }
+    for (const [pid, k] of Object.entries(op.parentKinds ?? {})) {
+      if (k) p.parentKinds[pid] = k
+      else delete p.parentKinds[pid]
+    }
+    // Unlinking a parent (or deleting them) drops the kind too.
+    for (const pid of Object.keys(p.parentKinds)) if (!p.parents.includes(pid)) delete p.parentKinds[pid]
     // Unlinking a spouse (or deleting them) drops the marriage too.
     for (const sid of Object.keys(p.marriages)) if (!p.spouses.includes(sid)) delete p.marriages[sid]
     people.set(op.id, p)

@@ -8,7 +8,7 @@ beforeAll(async () => { w = await startWorker('correct horse') })
 afterAll(() => w.dispose())
 
 const person = (id: string, extra: Partial<Person> = {}): Person =>
-  ({ ...emptyFields(), id, parents: [], spouses: [], marriages: {}, order: 0, ...extra })
+  ({ ...emptyFields(), id, parents: [], spouses: [], marriages: {}, parentKinds: {}, order: 0, ...extra })
 const commit = (ops: unknown[], editor = 'Tester') => w.post('/api/commit', { ops, editor, summary: 's' })
 
 describe('auth', () => {
@@ -114,7 +114,7 @@ describe('data', () => {
   })
 
   it('accepts people without contact fields or marriages (history snapshots from before they existed)', async () => {
-    const { email, phone, address, line, signal, marriages, ...old } = person('old', { nameZh: '舊' })
+    const { email, phone, address, line, signal, marriages, parentKinds, ...old } = person('old', { nameZh: '舊' })
     expect((await commit([{ type: 'set', person: old }])).status).toBe(200)
     const { people } = await (await w.call('/api/people')).json() as { people: Person[] }
     expect(people.find(p => p.id === 'old')).toEqual(person('old', { nameZh: '舊' }))
@@ -134,6 +134,35 @@ describe('data', () => {
     expect((await commit([{ type: 'update', id: 'wa', fields: { whatsapp: 'x', nameZh: '新' } }])).status).toBe(200)
     const { people } = await (await w.call('/api/people')).json() as { people: Person[] }
     expect(people.find(p => p.id === 'wa')).toEqual(person('wa', { nameZh: '新' }))
+  })
+
+  it('saves parent kinds, rejects bad ones, and drops a kind when the parent is unlinked', async () => {
+    expect((await commit([
+      { type: 'set', person: person('pk-a') }, { type: 'set', person: person('pk-b') }, { type: 'set', person: person('pk-c') },
+      { type: 'set', person: person('pk-kid', { parents: ['pk-a', 'pk-b'], parentKinds: { 'pk-a': 'adoptive' } }) },
+    ])).status).toBe(200)
+    const get = async () => ((await (await w.call('/api/people')).json()) as { people: Person[] }).people.find(p => p.id === 'pk-kid')!
+    expect((await get()).parentKinds).toEqual({ 'pk-a': 'adoptive' })
+    const bad: unknown[][] = [
+      [{ type: 'update', id: 'pk-kid', parentKinds: { 'pk-b': 'godparent' } }],
+      [{ type: 'update', id: 'pk-kid', parentKinds: { 'pk-b': 'foster' } }], // removed kind
+      [{ type: 'update', id: 'pk-kid', parentKinds: { 'pk-b': 'step' } }], // removed kind
+      [{ type: 'update', id: 'pk-kid', parentKinds: { 'pk-b': '' } }],
+      [{ type: 'update', id: 'pk-kid', parentKinds: { 'pk-a': 'adoptive', 'pk-b': 'adoptive', 'pk-c': 'adoptive' } }],
+      [{ type: 'update', id: 'pk-kid', parentKinds: [] }],
+      [{ type: 'set', person: person('pk-x', { parents: ['pk-a'], parentKinds: { 'pk-c': 'adoptive' } }) }], // not a parent
+      [{ type: 'set', person: { ...person('pk-x'), parentKinds: { 'pk-a': null } } }], // null only patches
+    ]
+    for (const ops of bad) expect((await commit(ops)).status, JSON.stringify(ops)).toBe(400)
+    expect((await commit([{ type: 'update', id: 'pk-kid', parentKinds: { 'pk-b': 'adoptive' } }])).status).toBe(200)
+    expect((await get()).parentKinds).toEqual({ 'pk-a': 'adoptive', 'pk-b': 'adoptive' })
+    expect((await commit([{ type: 'update', id: 'pk-kid', parentKinds: { 'pk-a': null } }])).status).toBe(200)
+    expect((await get()).parentKinds).toEqual({ 'pk-b': 'adoptive' })
+    expect((await commit([{ type: 'update', id: 'pk-kid', remove: { parents: ['pk-b'] } }])).status).toBe(200)
+    expect((await get()).parentKinds).toEqual({})
+    // Snapshots from before parentKinds existed lack it.
+    const { parentKinds, ...old } = person('pk-old', { parents: ['pk-a'] })
+    expect((await commit([{ type: 'set', person: old }])).status).toBe(200)
   })
 
   it('saves marriages and rejects bad ones', async () => {

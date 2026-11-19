@@ -1,4 +1,4 @@
-import { type Marriage, type People, type Person, type PersonFields, FIELD_KEYS, childrenOf, displayName, emptyMarriage, isEmptyMarriage, marriageWithStatus, partnerIds } from './model'
+import { type Marriage, type ParentKind, type People, type Person, type PersonFields, FIELD_KEYS, childrenOf, displayName, emptyMarriage, isEmptyMarriage, marriageWithStatus, partnerIds } from './model'
 import { newId } from './ids'
 import { t } from './i18n'
 import type { ChangeRecord, NewChange, Op, RelList } from './ops'
@@ -8,7 +8,7 @@ export type Commit = (ops: Op[], change: NewChange) => Promise<void>
 
 /** A new person with no relationships yet, ordered after everyone entered so far. */
 function newPerson(fields: PersonFields): Person {
-  return { ...fields, id: newId(), parents: [], spouses: [], marriages: {}, order: Date.now() }
+  return { ...fields, id: newId(), parents: [], spouses: [], marriages: {}, parentKinds: {}, order: Date.now() }
 }
 
 export type NewRelative = 'parent' | 'spouse' | 'child' | 'sibling'
@@ -213,6 +213,16 @@ export class FamilyStore {
       ...this.coupleOps(aId, bId),
       { type: 'update', id: aId, marriages: { [bId]: value } },
       { type: 'update', id: bId, marriages: { [aId]: value } },
+    ])
+  }
+
+  /** Label how a parent is related to their child ('' is a birth parent). */
+  async setParentKind(editor: string, childId: string, parentId: string, kind: ParentKind | '') {
+    const child = this.get(childId)
+    if (!child.parents.includes(parentId)) throw new Error(t.notParent)
+    if ((child.parentKinds[parentId] ?? '') === kind) return
+    await this.commit(editor, `編輯父母關係 Edited parent relationship: ${this.name(parentId)} → ${this.name(childId)}`, [
+      { type: 'update', id: childId, parentKinds: { [parentId]: kind || null } },
     ])
   }
 

@@ -2,8 +2,8 @@ import { coarsePointer, h } from './dom'
 import { L, t, type Key } from './i18n'
 import { actionSheet, copyText, sectionHead } from './dialog'
 import { type IconName, icon } from './icons'
-import { avatar, datesLine, genderWord, marriageText, personCard, selfCard } from './cards'
-import { type AppCtx, addRelative, deletePerson, editMarriage, editPerson, linkExisting, removeRelationship } from './actions'
+import { avatar, datesLine, genderWord, marriageText, parentKindTag, personCard, selfCard } from './cards'
+import { type AppCtx, addRelative, deletePerson, editMarriage, editParentKinds, editPerson, linkExisting, removeRelationship } from './actions'
 import { type Person, allNames, byBirth, childrenByCoParent, displayName, formatPhone, halfSiblingVia, partnersOf, siblingsOf } from './model'
 
 export interface PersonViewOpts {
@@ -38,7 +38,7 @@ export function renderPerson(cont: HTMLElement, ctx: AppCtx, id: string, opts: P
   const parentsEl = section('pv-parents',
     sectionHead(L('parents'), parents.length === 1 ? addButton(t.addParent, () => addRelative(ctx, p, 'parent')) : undefined),
     parents.length
-      ? h('div', { class: 'cards cols-2 compact' }, ...parents.map(card))
+      ? h('div', { class: 'cards cols-2 compact' }, ...parents.map(x => personCard(x, () => ctx.select(x.id), undefined, parentKindTag(p.parentKinds[x.id], 'parent'))))
       : addSlot('addParent', () => addRelative(ctx, p, 'parent')))
 
   // The person
@@ -54,6 +54,7 @@ export function renderPerson(cont: HTMLElement, ctx: AppCtx, id: string, opts: P
     { icon: 'plus', label: L('addSibling'), run: () => addRelative(ctx, p, 'sibling'), disabled: p.parents.length === 0 ? t.siblingNeedsParent : undefined },
     { icon: 'link', label: L('linkExisting'), run: () => linkExisting(ctx, p) },
     { icon: 'unlink', label: L('removeRelationship'), run: () => removeRelationship(ctx, p) },
+    { icon: 'edit', label: L('editParentKinds'), run: () => editParentKinds(ctx, p), disabled: p.parents.length === 0 ? t.noParents : undefined },
     { icon: 'history', label: L('personHistory'), run: () => ctx.showHistory(p.id) },
     opts.showInTree ? { icon: 'tree', label: L('showInTree'), run: opts.showInTree } : null,
     { icon: 'trash', label: L('delete'), run: () => deletePerson(ctx, p), danger: true },
@@ -116,7 +117,7 @@ export function renderPerson(cont: HTMLElement, ctx: AppCtx, id: string, opts: P
       cp ? marriageLine(cp) : null,
       kids.length ? h('div', { class: 'family-kids' },
         h('div', { class: 'family-kids-label' }, L('children')),
-        h('div', { class: 'cards cols-2' }, ...kids.map(card))) : null)
+        h('div', { class: 'cards cols-2' }, ...kids.map(kid => personCard(kid, () => ctx.select(kid.id), undefined, parentKindTag(kid.parentKinds[p.id], 'child'))))) : null)
   })
   const familyAdd = addButton(t.addSpouseOrChild, e => actionSheet(t.addSpouseOrChild, [
     { icon: 'plus', label: L('addSpouse'), run: () => addRelative(ctx, p, 'spouse') },

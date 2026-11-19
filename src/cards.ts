@@ -1,7 +1,7 @@
 import { h } from './dom'
 import { t, tn } from './i18n'
 import { icon } from './icons'
-import { type Marriage, type Person, UNKNOWN, age, allNames, displayName, lifespan } from './model'
+import { type Marriage, type ParentKind, type Person, UNKNOWN, age, allNames, displayName, lifespan } from './model'
 
 /**
  * e.g. "結婚 / Married 1962 · 離婚 / Divorced 1975", or the status where there's no date to say it
@@ -44,6 +44,15 @@ export function halfTag(parent: Person | undefined): string {
   return parent?.gender === 'M' ? t.halfPaternal : parent?.gender === 'F' ? t.halfMaternal : `${t.halfVia} ${displayName(parent)}`
 }
 
+/** Card tag for a non-birth parent link, from the parent's or the child's side; '' for birth. */
+export function parentKindTag(kind: ParentKind | undefined, side: 'parent' | 'child'): string {
+  if (!kind) return ''
+  const tags = {
+    adoptive: [t.adoptiveParent, t.adoptedChild],
+  }[kind]
+  return tags[side === 'parent' ? 0 : 1]
+}
+
 /** "男 / male", "女 / female", or '' if not recorded. */
 export function genderWord(p: Person): string {
   return p.gender === 'M' ? t.maleWord : p.gender === 'F' ? t.femaleWord : ''
@@ -52,9 +61,10 @@ export function genderWord(p: Person): string {
 /**
  * A tappable row for one person; the colored edge shows gender. `extra` goes on the right (e.g. a
  * remove button). With `onclick` null the row isn't a link, so `extra` is its only control.
+ * `tag` (e.g. from parentKindTag) leads the subtitle.
  */
-export function personCard(p: Person, onclick: (() => void) | null, extra?: Node): HTMLElement {
-  const sub = personSubtitle(p)
+export function personCard(p: Person, onclick: (() => void) | null, extra?: Node, tag = ''): HTMLElement {
+  const sub = [tag, personSubtitle(p)].filter(Boolean).join(' · ')
   // The colored edge shows gender; screen readers get it as a word.
   const gender = genderWord(p)
   const main = h(onclick ? 'button' : 'div', { type: onclick ? 'button' : undefined, class: 'pcard-main', onclick: onclick ?? undefined },
