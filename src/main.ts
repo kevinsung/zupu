@@ -1,18 +1,20 @@
 import './styles.css'
 import { h, standalone, wide } from './dom'
 import { L, getLang, locale, pair, setLang, t, tTime, type Key, type Lang } from './i18n'
-import { errorText } from './errors'
+import { UserError, errorText } from './errors'
 import { ApiError, clearDataCache, commit, getSession, offlineSince, onOfflineChange, refetchForOffline, setNetworkState, signIn, signOut, watchPeople } from './backend'
 import { FamilyStore } from './store'
 import { TREE_HINT_ID, TreeChart, getTreeDirection, setTreeDirection, type TreeDirection } from './chart'
 import { type AppCtx, canEdit } from './actions'
 import { renderPerson } from './person'
 import { openHistory } from './history'
-import { homeList, rememberRecent, searchBox } from './search'
+import { homeList, recentAndEveryone, rememberRecent, searchBox } from './search'
 import { statsPage } from './stats'
-import { avatar, personSubtitle } from './cards'
-import { focusPersonHeading, menuList, mountToast, openDialog, openMenu, personForm, segmented, toast } from './dialog'
-import { displayName } from './model'
+import { avatar, kinText, personSubtitle, setKinOf } from './cards'
+import { focusPersonHeading, menuList, mountToast, openDialog, openMenu, personForm, personPicker, segmented, toast } from './dialog'
+import { type Person, displayName } from './model'
+import { kinTerm } from './kinship'
+import { getMe, setMe } from './me'
 import { getTheme, setTheme, type Theme } from './theme'
 import { type IconName, icon } from './icons'
 
@@ -124,6 +126,31 @@ function startApp() {
     home: () => goHome(),
     editorName: async () => savedEditor() || askEditor(),
     showHistory: personId => openHistory(ctx, personId),
+    me: () => (store.people.has(getMe()) ? getMe() : ''),
+    // The list, stats and person page show kinship terms; the tree chart doesn't, so it keeps its drawing.
+    setMe: id => { setMe(id); render(false) },
+  }
+  const kinLabel = (p: Person) => {
+    const me = ctx.me()
+    const kin = me ? kinTerm(store.people, me, p.id) : null
+    return kin ? kinText(kin) : ''
+  }
+  setKinOf(kinLabel)
+
+  /** Opens the dialog for choosing who you are, which Save stores and Clear forgets. */
+  function askMe() {
+    const picker = personPicker(() => store.people, () => {}, { selectable: true, idle: recentAndEveryone(() => store.people) })
+    openDialog(L('pickMe'), picker.el, [
+      {
+        label: L('save'), primary: true, run: () => {
+          const p = picker.selected()
+          if (!p) throw new UserError(pair('pickPerson'))
+          ctx.setMe(p.id)
+        },
+      },
+      ctx.me() ? { label: L('clear'), run: () => ctx.setMe('') } : null,
+    ].filter(a => !!a), { subtitle: t.meHint, cls: 'tall' })
+    picker.input.focus()
   }
 
   const chart = new TreeChart(chartEl, id => {
@@ -324,6 +351,8 @@ function startApp() {
       menuList([{ icon: 'history', label: L('history'), run: () => openHistory(ctx) }], () => close()),
       row('editorLabel', h('button', { type: 'button', class: 'setting-value', onclick: () => { close(); askEditor() } },
         h('span', {}, savedEditor() || '—'), h('span', { class: 'chip' }, L('change')))),
+      row('meLabel', h('button', { type: 'button', class: 'setting-value', onclick: () => { close(); askMe() } },
+        h('span', {}, ctx.me() ? displayName(store.people.get(ctx.me())) : '—'), h('span', { class: 'chip' }, L('change')))),
       row('appearance', segmented<Theme>(t.appearance,
         [['auto', L('themeAuto')], ['light', L('themeLight')], ['dark', L('themeDark')]], getTheme(), setTheme)),
       row('treeDirection', segmented<TreeDirection>(t.treeDirection,
@@ -385,7 +414,9 @@ function startApp() {
     const p = people.get(selected)!
     peekAvatar.replaceChildren(avatar(p))
     peekName.textContent = displayName(p)
-    peekSub.textContent = personSubtitle(p)
+    const kin = kinLabel(p)
+    const sub = personSubtitle(p)
+    peekSub.replaceChildren(...(kin ? [h('span', { class: 'pcard-kin' }, kin), sub ? ' · ' : ''] : []), sub)
     // Re-rendering the page destroys whatever had focus in it (a relative's card, Edit). Put focus
     // on the new name instead of letting it fall to <body>. The tree moves focus to its own cards.
     const active = document.activeElement

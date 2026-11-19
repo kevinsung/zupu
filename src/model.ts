@@ -214,7 +214,7 @@ type Birth = Pick<Person, 'birthDate' | 'order'>
  * True when the birth dates alone put two people in order: both have one, they differ, and neither
  * is a prefix of the other ('1950' and '1950-05' don't decide, so the order set by hand does).
  */
-export function datesDecide(a: Birth, b: Birth): boolean {
+export function datesDecide(a: Pick<Person, 'birthDate'>, b: Pick<Person, 'birthDate'>): boolean {
   if (!a.birthDate || !b.birthDate || a.birthDate === b.birthDate) return false
   return !a.birthDate.startsWith(b.birthDate) && !b.birthDate.startsWith(a.birthDate)
 }

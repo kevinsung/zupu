@@ -686,6 +686,65 @@ describe('app', () => {
     expect($('#person .pv-half-paternal').textContent).toContain('丁')
   })
 
+  it('shows what the user calls each person once they say who they are', async () => {
+    location.hash = '#/p/gp'
+    await vi.waitFor(() => expect($('#person h1').textContent).toBe('祖父'))
+    expect(document.querySelector('#person .pv-kin')).toBeNull()
+    expect(document.querySelector('.pcard-kin')).toBeNull()
+    const settings = $<HTMLButtonElement>('.settings-btn')
+    settings.click()
+    const row = [...popover().querySelectorAll('.setting')].find(r => r.textContent!.includes('我是'))!
+    expect(row.querySelector('.setting-value')!.textContent).toContain('—')
+    row.querySelector<HTMLButtonElement>('.setting-value')!.click()
+    expect(document.querySelector('.popover')).toBeNull()
+    const dlg = topDialog()
+    // Save with no one picked says so and keeps the dialog.
+    buttonWith('儲存', dlg).click()
+    await vi.waitFor(() => expect(dlg.querySelector('.dlg-error')!.textContent).toContain('請先選擇'))
+    expect(buttonWith('清除', dlg)).toBeUndefined()
+    buttonWith('甲', dlg).click()
+    buttonWith('儲存', dlg).click()
+    await closed(dlg)
+    expect(localStorage.getItem('ft-me')).toBe('a')
+    // 祖父 is 甲's father; the page we're on redrew without moving.
+    expect(location.hash).toBe('#/p/gp')
+    expect($('#person .pv-kin').textContent).toContain('爸爸')
+    expect($('#person .pv-kin .pv-kin-term').lang).toBe('zh-Hant')
+    // Cards say it too: 祖父's children include 甲 herself.
+    expect([...document.querySelectorAll('#person .pcard-kin')].map(e => e.textContent!.split(' / ')[0])).toContain('我')
+    location.hash = '#/p/a'
+    await vi.waitFor(() => expect($('#person h1').textContent).toBe('甲'))
+    expect($('#person .pv-kin').textContent).toContain('我')
+    const kins = [...document.querySelectorAll('#person .pv-parents .pcard')].map(c => c.querySelector('.pcard-kin')?.textContent)
+    expect(kins.map(k => k?.split(' / ')[0]).sort()).toEqual(['媽媽', '爸爸'])
+    expect($('.peek .pcard-kin').textContent).toContain('我')
+    // The list of everyone puts her own card first, so her page is a tap away.
+    const firstSection = $('.home-pane section')
+    expect(firstSection.querySelector('.section-title')!.textContent).toContain('Me')
+    expect([...firstSection.querySelectorAll('.pcard')].map(c => (c as HTMLElement).dataset.id)).toEqual(['a'])
+    // The settings row names her, and the more menu offers to undo it.
+    settings.click()
+    expect(popover().textContent).toContain('甲')
+    settings.click()
+    $<HTMLButtonElement>('#person .pv-actions .more').click()
+    expect(document.querySelector('#person .pv-kin')).toBeTruthy()
+    buttonWith('這不是我', popover()).click()
+    await vi.waitFor(() => expect(document.querySelector('#person .pv-kin')).toBeNull())
+    expect(localStorage.getItem('ft-me')).toBeNull()
+    expect(document.querySelector('.pcard-kin')).toBeNull()
+    $<HTMLButtonElement>('#person .pv-actions .more').click()
+    buttonWith('這是我', popover()).click()
+    await vi.waitFor(() => expect(localStorage.getItem('ft-me')).toBe('a'))
+    // With someone chosen, the dialog offers Clear.
+    settings.click()
+    ;[...popover().querySelectorAll('.setting')].find(r => r.textContent!.includes('我是'))!.querySelector<HTMLButtonElement>('.setting-value')!.click()
+    const again = topDialog()
+    buttonWith('清除', again).click()
+    await closed(again)
+    expect(localStorage.getItem('ft-me')).toBeNull()
+    expect(document.querySelector('#person .pv-kin')).toBeNull()
+  })
+
   it('switches the theme from the settings menu and remembers it', async () => {
     // index.html's status bar color, which follows the theme (the test page has no head of its own).
     const bar = document.head.appendChild(Object.assign(document.createElement('meta'), { name: 'theme-color', content: '#f6f3ec' }))

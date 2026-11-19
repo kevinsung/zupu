@@ -2,6 +2,7 @@ import { h } from './dom'
 import { L, t, type Key } from './i18n'
 import { closePopover, personPicker } from './dialog'
 import { type People, type Person, rankPeople } from './model'
+import { getMe } from './me'
 
 const RECENT_KEY = 'ft-recent'
 const RECENT_MAX = 5
@@ -26,8 +27,9 @@ function recentPeople(all: People): Person[] {
 }
 
 /**
- * What a person search lists before anything is typed: the people recently viewed, then
- * everyone, most senior first (see rankPeople). `skip` leaves one person out of both.
+ * What a person search lists before anything is typed: you (once picked in the menu, so your own
+ * page is a tap away), the people recently viewed, then everyone, most senior first (see
+ * rankPeople). `skip` leaves one person out of all three.
  */
 export function recentAndEveryone(people: () => People, opts: { skip?: () => string | undefined; heading?: 'h2' | 'h3' } = {}) {
   return (card: (p: Person) => HTMLElement) => {
@@ -39,7 +41,12 @@ export function recentAndEveryone(people: () => People, opts: { skip?: () => str
         ? h('section', {}, h(opts.heading ?? 'h3', { class: 'section-title' }, L(title)), h('div', { class: 'cards' }, ...shown.map(card)))
         : null
     }
-    return [section('recent', recentPeople(all)), section('everyone', rankPeople(all))].filter((x): x is HTMLElement => !!x)
+    const me = all.get(getMe())
+    return [
+      section('meTag', me ? [me] : []),
+      section('recent', recentPeople(all).filter(p => p !== me)),
+      section('everyone', rankPeople(all)),
+    ].filter((x): x is HTMLElement => !!x)
   }
 }
 

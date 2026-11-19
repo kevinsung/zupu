@@ -1,8 +1,9 @@
 import { coarsePointer, h } from './dom'
-import { L, t, tName, type Key } from './i18n'
+import { L, lang, t, tName, type Key } from './i18n'
 import { actionSheet, copyText, sectionHead } from './dialog'
 import { type IconName, icon } from './icons'
 import { avatar, datesLine, genderWord, marriageText, parentKindTag, personCard, selfCard } from './cards'
+import { kinTerm } from './kinship'
 import { type AppCtx, addRelative, canReorder, deletePerson, editMarriage, editParentKinds, editPerson, linkExisting, removeRelationship, reorderPeople } from './actions'
 import { type Person, allNames, byBirth, childrenByCoParent, displayName, formatPhone, halfSiblingVia, partnersOf, siblingsOf } from './model'
 
@@ -50,8 +51,12 @@ export function renderPerson(cont: HTMLElement, ctx: AppCtx, id: string, opts: P
   const otherNames = allNames(p).filter(n => n !== name).join(' · ')
   // Colors show gender everywhere else; here it's also a word, for those who can't tell them apart.
   const facts = [genderWord(p), datesLine(p)].filter(Boolean).join(' · ')
+  const me = ctx.me()
+  const isMe = me === p.id
+  const kin = me ? kinTerm(people, me, p.id) : null
   const moreBtn = h('button', { type: 'button', class: 'more', 'aria-haspopup': 'menu', 'aria-label': t.more, title: t.more }, icon('more'))
   moreBtn.addEventListener('click', () => actionSheet(name, [
+    { icon: 'person', label: L(isMe ? 'notMe' : 'thisIsMe'), run: () => ctx.setMe(isMe ? '' : p.id) },
     { icon: 'plus', label: L('addParent'), run: () => addRelative(ctx, p, 'parent'), disabled: p.parents.length >= 2 ? t.parentsFull : undefined },
     { icon: 'plus', label: L('addSpouse'), run: () => addRelative(ctx, p, 'spouse') },
     { icon: 'plus', label: L('addChild'), run: () => addRelative(ctx, p, 'child') },
@@ -73,6 +78,15 @@ export function renderPerson(cont: HTMLElement, ctx: AppCtx, id: string, opts: P
     h('h1', { tabindex: '-1' }, name),
     p.pinyin ? h('p', { class: 'pv-pinyin', lang: 'zh-Latn-pinyin' }, p.pinyin) : null,
     otherNames ? h('p', { class: 'pv-names' }, otherNames) : null,
+    // The term large, then the English and how the relation runs; each language mode shows only its own.
+    kin ? h('p', { class: 'pv-kin' }, ...(kin === 'self' ? [L('meTag')]
+      : lang === 'en' ? [
+        h('strong', { lang: 'en', class: 'pv-kin-term' }, kin.en),
+        kin.gloss ? h('span', { class: 'pv-kin-en', lang: 'en' }, kin.gloss) : null,
+      ] : [
+        h('strong', { lang: 'zh-Hant', class: 'pv-kin-term' }, kin.zh),
+        lang === 'zh' ? null : h('span', { class: 'pv-kin-en', lang: 'en' }, kin.en + (kin.gloss ? ` · ${kin.gloss}` : '')),
+      ])) : null,
     facts ? h('p', { class: 'pv-dates' }, facts) : null,
     h('div', { class: 'pv-actions' },
       h('button', { type: 'button', class: 'primary', onclick: () => editPerson(ctx, p) }, icon('edit'), h('span', {}, L('edit'))),

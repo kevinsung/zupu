@@ -18,6 +18,10 @@ export interface AppCtx {
   editorName(): Promise<string | null>
   /** Opens the change log, optionally only the changes that touched one person. */
   showHistory(personId?: string): void
+  /** Who the user is on this device ('' if unset, or if that person is gone). */
+  me(): string
+  /** Remembers who the user is ('' clears it) and redraws what shows kinship terms. */
+  setMe(id: string): void
 }
 
 /** Every write flow starts with this: offline, the data is a read-only copy. True when it is safe to go on. */

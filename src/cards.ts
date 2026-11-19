@@ -1,6 +1,7 @@
 import { h } from './dom'
-import { t, tn, tName } from './i18n'
+import { lang, t, tn, tName } from './i18n'
 import { icon } from './icons'
+import type { Kin } from './kinship'
 import { type Marriage, type ParentKind, type Person, UNKNOWN, age, allNames, displayName, isDeceased, lifespan } from './model'
 
 /**
@@ -46,6 +47,29 @@ export function datesLine(p: Person): string {
   return [dates, ageText].filter(Boolean).join(' · ')
 }
 
+/** What the kinship term reads on a card, in the chosen language(s), e.g. "堂哥 / older cousin". */
+export function kinText(kin: Kin | 'self'): string {
+  if (kin === 'self') return t.meTag
+  return lang === 'zh' ? kin.zh : lang === 'en' ? kin.en : `${kin.zh} / ${kin.en}`
+}
+
+let kinOf: (p: Person) => string = () => ''
+
+/** Where cards get a person's kinship term to the user (set by main, which knows who that is); '' for none. */
+export function setKinOf(fn: (p: Person) => string) {
+  kinOf = fn
+}
+
+/**
+ * A card's lines under the name: the kinship term on a line of its own (in the accent color, so it
+ * isn't cut off with the years in a narrow card), then `personSubtitle`. Either may be absent.
+ */
+function cardLines(p: Person, tag = ''): (HTMLElement | null)[] {
+  const kin = kinOf(p)
+  const rest = personSubtitle(p, tag)
+  return [kin ? h('span', { class: 'pcard-kin' }, kin) : null, rest ? h('span', { class: 'pcard-sub' }, rest) : null]
+}
+
 /** A circle with the first character of the name, tinted by gender. */
 export function avatar(p: Person, cls = ''): HTMLElement {
   const name = displayName(p)
@@ -78,13 +102,12 @@ export function genderWord(p: Person): string {
  * `tag` (e.g. from parentKindTag) leads the subtitle.
  */
 export function personCard(p: Person, onclick: (() => void) | null, extra?: Node, tag = ''): HTMLElement {
-  const sub = personSubtitle(p, tag)
   // The colored edge shows gender; screen readers get it as a word.
   const gender = genderWord(p)
   const main = h(onclick ? 'button' : 'div', { type: onclick ? 'button' : undefined, class: 'pcard-main', onclick: onclick ?? undefined },
     h('span', { class: 'pcard-name' }, displayName(p)),
     gender ? h('span', { class: 'sr-only' }, `, ${gender}`) : null,
-    sub ? h('span', { class: 'pcard-sub' }, sub) : null)
+    ...cardLines(p, tag))
   return h('div', { class: `pcard g-${p.gender || 'U'}`, 'data-id': p.id }, main, extra ?? h('span', { class: 'pcard-chev', 'aria-hidden': 'true' }, icon('chevronRight')))
 }
 
@@ -93,5 +116,5 @@ export function selfCard(p: Person): HTMLElement {
   return h('div', { class: `pcard self g-${p.gender || 'U'}`, 'aria-current': 'page' },
     h('div', { class: 'pcard-main' },
       h('span', { class: 'pcard-name' }, displayName(p)),
-      h('span', { class: 'pcard-sub' }, personSubtitle(p, t.self))))
+      ...cardLines(p, t.self)))
 }
