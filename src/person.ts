@@ -67,6 +67,7 @@ export function renderPerson(cont: HTMLElement, ctx: AppCtx, id: string, opts: P
   const hero = h('section', { class: `pv-hero g-${p.gender || 'U'}` },
     avatar(p, 'avatar-lg'),
     h('h1', { tabindex: '-1' }, name),
+    p.pinyin ? h('p', { class: 'pv-pinyin', lang: 'zh-Latn-pinyin' }, p.pinyin) : null,
     otherNames ? h('p', { class: 'pv-names' }, otherNames) : null,
     facts ? h('p', { class: 'pv-dates' }, facts) : null,
     h('div', { class: 'pv-actions' },

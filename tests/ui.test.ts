@@ -496,6 +496,27 @@ describe('app', () => {
     expect(copies).toEqual(['複製 / Copy 電子郵件 / Email', '複製 / Copy LINE'])
   })
 
+  it('checks pinyin, turns tone numbers into marks and shows it under the name', async () => {
+    expect(document.querySelector('#person .pv-pinyin')).toBeNull()
+    buttonWith('編輯', $('#person')).click()
+    const dlg = topDialog()
+    const input = dlg.querySelector<HTMLInputElement>('[name=pinyin]')!
+    input.value = 'Jia3 xbio'
+    buttonWith('儲存', dlg).click()
+    await tick()
+    expect(dlg.querySelector('.dlg-error')!.textContent).toContain('Not valid pinyin: xbio')
+    expect(input.getAttribute('aria-invalid')).toBe('true')
+    expect(document.activeElement).toBe(input)
+    input.value = 'jia3'
+    buttonWith('儲存', dlg).click()
+    await closed(dlg)
+    const line = $('#person .pv-pinyin')
+    expect(line.textContent).toBe('Jiǎ')
+    expect(line.getAttribute('lang')).toBe('zh-Latn-pinyin')
+    // Only on the person page: cards keep their subtitles.
+    expect(document.querySelector('.pcard-sub')?.textContent ?? '').not.toContain('Jiǎ')
+  })
+
   it('adds a half sibling by choosing the parents', async () => {
     buttonWith('新增', $('#person .pv-siblings')).click()
     const dlg = topDialog()

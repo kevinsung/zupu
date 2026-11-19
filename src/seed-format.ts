@@ -7,6 +7,7 @@ import { type Person, normalizePerson } from './model'
 export interface SeedEntry {
   key: string
   nameZh?: string
+  pinyin?: string
   nameEn?: string
   otherNames?: string
   gender?: 'M' | 'F'

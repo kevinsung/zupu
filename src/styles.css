@@ -340,6 +340,7 @@ main:not([data-view="home"]) .home-pane, main:not([data-view="tree"]) .tree-pane
 }
 .pv-hero .avatar-lg { margin-bottom: .6rem; }
 .pv-hero h1 { margin: 0; font-size: var(--fs-xl); line-height: 1.2; overflow-wrap: anywhere; }
+.pv-pinyin { margin: .2rem 0 0; font-size: var(--fs-md); color: var(--muted); }
 .pv-names { margin: .25rem 0 0; color: var(--muted); }
 .pv-dates { margin: .25rem 0 0; color: var(--muted); font-variant-numeric: tabular-nums; font-size: .95rem; }
 .pv-actions { display: grid; grid-template-columns: 1fr 1fr var(--tap); gap: .5rem; margin: 1rem 0 0; width: 100%; max-width: 24rem; }
@@ -480,6 +481,8 @@ fieldset.field > legend { padding: 0; margin-bottom: .3rem; }
 .date-parts input { text-align: center; font-variant-numeric: tabular-nums; }
 [aria-invalid="true"] { border-color: var(--danger); box-shadow: 0 0 0 1px var(--danger); }
 @media (max-width: 479px) { .row { grid-template-columns: 1fr; } }
+/* Short fields that fit side by side even on phones (Chinese name and pinyin). */
+.row.pair { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
 .death-col { display: grid; gap: .5rem; }
 .checkbox { display: inline-flex; align-items: center; gap: .5rem; }
 .checkbox input { width: auto; margin: 0; accent-color: var(--accent); }

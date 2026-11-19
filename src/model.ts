@@ -1,9 +1,12 @@
 import { parsePhoneNumberFromString } from 'libphonenumber-js/min'
+import { foldPinyin } from './pinyin'
 
 export type Gender = 'M' | 'F' | ''
 
 export interface PersonFields {
   nameZh: string
+  /** Hanyu Pinyin for nameZh, as tidied by parsePinyin; tones optional. */
+  pinyin: string
   nameEn: string
   otherNames: string
   gender: Gender
@@ -53,7 +56,7 @@ export const UNKNOWN = '？？？'
 
 export function emptyFields(): PersonFields {
   return {
-    nameZh: '', nameEn: '', otherNames: '', gender: '', birthDate: '', deathDate: '', deceased: '', notes: '',
+    nameZh: '', pinyin: '', nameEn: '', otherNames: '', gender: '', birthDate: '', deathDate: '', deceased: '', notes: '',
     email: '', phone: '', address: '', line: '', signal: '',
   }
 }
@@ -346,10 +349,16 @@ export function partnersOf(people: People, p: Person): Person[] {
   return list.map(s => (date(s) ? dated[i++] : s))
 }
 
-/** Whether any of a person's names contains the query, ignoring case; an empty query matches no one. */
+/**
+ * Whether any of a person's names contains the query, ignoring case; an empty query matches no one.
+ * Pinyin matches without tones, spaces or breaks, so "wenhua" and "wen2 hua2" both find Wénhuá.
+ */
 export function matchesName(p: Person, query: string): boolean {
   const q = query.trim().toLowerCase()
-  return !!q && allNames(p).some(n => n.toLowerCase().includes(q))
+  if (!q) return false
+  if (allNames(p).some(n => n.toLowerCase().includes(q))) return true
+  const fq = foldPinyin(q)
+  return !!fq && !!p.pinyin && foldPinyin(p.pinyin).includes(fq)
 }
 
 /** Everyone whose names match the query, most senior first (see rankPeople). */

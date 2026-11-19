@@ -97,6 +97,8 @@ describe('data', () => {
       [{ type: 'update', id: 'kid', fields: { email: 'kid@' } }],
       [{ type: 'update', id: 'kid', fields: { phone: '+1 201 555 0123' } }], // must be E.164
       [{ type: 'update', id: 'kid', fields: { phone: '2015550123' } }],
+      [{ type: 'update', id: 'kid', fields: { pinyin: 'Xbio' } }],
+      [{ type: 'update', id: 'kid', fields: { pinyin: 'song4 wen2hua2' } }], // must be tidied
       [{ type: 'update', id: 'kid', add: { parents: ['zzz'] } }], // would be three parents
       [{ type: 'update', id: 'kid', add: { spouses: ['kid'] } }], // self
       [{ type: 'update', id: 'kid', fields: { order: 3 } }],
@@ -107,6 +109,12 @@ describe('data', () => {
     expect((await commit([{ type: 'delete', id: 'kid' }], '  ')).status).toBe(400) // editor required
   })
 
+  it('saves pinyin', async () => {
+    expect((await commit([{ type: 'update', id: 'kid', fields: { pinyin: 'Sòng Wénhuá' } }])).status).toBe(200)
+    const { people } = await (await w.call('/api/people')).json() as { people: Person[] }
+    expect(people.find(p => p.id === 'kid')!.pinyin).toBe('Sòng Wénhuá')
+  })
+
   it('saves contact fields', async () => {
     expect((await commit([{ type: 'update', id: 'kid', fields: { email: 'kid@example.com', address: '1 Main St\nTown' } }])).status).toBe(200)
     const { people } = await (await w.call('/api/people')).json() as { people: Person[] }
@@ -114,7 +122,7 @@ describe('data', () => {
   })
 
   it('accepts people without contact fields or marriages (history snapshots from before they existed)', async () => {
-    const { email, phone, address, line, signal, marriages, parentKinds, ...old } = person('old', { nameZh: '舊' })
+    const { pinyin, email, phone, address, line, signal, marriages, parentKinds, ...old } = person('old', { nameZh: '舊' })
     expect((await commit([{ type: 'set', person: old }])).status).toBe(200)
     const { people } = await (await w.call('/api/people')).json() as { people: Person[] }
     expect(people.find(p => p.id === 'old')).toEqual(person('old', { nameZh: '舊' }))

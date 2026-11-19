@@ -39,6 +39,8 @@ const pairs = {
   language: ['語言', 'Language'],
 
   nameZh: ['中文姓名', 'Chinese name'],
+  pinyin: ['拼音', 'Pinyin'],
+  badPinyin: ['不是有效的拼音', 'Not valid pinyin'],
   nameEn: ['英文姓名', 'English name'],
   otherNames: ['別名、小名', 'Other names, nicknames'],
   otherNamesHint: ['用逗號分隔', 'Separate with commas'],

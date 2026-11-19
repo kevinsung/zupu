@@ -2,6 +2,7 @@ import { h, wide } from './dom'
 import { L, lang, t, tn, type Key } from './i18n'
 import { type Marriage, type MarriageStatus, type Person, type PersonFields, emptyFields, isDeceased, isValidEmail, isValidPartialDate, marriageWithStatus, normalizePhone, searchPeople, displayName, type People } from './model'
 import { personCard } from './cards'
+import { parsePinyin } from './pinyin'
 import { type IconName, icon } from './icons'
 
 export interface DialogAction {
@@ -353,6 +354,7 @@ export function personForm(initial: PersonFields = emptyFields()) {
   const text = (name: keyof PersonFields, extra: Record<string, string> = {}) =>
     h('input', { type: 'text', name, value: initial[name], autocomplete: 'off', ...extra })
   const nameZh = text('nameZh')
+  const pinyin = text('pinyin', { lang: 'zh-Latn-pinyin', spellcheck: 'false', autocapitalize: 'words' })
   const nameEn = text('nameEn')
   const otherNames = text('otherNames')
   const birthDate = partialDateField('birthDate', 'birthDate', initial.birthDate)
@@ -376,7 +378,7 @@ export function personForm(initial: PersonFields = emptyFields()) {
     radio('M', L('male')), radio('F', L('female')), radio('', L('unknownGender')))
 
   const el = h('div', { class: 'form' },
-    field(L('nameZh'), nameZh),
+    h('div', { class: 'row pair' }, field(L('nameZh'), nameZh), field(L('pinyin'), pinyin)),
     field(L('nameEn'), nameEn),
     field(L('otherNames'), otherNames, t.otherNamesHint),
     h('div', { class: 'field' }, h('span', { class: 'field-label' }, L('gender')), gender),
@@ -389,9 +391,12 @@ export function personForm(initial: PersonFields = emptyFields()) {
   )
 
   function read(): PersonFields {
+    const py = parsePinyin(pinyin.value)
+    if ('bad' in py) throw fieldError(`${t.badPinyin}: ${py.bad}`, pinyin)
     const g = (gender.querySelector('input:checked') as HTMLInputElement | null)?.value ?? ''
     const fields: PersonFields = {
       nameZh: nameZh.value.trim(),
+      pinyin: py.value,
       nameEn: nameEn.value.trim(),
       otherNames: otherNames.value.trim(),
       gender: g === 'M' || g === 'F' ? g : '',

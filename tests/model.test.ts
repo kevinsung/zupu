@@ -180,6 +180,16 @@ describe('model', () => {
     expect(searchPeople(store.people, '小乙').map(p => p.id)).toEqual(['b'])
   })
 
+  it('finds people by pinyin, with or without tones and spaces', () => {
+    const people: People = new Map([person('p', { nameZh: '宋文華', pinyin: 'Sòng Wénhuá' }), person('q', { nameZh: '呂' , pinyin: 'Lǚ' })].map(p => [p.id, p]))
+    const ids = (q: string) => searchPeople(people, q).map(p => p.id)
+    for (const q of ['wenhua', 'Wen Hua', 'wénhuá', 'wen2hua2', 'songwen']) expect(ids(q), q).toEqual(['p'])
+    expect(ids('lv')).toEqual(['q'])
+    expect(ids('wenhuang')).toEqual([])
+    // Digits and punctuation alone fold to nothing, which must not match everyone.
+    expect(ids('2')).toEqual([])
+  })
+
   it('root ancestors skip in-laws', () => {
     const people = family()
     people.push(person('inlaw', { spouses: ['a'] }), person('gc', { parents: ['a', 'inlaw'] }))
