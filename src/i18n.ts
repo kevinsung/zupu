@@ -51,6 +51,7 @@ const pairs = {
   femaleWord: ['女', 'female'],
   birthDate: ['出生日期', 'Birth date'],
   deathDate: ['逝世日期', 'Death date'],
+  deceased: ['已故', 'Deceased'],
   year: ['年', 'Year'],
   month: ['月', 'Month'],
   day: ['日', 'Day'],

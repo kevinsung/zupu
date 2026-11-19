@@ -1,6 +1,6 @@
 import { h, wide } from './dom'
 import { L, lang, t, tn, type Key } from './i18n'
-import { type Marriage, type MarriageStatus, type Person, type PersonFields, emptyFields, isValidEmail, isValidPartialDate, marriageWithStatus, normalizePhone, searchPeople, displayName, type People } from './model'
+import { type Marriage, type MarriageStatus, type Person, type PersonFields, emptyFields, isDeceased, isValidEmail, isValidPartialDate, marriageWithStatus, normalizePhone, searchPeople, displayName, type People } from './model'
 import { personCard } from './cards'
 import { type IconName, icon } from './icons'
 
@@ -357,6 +357,11 @@ export function personForm(initial: PersonFields = emptyFields()) {
   const otherNames = text('otherNames')
   const birthDate = partialDateField('birthDate', 'birthDate', initial.birthDate)
   const deathDate = partialDateField('deathDate', 'deathDate', initial.deathDate)
+  const deceased = h('input', { type: 'checkbox', name: 'deceased', checked: isDeceased(initial) })
+  const deceasedBox = h('label', { class: 'checkbox' }, deceased, h('span', {}, L('deceased')))
+  deathDate.el.addEventListener('input', () => {
+    if ([...deathDate.el.querySelectorAll('input')].some(i => i.value.trim())) deceased.checked = true
+  })
   const email = text('email', { type: 'email', inputmode: 'email' })
   const phone = text('phone', { type: 'tel', placeholder: '+886 912 345 678' })
   const address = h('textarea', { name: 'address', rows: '2' })
@@ -375,7 +380,7 @@ export function personForm(initial: PersonFields = emptyFields()) {
     field(L('nameEn'), nameEn),
     field(L('otherNames'), otherNames, t.otherNamesHint),
     h('div', { class: 'field' }, h('span', { class: 'field-label' }, L('gender')), gender),
-    h('div', { class: 'row' }, birthDate.el, deathDate.el),
+    h('div', { class: 'row' }, birthDate.el, h('div', { class: 'death-col' }, deathDate.el, deceasedBox)),
     h('div', { class: 'row' }, field(L('email'), email), field(L('phone'), phone, t.phoneHint)),
     field(L('line'), line, t.lineHint),
     field(L('signal'), signal, t.signalHint),
@@ -392,6 +397,8 @@ export function personForm(initial: PersonFields = emptyFields()) {
       gender: g === 'M' || g === 'F' ? g : '',
       birthDate: birthDate.read(),
       deathDate: deathDate.read(),
+      // A death date already implies deceased, so leave the flag as it was rather than log a change nobody made.
+      deceased: deathDate.read() ? initial.deceased : deceased.checked ? 'yes' : '',
       notes: notes.value.trim(),
       email: email.value.trim(),
       phone: phone.value.trim(),

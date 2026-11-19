@@ -22,9 +22,11 @@ export function personSubtitle(p: Person): string {
   return [allNames(p).filter(n => n !== displayName(p)).join(' · '), lifespan(p)].filter(Boolean).join(' · ')
 }
 
-/** e.g. "1985-03-14 · 41歲 / age 41" or "1920 – 1990-07 · 享年約70 / aged about 70"; '' if no dates. */
+/** e.g. "1985-03-14 · 41歲 / age 41" or "1920 – 1990-07 · 享年約70 / aged about 70".
+ * Deceased with no death date reads "1890 – ?" without an age, or 已故 / Deceased with no dates; '' if no dates. */
 export function datesLine(p: Person): string {
-  const dates = p.deathDate ? `${p.birthDate || '?'} – ${p.deathDate}` : p.birthDate
+  const dates = p.deathDate ? `${p.birthDate || '?'} – ${p.deathDate}`
+    : p.deceased === 'yes' ? (p.birthDate ? `${p.birthDate} – ?` : t.deceased) : p.birthDate
   const a = age(p)
   const ageText = a && tn(a.atDeath ? (a.approx ? 'agedAtDeathApprox' : 'agedAtDeath') : (a.approx ? 'ageApprox' : 'age'), a.years)
   return [dates, ageText].filter(Boolean).join(' · ')

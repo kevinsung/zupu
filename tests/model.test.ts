@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 // jsdom because FamilyStore's messages come from i18n, which reads the language setting from localStorage.
 import { describe, expect, it } from 'vitest'
-import { type People, type Person, age, childrenByCoParent, emptyFields, formatPhone, halfSiblingVia, isValidEmail, isValidPartialDate, isValidPhone, normalizePerson, normalizePhone, rankPeople, rootAncestors, searchPeople, seniorAncestor, siblingsOf, partnerIds, partnersOf } from '../src/model'
+import { type People, type Person, age, childrenByCoParent, emptyFields, formatPhone, halfSiblingVia, isDeceased, isValidEmail, isValidPartialDate, isValidPhone, lifespan, normalizePerson, normalizePhone, rankPeople, rootAncestors, searchPeople, seniorAncestor, siblingsOf, partnerIds, partnersOf } from '../src/model'
 import { applyOp, simulate, type ChangeRecord, type NewChange, type Op } from '../src/ops'
 import { FamilyStore } from '../src/store'
 import { seedToPeople } from '../src/seed-format'
@@ -49,6 +49,32 @@ describe('model', () => {
     // Probably died without a recorded date.
     expect(at('1900')).toBeNull()
     expect(at('1900', '1980')).toEqual({ years: 80, approx: true, atDeath: true })
+  })
+
+  it('treats deceased with no death date as having no age', () => {
+    const today = new Date(2026, 10, 18)
+    const p = (extra: Partial<Person>) => person('x', extra)
+    expect(age(p({ birthDate: '1900', deceased: 'yes' }), today)).toBeNull()
+    expect(age(p({ birthDate: '1900', deathDate: '1980', deceased: 'yes' }), today)).toEqual({ years: 80, approx: true, atDeath: true })
+    expect(age(p({ birthDate: '1990' }), today)).toEqual({ years: 36, approx: true, atDeath: false })
+  })
+
+  it('knows who is deceased', () => {
+    expect(isDeceased(person('x'))).toBe(false)
+    expect(isDeceased(person('x', { deceased: 'yes' }))).toBe(true)
+    expect(isDeceased(person('x', { deathDate: '1980' }))).toBe(true)
+  })
+
+  it('normalizes deceased and shows an unknown death year as ?', () => {
+    expect(normalizePerson('p', {}).deceased).toBe('')
+    expect(normalizePerson('p', { deceased: 'yes' }).deceased).toBe('yes')
+    for (const bad of ['no', 'YES', true, 1, null]) expect(normalizePerson('p', { deceased: bad }).deceased).toBe('')
+    const l = (extra: Partial<Person>) => lifespan(person('x', extra))
+    expect(l({ birthDate: '1890-05', deceased: 'yes' })).toBe('1890–?')
+    expect(l({ birthDate: '1890', deathDate: '1950', deceased: 'yes' })).toBe('1890–1950')
+    expect(l({ deceased: 'yes' })).toBe('')
+    expect(l({ birthDate: '1890' })).toBe('1890')
+    expect(l({ deathDate: '1950' })).toBe('?–1950')
   })
 
   it('validates partial dates', () => {

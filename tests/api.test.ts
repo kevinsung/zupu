@@ -87,6 +87,8 @@ describe('data', () => {
   it('rejects invalid input', async () => {
     const bad: unknown[][] = [
       [{ type: 'set', person: { ...person('x'), gender: 'X' } }],
+      [{ type: 'set', person: { ...person('x'), deceased: 'no' } }],
+      [{ type: 'update', id: 'kid', fields: { deceased: 'no' } }],
       [{ type: 'set', person: { ...person('x'), birthDate: '90' } }],
       [{ type: 'set', person: { ...person('x'), extra: 1 } }],
       [{ type: 'set', person: { ...person('x'), nameZh: 'a'.repeat(201) } }],
@@ -116,6 +118,15 @@ describe('data', () => {
     expect((await commit([{ type: 'set', person: old }])).status).toBe(200)
     const { people } = await (await w.call('/api/people')).json() as { people: Person[] }
     expect(people.find(p => p.id === 'old')).toEqual(person('old', { nameZh: '舊' }))
+  })
+
+  it('saves deceased, and accepts snapshots that lack it', async () => {
+    expect((await commit([{ type: 'update', id: 'kid', fields: { deceased: 'yes' } }])).status).toBe(200)
+    const { deceased, ...old } = person('nodec', { nameZh: '舊' })
+    expect((await commit([{ type: 'set', person: old }])).status).toBe(200)
+    const { people } = await (await w.call('/api/people')).json() as { people: Person[] }
+    expect(people.find(p => p.id === 'kid')!.deceased).toBe('yes')
+    expect(people.find(p => p.id === 'nodec')).toEqual(person('nodec', { nameZh: '舊' }))
   })
 
   it('ignores the removed WhatsApp field (old history snapshots and browser tabs)', async () => {

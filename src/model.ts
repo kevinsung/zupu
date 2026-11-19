@@ -9,6 +9,8 @@ export interface PersonFields {
   gender: Gender
   birthDate: string
   deathDate: string
+  /** 'yes' marks someone deceased even without a death date; '' is not recorded. */
+  deceased: '' | 'yes'
   notes: string
   email: string
   phone: string
@@ -46,7 +48,7 @@ export const UNKNOWN = '？？？'
 
 export function emptyFields(): PersonFields {
   return {
-    nameZh: '', nameEn: '', otherNames: '', gender: '', birthDate: '', deathDate: '', notes: '',
+    nameZh: '', nameEn: '', otherNames: '', gender: '', birthDate: '', deathDate: '', deceased: '', notes: '',
     email: '', phone: '', address: '', line: '', signal: '',
   }
 }
@@ -92,6 +94,7 @@ export function normalizePerson(id: string, raw: Record<string, unknown>): Perso
     id,
     ...fields,
     gender: raw.gender === 'M' || raw.gender === 'F' ? raw.gender : '',
+    deceased: raw.deceased === 'yes' ? 'yes' : '',
     parents: ids(raw.parents),
     spouses,
     marriages,
@@ -146,11 +149,17 @@ export function allNames(p: Person): string[] {
   return [p.nameZh, p.nameEn, ...p.otherNames.split(/[,，、]/)].map(s => s.trim()).filter(Boolean)
 }
 
+/** Deceased if a death date is recorded or the person is marked deceased. */
+export function isDeceased(p: Pick<Person, 'deathDate' | 'deceased'>): boolean {
+  return !!p.deathDate || p.deceased === 'yes'
+}
+
 export function lifespan(p: Person): string {
   const b = p.birthDate.slice(0, 4)
   const d = p.deathDate.slice(0, 4)
   if (!b && !d) return ''
-  return d ? `${b || '?'}–${d}` : b
+  if (d) return `${b || '?'}–${d}`
+  return b && p.deceased === 'yes' ? `${b}–?` : b
 }
 
 /** Living people older than this probably died without a recorded date, so no age is shown. */
@@ -168,6 +177,7 @@ export interface Age {
 export function age(p: Person, today = new Date()): Age | null {
   const b = parsePartialDate(p.birthDate)
   if (!b) return null
+  if (!p.deathDate && p.deceased === 'yes') return null
   const atDeath = !!p.deathDate
   const e = atDeath ? parsePartialDate(p.deathDate) : { y: today.getFullYear(), m: today.getMonth() + 1, d: today.getDate() }
   if (!e) return null

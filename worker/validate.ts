@@ -37,6 +37,7 @@ function fields(v: unknown, partial: boolean): Partial<PersonFields> {
   // Missing fields default to '' so history snapshots and browser tabs from older versions still work.
   const result = partial ? out : { ...emptyFields(), ...out }
   if ('gender' in out) check(['M', 'F', ''].includes(out.gender), 'invalid gender')
+  if ('deceased' in out) check(['yes', ''].includes(out.deceased), 'invalid deceased')
   for (const k of ['birthDate', 'deathDate']) if (k in out) check(isValidPartialDate(out[k]), `invalid ${k}`)
   if ('email' in out) check(isValidEmail(out.email), 'invalid email')
   if ('phone' in out) check(isValidPhone(out.phone), 'invalid phone')

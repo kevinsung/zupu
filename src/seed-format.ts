@@ -12,6 +12,7 @@ export interface SeedEntry {
   gender?: 'M' | 'F'
   birthDate?: string
   deathDate?: string
+  deceased?: 'yes'
   notes?: string
   email?: string
   phone?: string

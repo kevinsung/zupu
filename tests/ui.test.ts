@@ -410,6 +410,47 @@ describe('app', () => {
     topDialog().querySelector<HTMLButtonElement>('.dlg-x')!.click()
   })
 
+  it('marks a person deceased without a death date', async () => {
+    buttonWith('編輯', $('#person')).click()
+    const dlg = topDialog()
+    const box = dlg.querySelector<HTMLInputElement>('input[name=deceased]')!
+    expect(box.type).toBe('checkbox')
+    expect(box.closest('label')!.textContent).toContain('Deceased')
+    expect(box.checked).toBe(false)
+    // Typing a death year ticks it; clearing the year leaves it ticked.
+    const deathYear = dlg.querySelector<HTMLInputElement>('input[name=deathDate-y]')!
+    deathYear.value = '2000'
+    deathYear.dispatchEvent(new Event('input', { bubbles: true }))
+    expect(box.checked).toBe(true)
+    deathYear.value = ''
+    box.checked = true
+    buttonWith('儲存', dlg).click()
+    await closed(dlg)
+    const dates = $('#person .pv-dates').textContent!
+    expect(dates).toContain('1960 – ?')
+    expect(dates).not.toMatch(/歲|aged|age/i)
+    buttonWith('修改紀錄').click()
+    await tick(300)
+    expect(topDialog().querySelector('.history-item')!.textContent).toContain('已故 / Deceased: — → 已故 / Deceased')
+    topDialog().querySelector<HTMLButtonElement>('.dlg-x')!.click()
+  })
+
+  it('opens ticked for a death date and leaves the deceased flag alone unless changed', async () => {
+    const { personForm } = await import('../src/dialog')
+    const box = (form: ReturnType<typeof personForm>) => form.el.querySelector<HTMLInputElement>('input[name=deceased]')!
+    // Records from before the flag existed have a death date and deceased ''.
+    const legacy = personForm({ ...emptyFields(), deathDate: '1950' })
+    expect(box(legacy).checked).toBe(true)
+    expect(legacy.read().deceased).toBe('')
+    // Clearing the date falls back to the checkbox.
+    legacy.el.querySelector<HTMLInputElement>('input[name=deathDate-y]')!.value = ''
+    expect(legacy.read().deceased).toBe('yes')
+    box(legacy).checked = false
+    expect(legacy.read().deceased).toBe('')
+    expect(box(personForm({ ...emptyFields(), deceased: 'yes' })).checked).toBe(true)
+    expect(box(personForm()).checked).toBe(false)
+  })
+
   it('edits contact info and shows email and phone as links', async () => {
     buttonWith('編輯', $('#person')).click()
     const dlg = [...document.querySelectorAll<HTMLElement>('dialog[open]')].at(-1)!

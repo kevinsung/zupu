@@ -17,7 +17,7 @@ function diffLines(ctx: AppCtx, d: PersonDiff): Node[] {
   for (const k of [...FIELD_KEYS, 'parents', 'spouses'] as const) {
     const [a, b] = [d.before[k], d.after[k]]
     if (JSON.stringify(a) === JSON.stringify(b)) continue
-    const fmt = (v: unknown) => (Array.isArray(v) ? ids(v) : (k === 'phone' ? formatPhone(String(v)) : String(v)) || '—')
+    const fmt = (v: unknown) => (Array.isArray(v) ? ids(v) : (k === 'phone' ? formatPhone(String(v)) : k === 'deceased' && v === 'yes' ? t.deceased : String(v)) || '—')
     lines.push(h('li', {}, `${t[k]}: `, h('del', {}, fmt(a)), ' → ', h('ins', {}, fmt(b))))
   }
   // Snapshots from before marriages existed lack the field.
