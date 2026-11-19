@@ -91,12 +91,12 @@ function startApp() {
     h('button', { type: 'button', class: 'primary', onclick: () => addFirst() }, icon('plus'), h('span', {}, L('addFirst'))))
 
   const savedEditor = () => localStorage.getItem(EDITOR_KEY) ?? ''
-  const settingsLabel = h('span', { class: 'settings-name' })
-  const settingsBtn = h('button', { type: 'button', class: 'ghost settings-btn', 'aria-haspopup': 'dialog', title: t.settings },
-    icon('settings'), settingsLabel, icon('chevronDown', 'caret'))
+  const menuLabel = h('span', { class: 'settings-name' })
+  const menuBtn = h('button', { type: 'button', class: 'ghost settings-btn', 'aria-haspopup': 'dialog', title: t.menu },
+    icon('menu'), menuLabel, icon('chevronDown', 'caret'))
   const refreshEditor = () => {
-    settingsLabel.textContent = savedEditor() || t.settings
-    settingsBtn.setAttribute('aria-label', `${t.settings}: ${t.editorLabel} ${savedEditor() || '—'}`)
+    menuLabel.textContent = savedEditor() || t.menu
+    menuBtn.setAttribute('aria-label', `${t.menu}: ${t.editorLabel} ${savedEditor() || '—'}`)
   }
   refreshEditor()
 
@@ -198,10 +198,15 @@ function startApp() {
     tab('tree', 'tree', 'tabTree', () => openTab('tree')),
     tab('person', 'person', 'tabPerson', () => openTab('person')),
     tab('stats', 'chart', 'stats', () => openStats()),
-    tab('menu', 'menu', 'tabMenu', () => openSettings()))
+    tab('menu', 'menu', 'tabMenu', () => showMainMenu()))
   const topBrand = brand('a')
-  const statsBtn = h('button', { type: 'button', class: 'ghost', onclick: () => openStats() },
-    icon('chart'), h('span', {}, L('stats')))
+  // Tablets and computers: the same views as the phone's tabs, in the top bar.
+  const topTab = (v: View, name: IconName, label: Key, onclick: (e: Event) => void) =>
+    h('button', { type: 'button', class: 'toptab', 'data-tab': v, title: t[label], 'aria-label': t[label], onclick }, icon(name), h('span', { class: 'toptab-label' }, L(label)))
+  const topTabs = h('nav', { class: 'toptabs', 'aria-label': t.navViews },
+    topTab('home', 'search', 'everyone', () => goHome()),
+    topTab('tree', 'tree', 'tabTree', () => openTab('tree')),
+    topTab('stats', 'chart', 'stats', () => openStats()))
 
   // Wide screens show the tree beside the person, but not on the list, which takes the whole width.
   const treeVisible = () => view !== 'home' && view !== 'stats' && (wide.matches || view === 'tree')
@@ -224,8 +229,11 @@ function startApp() {
     placeSearch()
     if (v === 'home') topBrand.setAttribute('aria-current', 'page')
     else topBrand.removeAttribute('aria-current')
-    if (v === 'stats') statsBtn.setAttribute('aria-current', 'page')
-    else statsBtn.removeAttribute('aria-current')
+    const topCurrent = v === 'person' ? 'tree' : v
+    topTabs.querySelectorAll<HTMLElement>('.toptab').forEach(b => {
+      if (b.dataset.tab === topCurrent) b.setAttribute('aria-current', 'page')
+      else b.removeAttribute('aria-current')
+    })
     setTitle()
     if (v === 'stats') {
       if (enteringStats && loaded) stats.refresh()
@@ -307,13 +315,13 @@ function startApp() {
   }
 
 
-  /** Editor name, appearance, tree direction, language and sign-out: a menu under the top-bar button, or a sheet from the phone's Menu tab. */
-  function openSettings(anchor?: HTMLElement) {
+  /** Change history, editor name, appearance, tree direction, language and sign-out: a menu under the top-bar button, or a sheet from the phone's Menu tab. */
+  function showMainMenu(anchor?: HTMLElement) {
     let close = () => {}
     const row = (label: Key, control: Node) =>
       h('div', { class: 'setting' }, h('span', { class: 'setting-label' }, L(label)), control)
     const body = h('div', { class: 'settings' },
-      anchor ? null : menuList([{ icon: 'history', label: L('history'), run: () => openHistory(ctx) }], () => close()),
+      menuList([{ icon: 'history', label: L('history'), run: () => openHistory(ctx) }], () => close()),
       row('editorLabel', h('button', { type: 'button', class: 'setting-value', onclick: () => { close(); askEditor() } },
         h('span', {}, savedEditor() || '—'), h('span', { class: 'chip' }, L('change')))),
       row('appearance', segmented<Theme>(t.appearance,
@@ -334,9 +342,9 @@ function startApp() {
         { icon: 'source', label: L('sourceCode'), run: () => window.open(SOURCE_URL, '_blank', 'noopener') },
         { icon: 'signOut', label: L('signOut'), run: () => signOut().then(() => location.reload(), () => toast(t.signOutFailed, { error: true })) },
       ], () => close()))
-    close = openMenu(anchor ? t.settings : t.menu, body, anchor)
+    close = openMenu(t.menu, body, anchor)
   }
-  settingsBtn.addEventListener('click', () => openSettings(settingsBtn))
+  menuBtn.addEventListener('click', () => showMainMenu(menuBtn))
 
   function renderPersonPane() {
     // On wide screens the tree is always in view, so the person menu doesn't offer to show it.
@@ -426,13 +434,10 @@ function startApp() {
   root.replaceChildren(
     h('header', { class: 'topbar' },
       topBrand,
+      topTabs,
       box.el,
       homeSlot,
-      h('nav', { class: 'topnav', 'aria-label': t.navTop },
-        statsBtn,
-        h('button', { type: 'button', class: 'ghost', onclick: () => openHistory(ctx) },
-          icon('history'), h('span', {}, L('history'))),
-        settingsBtn),
+      menuBtn,
     ),
     offlineBanner,
     main,

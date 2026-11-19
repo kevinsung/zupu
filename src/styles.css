@@ -124,9 +124,14 @@ a.brand:hover { color: var(--accent); }
   display: none; align-items: center; gap: 1rem; padding: .5rem .75rem .5rem 1rem;
   background: var(--surface); border-bottom: 1px solid var(--line); position: relative; z-index: 5;
 }
-.topnav { display: flex; margin-left: auto; gap: .25rem; align-items: center; }
-.topnav button { white-space: nowrap; }
-.settings-btn { display: inline-flex; align-items: center; gap: .5rem; max-width: 16rem; }
+.toptabs { display: flex; gap: .25rem; align-items: center; }
+.toptab {
+  display: inline-flex; align-items: center; gap: .4rem; white-space: nowrap; background: none; border-color: transparent;
+  color: var(--muted); font-weight: 600; border-radius: .5rem;
+}
+.toptab:hover { background: var(--accent-soft); }
+.toptab[aria-current="page"] { color: var(--accent); background: var(--accent-soft); }
+.settings-btn { display: inline-flex; align-items: center; gap: .5rem; max-width: 16rem; margin-left: auto; white-space: nowrap; }
 .settings-btn .icon { color: var(--muted); }
 .settings-name { overflow: hidden; text-overflow: ellipsis; }
 svg.caret { width: 1em; height: 1em; }
@@ -207,7 +212,11 @@ main:not([data-view="home"]) .home-pane, main:not([data-view="stats"]) .stats-pa
 }
 @media (700px <= width < 1024px) and (height >= 500px) {
   .brand .en { display: none; }
-  .topnav .ghost .en { display: none; }
+  .toptab .en, .settings-btn .en { display: none; }
+  .topbar { gap: .5rem; }
+}
+@media (700px <= width < 860px) and (height >= 500px) {
+  .toptab-label { display: none; }
 }
 
 /* Tree */

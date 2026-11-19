@@ -194,7 +194,7 @@ describe('app', () => {
     expect(document.title).toBe('統計 / Stats — 族譜 / Family Tree')
     expect($('.stats-pane h1').textContent).toContain('族譜統計')
     expect([...document.querySelectorAll('.tile-value')].map(e => e.textContent)).toEqual(['6', '2', '1960–1970', '6'])
-    expect($('.topnav [aria-current="page"]').textContent).toContain('統計')
+    expect($('.toptabs [aria-current="page"]').textContent).toContain('統計')
     expect($('.tab[aria-current="page"]').dataset.tab).toBe('stats')
     // Tapping a bar lists its people; tapping a person opens them.
     const bar = $('.stat-chart .hbar')
@@ -278,7 +278,7 @@ describe('app', () => {
   })
 
   it('logs changes in history and can revert', async () => {
-    buttonWith('修改紀錄').click()
+    $<HTMLButtonElement>('.settings-btn').click(); await tick(50); buttonWith('修改紀錄').click()
     await tick(300)
     const dlg = $('dialog[open]')
     const items = dlg.querySelectorAll('.history-item')
@@ -445,7 +445,7 @@ describe('app', () => {
     buttonWith('儲存', dlg).click()
     await closed(dlg)
     expect(families().querySelector('.marriage')!.textContent).toContain('結婚 / Married 1985-10')
-    buttonWith('修改紀錄').click()
+    $<HTMLButtonElement>('.settings-btn').click(); await tick(50); buttonWith('修改紀錄').click()
     await tick(300)
     expect(topDialog().querySelector('.history-item')!.textContent).toContain('婚姻 / Marriage (丈夫): —')
     topDialog().querySelector<HTMLButtonElement>('.dlg-x')!.click()
@@ -470,7 +470,7 @@ describe('app', () => {
     const dates = $('#person .pv-dates').textContent!
     expect(dates).toContain('1960 – ?')
     expect(dates).not.toMatch(/歲|aged|age/i)
-    buttonWith('修改紀錄').click()
+    $<HTMLButtonElement>('.settings-btn').click(); await tick(50); buttonWith('修改紀錄').click()
     await tick(300)
     expect(topDialog().querySelector('.history-item')!.textContent).toContain('已故 / Deceased: — → 已故 / Deceased')
     topDialog().querySelector<HTMLButtonElement>('.dlg-x')!.click()
@@ -794,7 +794,7 @@ describe('app', () => {
     const kid = [...$('#person .pv-families').querySelectorAll('.pcard')].find(c => c.textContent!.includes('乙'))!
     expect(kid.textContent).toContain('養子女 / Adopted child')
 
-    buttonWith('修改紀錄').click()
+    $<HTMLButtonElement>('.settings-btn').click(); await tick(50); buttonWith('修改紀錄').click()
     await tick(300)
     const item = topDialog().querySelector<HTMLElement>('.history-item')!
     expect(item.textContent).toContain('關係類型 / Relationship type (祖父): 親生 / Birth → 收養 / Adoptive')
@@ -887,7 +887,7 @@ describe('app', () => {
     await go('rp', '排父')
     expect([...$('#person .pv-families').querySelectorAll('.pcard-name')].map(e => e.textContent)).toEqual(['三', '一', '二'])
 
-    buttonWith('修改紀錄').click()
+    $<HTMLButtonElement>('.settings-btn').click(); await tick(50); buttonWith('修改紀錄').click()
     await tick(300)
     const item = topDialog().querySelector<HTMLElement>('.history-item')!
     expect(item.textContent).toContain('調整出生順序 Changed birth order: 三, 一, 二')
