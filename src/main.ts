@@ -1,15 +1,15 @@
 import './styles.css'
-import { h, wide } from './dom'
-import { L, getLang, setLang, t, type Key, type Lang } from './i18n'
-import { ApiError, commit, getSession, signIn, signOut, watchPeople } from './backend'
+import { h, standalone, wide } from './dom'
+import { L, getLang, locale, setLang, t, tTime, type Key, type Lang } from './i18n'
+import { ApiError, clearDataCache, commit, getSession, offlineSince, onOfflineChange, refetchForOffline, setNetworkState, signIn, signOut, watchPeople } from './backend'
 import { FamilyStore } from './store'
 import { TREE_HINT_ID, TreeChart, getTreeDirection, setTreeDirection, type TreeDirection } from './chart'
-import type { AppCtx } from './actions'
+import { type AppCtx, canEdit } from './actions'
 import { renderPerson } from './person'
 import { openHistory } from './history'
 import { homeList, rememberRecent, searchBox } from './search'
 import { avatar, personSubtitle } from './cards'
-import { focusPersonHeading, menuList, mountToast, openDialog, openMenu, personForm, segmented } from './dialog'
+import { focusPersonHeading, menuList, mountToast, openDialog, openMenu, personForm, segmented, toast } from './dialog'
 import { displayName } from './model'
 import { getTheme, setTheme, type Theme } from './theme'
 import { type IconName, icon } from './icons'
@@ -23,7 +23,11 @@ function brand(tag: 'h1' | 'a') {
   return h(tag, { class: 'brand', href: tag === 'a' ? '#/' : undefined }, L('title'))
 }
 
-function showLogin() {
+/** `signedOut`: the server said so, rather than the check failing (offline with nothing cached, a 5xx). */
+function showLogin(signedOut: boolean) {
+  // Nobody is signed in, so no family data may stay on the device. A failed check proves nothing,
+  // and the offline copy may be all a signed-in user has.
+  if (signedOut) clearDataCache()
   const input = h('input', { type: 'password', autocomplete: 'current-password', required: true })
   const error = h('p', { class: 'dlg-error', role: 'alert' })
   const button = h('button', { type: 'submit', class: 'primary' }, L('signIn'))
@@ -46,6 +50,9 @@ function showLogin() {
       button.disabled = false
       return
     }
+    // Ask again: the service worker's offline copy of the session is still the signed-out answer
+    // this screen got, and an offline launch would trust it.
+    await getSession().catch(() => {})
     startApp()
   })
   root.replaceChildren(form)
@@ -294,7 +301,9 @@ function startApp() {
       row('language', segmented<Lang>(t.language,
         [['both', h('span', { lang: 'zh-Hant' }, '中英')], ['zh', h('span', { lang: 'zh-Hant' }, '中文')], ['en', h('span', { lang: 'en' }, 'English')]],
         getLang(), lang => { setLang(lang); location.reload() })),
-      menuList([{ icon: 'signOut', label: L('signOut'), run: () => signOut().then(() => location.reload()) }], () => close()))
+      standalone.matches || (navigator as { standalone?: boolean }).standalone ? null
+        : h('p', { class: 'setting setting-hint' }, L('installHint')),
+      menuList([{ icon: 'signOut', label: L('signOut'), run: () => signOut().then(() => location.reload(), () => toast(t.signOutFailed)) }], () => close()))
     close = openMenu(anchor ? t.settings : t.menu, body, anchor)
   }
   settingsBtn.addEventListener('click', () => openSettings(settingsBtn))
@@ -355,6 +364,7 @@ function startApp() {
   }
 
   function addFirst() {
+    if (!canEdit()) return
     const form = personForm()
     openDialog(L('addFirst'), form.el, [
       {
@@ -369,6 +379,18 @@ function startApp() {
     form.focus()
   }
 
+  // Shown while the data on screen is the offline copy; sits between the top bar and the panes, covering neither.
+  const offlineBanner = h('div', { class: 'offline-banner', role: 'status', hidden: true })
+  const timeFmt = new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'short' })
+  const showOffline = (since: number | null) => {
+    offlineBanner.hidden = since === null
+    if (since !== null) offlineBanner.textContent = tTime('offlineBanner', timeFmt.format(since))
+  }
+  onOfflineChange(showOffline)
+  showOffline(offlineSince)
+  window.addEventListener('online', () => setNetworkState(true))
+  window.addEventListener('offline', () => setNetworkState(false))
+
   root.replaceChildren(
     h('header', { class: 'topbar' },
       topBrand,
@@ -379,6 +401,7 @@ function startApp() {
           icon('history'), h('span', {}, L('history'))),
         settingsBtn),
     ),
+    offlineBanner,
     main,
     tabbar,
   )
@@ -413,6 +436,8 @@ function startApp() {
   wide.addEventListener('change', onWide)
 
   const onError = (e: Error) => {
+    // Offline, a failed poll just keeps the banner; only a start with nothing to show is an error.
+    if (offlineSince !== null && loaded) return
     status.textContent = `${t.loadFailed}: ${e.message}`
     status.hidden = false
   }
@@ -423,4 +448,14 @@ function startApp() {
   }, onError)
 }
 
-getSession().then(signedIn => (signedIn ? startApp() : showLogin()))
+// Offline reads come from the service worker's cache (public/sw.js); production only, so dev is unaffected.
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+  // On the first visit this page's reads go out before the service worker takes over, so it has
+  // no copy of them; fetch them again once it does.
+  if (!navigator.serviceWorker.controller) {
+    navigator.serviceWorker.addEventListener('controllerchange', refetchForOffline, { once: true })
+  }
+  navigator.serviceWorker.register('/sw.js').catch(() => {})
+}
+
+getSession().then(signedIn => (signedIn ? startApp() : showLogin(true)), () => showLogin(false))

@@ -31,3 +31,5 @@ export const wide = query('(min-width: 700px) and (min-height: 500px)', true)
 export const reducedMotion = query('(prefers-reduced-motion: reduce)', false)
 /** A touch screen, where the system share sheet beats copying a link. */
 export const coarsePointer = query('(pointer: coarse)', false)
+/** Running as an installed app (home-screen icon), not in a browser tab. */
+export const standalone = query('(display-mode: standalone)', false)

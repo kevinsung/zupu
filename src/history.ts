@@ -5,7 +5,7 @@ import { marriageText } from './cards'
 import { FIELD_KEYS, displayName, formatPhone } from './model'
 import type { ChangeRecord, PersonDiff } from './ops'
 import { watchChanges } from './backend'
-import type { AppCtx } from './actions'
+import { type AppCtx, canEdit } from './actions'
 
 function diffLines(ctx: AppCtx, d: PersonDiff): Node[] {
   const name = (id: string) => displayName(ctx.store.people.get(id))
@@ -77,6 +77,7 @@ export function openHistory(ctx: AppCtx, personId?: string) {
         h('details', { open: open.has(c.id) }, h('summary', {}, L('historyDetails')), ...people,
           h('button', {
             type: 'button', class: 'danger small', onclick: async () => {
+              if (!canEdit()) return
               if (!(await confirmDialog(t.confirmRevert, t.revert, true))) return
               const editor = await ctx.editorName()
               if (!editor) return

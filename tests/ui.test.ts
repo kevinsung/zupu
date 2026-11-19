@@ -59,9 +59,15 @@ describe('app', () => {
     await tick()
     expect($('.login .dlg-error').textContent).toContain('Wrong password')
     $<HTMLInputElement>('input[type=password]').value = 'dev'
+    const fetched: string[] = []
+    const online = globalThis.fetch
+    vi.stubGlobal('fetch', (path: string, init?: RequestInit) => (fetched.push(`${init?.method ?? 'GET'} ${path}`), online(path, init)))
     $<HTMLFormElement>('form.login').requestSubmit()
     await tick(300)
+    vi.stubGlobal('fetch', online)
     expect(document.querySelector('header')).toBeTruthy()
+    // The session is asked again after signing in, so the service worker's offline copy says signed in.
+    expect(fetched.slice(0, 2)).toEqual(['POST /api/login', 'GET /api/session'])
   })
 
   it('starts on the landing list, with no one selected', async () => {
@@ -716,5 +722,83 @@ describe('app', () => {
     buttonWith('還原', topDialog()).click()
     await vi.waitFor(() => expect($('#person .pv-families').textContent).not.toContain('養子女'))
     topDialog().querySelector<HTMLButtonElement>('.dlg-x')!.click()
+  })
+
+  it('shows a banner and blocks editing while the data is the offline copy, then recovers', async () => {
+    const online = globalThis.fetch
+    const cachedAt = Date.UTC(2026, 0, 2, 3, 4)
+    // The service worker answers from its cache with this header when the network is down.
+    vi.stubGlobal('fetch', async (path: string, init?: RequestInit) => {
+      const res = await w.call(path, init)
+      const headers = new Headers(res.headers)
+      headers.set('X-Offline-Cached-At', String(cachedAt))
+      return new Response(res.body, { status: res.status, headers })
+    })
+    window.dispatchEvent(new Event('online'))
+    await vi.waitFor(() => expect($('.offline-banner').hidden).toBe(false))
+    expect($('.offline-banner').textContent).toContain('離線：顯示')
+    expect($('.offline-banner').textContent).toContain('2026')
+    expect(document.querySelector('.status:not([hidden])')).toBeNull()
+
+    // Every write flow refuses with a toast, without opening a form.
+    $<HTMLButtonElement>('#person .pv-actions .primary').click()
+    expect(document.querySelector('dialog[open]')).toBeNull()
+    expect($('.toast').textContent).toContain('離線時無法修改')
+    $('.toast').textContent = ''
+    $<HTMLButtonElement>('#person .pv-actions .more').click()
+    buttonWith('刪除', popover()).click()
+    expect(document.querySelector('dialog[open]')).toBeNull()
+    expect($('.toast').textContent).toContain('離線時無法修改')
+    // So does the shared write path, for any flow that forgets to check.
+    const { commit } = await import('../src/backend')
+    await expect(commit([], { editor: 'x', summary: 'x' })).rejects.toThrow('離線時無法修改')
+
+    // A failed poll while offline keeps the banner and doesn't show the red status.
+    vi.stubGlobal('fetch', () => Promise.reject(new TypeError('Failed to fetch')))
+    window.dispatchEvent(new Event('online'))
+    await tick()
+    expect($('.offline-banner').hidden).toBe(false)
+    expect(document.querySelector('.status:not([hidden])')).toBeNull()
+
+    // Back online: the banner clears.
+    vi.stubGlobal('fetch', online)
+    window.dispatchEvent(new Event('online'))
+    await vi.waitFor(() => expect($('.offline-banner').hidden).toBe(true))
+    $<HTMLButtonElement>('#person .pv-actions .primary').click()
+    expect(topDialog()).toBeTruthy()
+    topDialog().querySelector<HTMLButtonElement>('.dlg-x')!.click()
+  })
+
+  it('reports a sign-in check that fails, rather than calling it signed out', async () => {
+    const online = globalThis.fetch
+    const { getSession } = await import('../src/backend')
+    vi.stubGlobal('fetch', () => Promise.reject(new TypeError('Failed to fetch')))
+    await expect(getSession()).rejects.toThrow()
+    vi.stubGlobal('fetch', online)
+    await expect(getSession()).resolves.toBe(true)
+  })
+
+  it('says so when signing out fails, and still drops the offline data', async () => {
+    const deleted: string[] = []
+    vi.stubGlobal('caches', { delete: async (name: string) => { deleted.push(name); return true } })
+    const online = globalThis.fetch
+    vi.stubGlobal('fetch', () => Promise.reject(new TypeError('Failed to fetch')))
+    $<HTMLButtonElement>('.settings-btn').click()
+    buttonWith('登出', popover()).click()
+    await vi.waitFor(() => expect($('.toast').textContent).toContain('無法登出'))
+    expect(deleted).toEqual(['zupu-data-v1'])
+    vi.stubGlobal('fetch', online)
+    // Back online, the offline banner the failed request raised clears.
+    window.dispatchEvent(new Event('online'))
+    await vi.waitFor(() => expect($('.offline-banner').hidden).toBe(true))
+  })
+
+  it('deletes the offline data cache on sign-out', async () => {
+    const deleted: string[] = []
+    vi.stubGlobal('caches', { delete: async (name: string) => { deleted.push(name); return true } })
+    // Imported late, like main: the modules need the jsdom globals.
+    const { signOut } = await import('../src/backend')
+    await signOut()
+    expect(deleted).toEqual(['zupu-data-v1'])
   })
 })

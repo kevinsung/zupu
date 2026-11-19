@@ -3,6 +3,7 @@ import { L, t } from './i18n'
 import { confirmDialog, marriageForm, openDialog, personForm, personPicker, toast } from './dialog'
 import { halfTag, personCard } from './cards'
 import { type ParentKind, PARENT_KINDS, type People, type Person, type PersonFields, childrenOf, displayName, emptyFields, emptyMarriage, partnerIds, partnersOf } from './model'
+import { offlineSince } from './backend'
 import { recentAndEveryone } from './search'
 import type { FamilyStore, LinkRelative, NewRelative } from './store'
 
@@ -17,7 +18,15 @@ export interface AppCtx {
   showHistory(personId?: string): void
 }
 
+/** Every write flow starts with this: offline, the data is a read-only copy. True when it is safe to go on. */
+export function canEdit(): boolean {
+  if (offlineSince === null) return true
+  toast(t.offlineNoEdit)
+  return false
+}
+
 export function editPerson(ctx: AppCtx, p: Person) {
+  if (!canEdit()) return
   const form = personForm(p)
   openDialog(L('edit'), form.el, [
     {
@@ -34,6 +43,7 @@ export function editPerson(ctx: AppCtx, p: Person) {
 
 /** For any partner (spouse or co-parent); see FamilyStore.setMarriage. */
 export function editMarriage(ctx: AppCtx, p: Person, spouse: Person) {
+  if (!canEdit()) return
   const form = marriageForm(p.marriages[spouse.id] ?? emptyMarriage())
   openDialog(L('editMarriage'), form.el, [
     {
@@ -51,6 +61,7 @@ export function editMarriage(ctx: AppCtx, p: Person, spouse: Person) {
 const ADD_TITLES = { parent: 'addParent', spouse: 'addSpouse', child: 'addChild', sibling: 'addSibling' } as const satisfies Record<NewRelative, string>
 
 export function addRelative(ctx: AppCtx, p: Person, rel: NewRelative) {
+  if (!canEdit()) return
   const people = ctx.store.people
   const initial: PersonFields = emptyFields()
   let extra: HTMLElement | null = null
@@ -134,6 +145,7 @@ function siblingParentChoices(people: People, p: Person): { ids: string[]; label
 }
 
 export function linkExisting(ctx: AppCtx, p: Person) {
+  if (!canEdit()) return
   const rel = h('select', {},
     h('option', { value: 'spouse' }, t.asSpouse),
     h('option', { value: 'parent' }, t.asParent),
@@ -166,6 +178,7 @@ export function linkExisting(ctx: AppCtx, p: Person) {
 }
 
 export async function deletePerson(ctx: AppCtx, p: Person) {
+  if (!canEdit()) return
   if (!(await confirmDialog(`${t.confirmDelete} — ${displayName(p)}`, t.delete, true))) return
   const editor = await ctx.editorName()
   if (!editor) return
@@ -183,6 +196,7 @@ export async function deletePerson(ctx: AppCtx, p: Person) {
 
 /** Lists every relationship of `p` with a remove button. */
 export function removeRelationship(ctx: AppCtx, p: Person) {
+  if (!canEdit()) return
   const people = ctx.store.people
   const list = h('div', { class: 'form' })
   let close = () => {}
@@ -221,6 +235,7 @@ export function removeRelationship(ctx: AppCtx, p: Person) {
 
 /** One row per parent, each with a relationship select that saves as soon as it changes. */
 export function editParentKinds(ctx: AppCtx, p: Person) {
+  if (!canEdit()) return
   const label: Record<ParentKind | '', string> = { '': t.birthParent, adoptive: t.adoptive }
   const rows = p.parents.map(id => ctx.store.people.get(id)).filter((x): x is Person => !!x).map(parent => {
     const current: ParentKind | '' = p.parentKinds[parent.id] ?? ''

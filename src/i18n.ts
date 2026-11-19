@@ -155,6 +155,10 @@ const pairs = {
   confirmRevert: ['將這些人恢復到此修改之前的狀態？之後對他們的修改也會被覆蓋。', 'Restore these people to how they were before this change? Later edits to them will be overwritten too.'],
   created: ['新增', 'Created'],
   deleted: ['刪除', 'Deleted'],
+  offlineBanner: ['離線：顯示 {time} 的資料', 'Offline: showing data from {time}'],
+  offlineNoEdit: ['離線時無法修改', "Can't make changes while offline"],
+  signOutFailed: ['無法登出，請檢查網路連線後再試', "Couldn't sign out. Check your connection and try again."],
+  installHint: ['安裝：瀏覽器選單 →「加到主畫面」', 'Install: browser menu → Add to Home screen (or Install)'],
   loadFailed: ['無法載入資料', 'Could not load data'],
 
   more: ['更多', 'More'],
@@ -216,6 +220,12 @@ export const t = Object.fromEntries(
 export function tn(key: Key, n: number): string {
   const [zh, en] = pairs[key]
   return join(zh.replace('{n}', String(n)), en.replace('{n}', String(n)))
+}
+
+/** A label with {time} filled in with an already formatted time. */
+export function tTime(key: Key, time: string): string {
+  const [zh, en] = pairs[key]
+  return join(zh.replace('{time}', time), en.replace('{time}', time))
 }
 
 /**
