@@ -75,9 +75,9 @@ function startApp() {
   const store = new FamilyStore(commit)
   // Kept after going back to the list, so the phone's Tree and Person tabs still show this person.
   let selected = ''
-  // A link to someone opens on the tree (on phones; tapping the selected person or the bar under
-  // the tree opens their page). Otherwise the app opens on the list, with no one selected.
-  let view: View = idFromHash() ? 'tree' : statsHash() ? 'stats' : 'home'
+  // A link to someone opens on their page (on phones; wide screens show the tree beside it).
+  // Otherwise the app opens on the list, with no one selected.
+  let view: View = idFromHash() ? 'person' : statsHash() ? 'stats' : 'home'
   let loaded = false
   let chartStale = true
 
