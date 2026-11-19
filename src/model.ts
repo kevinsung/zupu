@@ -179,9 +179,6 @@ export function lifespan(p: Person): string {
   return b && p.deceased === 'yes' ? `${b}–?` : b
 }
 
-/** Living people older than this probably died without a recorded date, so no age is shown. */
-const MAX_LIVING_AGE = 105
-
 export interface Age {
   years: number
   /** A date lacks the month or day needed to be exact. */
@@ -207,7 +204,7 @@ export function age(p: Person, today = new Date()): Age | null {
       else if (e.d < b.d) years--
     }
   }
-  if (years < 0 || (!atDeath && years > MAX_LIVING_AGE)) return null
+  if (years < 0) return null
   return { years, approx, atDeath }
 }
 

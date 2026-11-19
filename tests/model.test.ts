@@ -46,8 +46,7 @@ describe('model', () => {
     expect(at('1993')).toEqual({ years: 33, approx: true, atDeath: false })
     expect(at('1920-03-01', '1990-02-28')).toEqual({ years: 69, approx: false, atDeath: true })
     expect(at('1920', '1990')).toEqual({ years: 70, approx: true, atDeath: true })
-    // Probably died without a recorded date.
-    expect(at('1900')).toBeNull()
+    expect(at('1900')).toEqual({ years: 126, approx: true, atDeath: false })
     expect(at('1900', '1980')).toEqual({ years: 80, approx: true, atDeath: true })
   })
 
