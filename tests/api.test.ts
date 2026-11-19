@@ -26,6 +26,12 @@ describe('auth', () => {
     expect(w.cookie).toBe('')
   })
 
+  it('rate limits an IPv6 /64 as one client', async () => {
+    for (let i = 1; i <= 10; i++) await w.post('/api/login', { password: 'nope' }, `2001:db8:1:2::${i.toString(16)}`)
+    expect((await w.post('/api/login', { password: 'correct horse' }, '2001:db8:1:2:abcd::5')).status).toBe(429)
+    expect((await w.post('/api/login', { password: 'correct horse' }, '2001:db8:1:3::1')).status).toBe(204)
+  })
+
   it('requires JSON for POSTs', async () => {
     const res = await w.call('/api/login', { method: 'POST', body: 'password=correct horse', headers: { 'Content-Type': 'application/x-www-form-urlencoded' } })
     expect(res.status).toBe(415)

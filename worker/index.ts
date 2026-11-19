@@ -1,6 +1,7 @@
 import { normalizePerson, type People } from '../src/model'
 import { simulate, type ChangeRecord } from '../src/ops'
 import { clearCookie, isRateLimited, isSignedIn, passwordMatches, recordFailure, sessionCookie } from './auth'
+import { rateLimitKey } from './ip'
 import { BadRequest, checkResult, parseCommit } from './validate'
 
 export interface Env {
@@ -76,7 +77,7 @@ async function commit(env: Env, body: unknown) {
 }
 
 async function login(request: Request, env: Env) {
-  const ip = request.headers.get('CF-Connecting-IP') ?? 'unknown'
+  const ip = rateLimitKey(request.headers.get('CF-Connecting-IP') ?? 'unknown')
   if (await isRateLimited(env, ip)) return error(429, 'too many attempts')
   const body = await request.json().catch(() => null) as { password?: unknown } | null
   const password = typeof body?.password === 'string' ? body.password : ''
