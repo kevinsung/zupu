@@ -16,6 +16,7 @@ import { type IconName, icon } from './icons'
 
 const EDITOR_KEY = 'ft-editor'
 const PANE_KEY = 'ft-person-pane'
+const SOURCE_URL = 'https://github.com/kevinsung/zupu'
 const root = document.getElementById('app')!
 
 /** The app name: the login screen's h1, and in the top bar a link to the list of everyone (each person's name is the h1 there). */
@@ -303,7 +304,10 @@ function startApp() {
         getLang(), lang => { setLang(lang); location.reload() })),
       standalone.matches || (navigator as { standalone?: boolean }).standalone ? null
         : h('p', { class: 'setting setting-hint' }, L('installHint')),
-      menuList([{ icon: 'signOut', label: L('signOut'), run: () => signOut().then(() => location.reload(), () => toast(t.signOutFailed)) }], () => close()))
+      menuList([
+        { icon: 'source', label: L('sourceCode'), run: () => window.open(SOURCE_URL, '_blank', 'noopener') },
+        { icon: 'signOut', label: L('signOut'), run: () => signOut().then(() => location.reload(), () => toast(t.signOutFailed)) },
+      ], () => close()))
     close = openMenu(anchor ? t.settings : t.menu, body, anchor)
   }
   settingsBtn.addEventListener('click', () => openSettings(settingsBtn))

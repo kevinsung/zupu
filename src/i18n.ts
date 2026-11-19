@@ -26,6 +26,7 @@ const pairs = {
   wrongPassword: ['密碼錯誤', 'Wrong password'],
   tooManyAttempts: ['嘗試次數過多，請稍後再試', 'Too many attempts, try again later'],
   signOut: ['登出', 'Sign out'],
+  sourceCode: ['原始碼', 'Source code'],
   loading: ['載入中…', 'Loading…'],
   search: ['搜尋姓名', 'Search names'],
   noResults: ['找不到', 'No matches'],

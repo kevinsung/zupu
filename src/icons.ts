@@ -1,7 +1,7 @@
 // Line icons from lucide, imported by name so the bundle only carries the ones used here.
 // They draw with currentColor, so they follow the text color and theme on every OS (emoji didn't).
 import {
-  type IconNode, Check, ChevronDown, ChevronRight, Copy, Ellipsis, History, Link, LocateFixed, LogOut, Maximize,
+  type IconNode, Check, ChevronDown, ChevronRight, CodeXml, Copy, Ellipsis, History, Link, LocateFixed, LogOut, Maximize,
   Menu, MessageSquare, Minus, Network, PanelRightClose, PanelRightOpen, Pencil, Plus, Search, Settings, Share2, Trash2, Unlink, User, X, createElement,
 } from 'lucide'
 
@@ -28,6 +28,7 @@ const icons = {
   settings: Settings,
   share: Share2,
   signOut: LogOut,
+  source: CodeXml,
   trash: Trash2,
   tree: Network,
   unlink: Unlink,
