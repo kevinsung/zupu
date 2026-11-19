@@ -1,5 +1,5 @@
 import { h } from './dom'
-import { t, tn } from './i18n'
+import { t, tn, tName } from './i18n'
 import { icon } from './icons'
 import { type Marriage, type ParentKind, type Person, UNKNOWN, age, allNames, displayName, isDeceased, lifespan } from './model'
 
@@ -29,14 +29,14 @@ export function otherNamesLine(p: Person): string {
 }
 
 /**
- * Secondary line for a person: `tag` (e.g. 本人 / Self), years, then other names. The years come
+ * Secondary line for a person: `tag` (e.g. 本人 / This person), years, then other names. The years come
  * before the names so a long list of names, cut off at the card's edge, doesn't hide them.
  */
 export function personSubtitle(p: Person, tag = ''): string {
   return [tag, cardYears(p), otherNamesLine(p)].filter(Boolean).join(' · ')
 }
 
-/** e.g. "1985-03-14 · 41歲 / age 41" or "1920 – 1990-07 · 享年約70 / aged about 70".
+/** e.g. "1985-03-14 · 41歲 / age 41" or "1920 – 1990-07 · 享年約70歲 / aged about 70".
  * Deceased with no death date reads "1890 – ?" without an age, or 已故 / Deceased with no dates; '' if no dates. */
 export function datesLine(p: Person): string {
   const dates = p.deathDate ? `${p.birthDate || '?'} – ${p.deathDate}`
@@ -55,7 +55,7 @@ export function avatar(p: Person, cls = ''): HTMLElement {
 
 /** How a half sibling is related, from the one parent they share: "同父異母 / Half · same father" etc. */
 export function halfTag(parent: Person | undefined): string {
-  return parent?.gender === 'M' ? t.halfPaternal : parent?.gender === 'F' ? t.halfMaternal : `${t.halfVia} ${displayName(parent)}`
+  return parent?.gender === 'M' ? t.halfPaternal : parent?.gender === 'F' ? t.halfMaternal : tName('halfVia', displayName(parent))
 }
 
 /** Card tag for a non-birth parent link, from the parent's or the child's side; '' for birth. */

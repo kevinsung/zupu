@@ -1,5 +1,5 @@
 import { h } from './dom'
-import { L, t } from './i18n'
+import { L, t, tName } from './i18n'
 import { confirmDialog, marriageForm, openDialog, personForm, personPicker, toast } from './dialog'
 import { halfTag, personCard } from './cards'
 import { type ParentKind, PARENT_KINDS, type People, type Person, type PersonFields, childrenOf, displayName, emptyFields, emptyMarriage, partnerIds, partnersOf } from './model'
@@ -140,7 +140,7 @@ function siblingParentChoices(people: People, p: Person): { ids: string[]; label
       if (!p.parents.includes(sid)) add([pid, sid], `${name(pid)} & ${name(sid)}${half(pid)}`)
     }
   }
-  for (const pid of p.parents) add([pid], `${t.onlyParent} ${name(pid)}${half(pid)}`)
+  for (const pid of p.parents) add([pid], `${tName('onlyParent', name(pid))}${half(pid)}`)
   return choices
 }
 

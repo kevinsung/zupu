@@ -239,7 +239,7 @@ describe('app', () => {
     month.value = '3'
     buttonWith('儲存', dlg).click()
     await tick()
-    expect(dlg.querySelector('.dlg-error')!.textContent).toContain('Birth date: 填了月份也請填年份 / enter the year too')
+    expect(dlg.querySelector('.dlg-error')!.textContent).toContain('Birth date: 請一併填寫年份 / enter the year too')
     expect(year.getAttribute('aria-invalid')).toBe('true')
     expect(document.activeElement).toBe(year)
     // The bad box is described by the error message.
@@ -424,7 +424,7 @@ describe('app', () => {
 
   it('adds marriage dates under a spouse and shows them in history', async () => {
     const families = () => $('#person .pv-families')
-    buttonWith('新增婚姻狀況', families()).click()
+    buttonWith('新增婚姻資料', families()).click()
     const dlg = topDialog()
     dlg.querySelector<HTMLInputElement>('input[name=married-y]')!.value = '85'
     buttonWith('儲存', dlg).click()
@@ -480,7 +480,7 @@ describe('app', () => {
     await vi.waitFor(() => expect($('.ft-card[data-id="b"] .ft-years').textContent).toBe('已故 / Deceased'))
     location.hash = '#/p/a'
     await vi.waitFor(() => expect(sub('b')).toBe('已故 / Deceased'))
-    expect(document.querySelector('#person .pcard.self .pcard-sub')!.textContent).toBe('本人 / this person · 1960–? · Alice')
+    expect(document.querySelector('#person .pcard.self .pcard-sub')!.textContent).toBe('本人 / This person · 1960–? · Alice')
   })
 
   it('opens ticked for a death date and leaves the deceased flag alone unless changed', async () => {
@@ -591,7 +591,7 @@ describe('app', () => {
     await vi.waitFor(() => expect($('#person h1').textContent).toBe('祖父'))
     const family = [...document.querySelectorAll('#person .pv-families .family')].find(f => f.querySelector('.pcard-name')?.textContent === '繼祖母')!
     expect(family.textContent).toContain('丙')
-    buttonWith('新增婚姻狀況', family).click()
+    buttonWith('新增婚姻資料', family).click()
     const dlg = topDialog()
     const status = dlg.querySelector<HTMLSelectElement>('select[name=status]')!
     const year = dlg.querySelector<HTMLInputElement>('input[name=married-y]')!
@@ -718,12 +718,12 @@ describe('app', () => {
   it('hides the person pane, and brings it back from the bar or the selected card', async () => {
     const toggle = $<HTMLButtonElement>('.pane-toggle')
     const main = $('main')
-    expect(toggle.getAttribute('aria-label')).toBe('隱藏人物欄 / Hide person panel')
+    expect(toggle.getAttribute('aria-label')).toBe('隱藏人物面板 / Hide person panel')
     expect(toggle.getAttribute('aria-controls')).toBe($('.person-pane').id)
     toggle.click()
     expect(main.dataset.pane).toBe('hidden')
     expect(localStorage.getItem('ft-person-pane')).toBe('hidden')
-    expect(toggle.getAttribute('aria-label')).toBe('顯示人物欄 / Show person panel')
+    expect(toggle.getAttribute('aria-label')).toBe('顯示人物面板 / Show person panel')
     // The bar under the tree names the selected person and opens the pane.
     expect($('.peek').textContent).toContain($('#person h1').textContent)
     $<HTMLButtonElement>('.peek').click()
@@ -767,7 +767,7 @@ describe('app', () => {
     $<HTMLButtonElement>('#person .pv-actions .more').click()
     buttonWith('編輯父母關係', popover()).click()
     const dlg = topDialog()
-    const select = dlg.querySelector<HTMLSelectElement>('select[aria-label="關係類型 / Relationship: 祖父"]')!
+    const select = dlg.querySelector<HTMLSelectElement>('select[aria-label="關係類型 / Relationship type: 祖父"]')!
     expect([...select.options].map(o => o.value)).toEqual(['', 'adoptive'])
     select.value = 'adoptive'
     select.dispatchEvent(new Event('change'))
@@ -784,7 +784,7 @@ describe('app', () => {
     buttonWith('修改紀錄').click()
     await tick(300)
     const item = topDialog().querySelector<HTMLElement>('.history-item')!
-    expect(item.textContent).toContain('關係類型 / Relationship (祖父): 親生 / Birth → 收養 / Adoptive')
+    expect(item.textContent).toContain('關係類型 / Relationship type (祖父): 親生 / Birth → 收養 / Adoptive')
     item.querySelector('details')!.open = true
     buttonWith('還原', item).click()
     await tick()

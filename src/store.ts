@@ -1,6 +1,6 @@
 import { type Marriage, type ParentKind, type People, type Person, type PersonFields, FIELD_KEYS, childrenOf, displayName, emptyMarriage, isEmptyMarriage, marriageWithStatus, partnerIds } from './model'
 import { newId } from './ids'
-import { t } from './i18n'
+import { t, tName } from './i18n'
 import type { ChangeRecord, NewChange, Op, RelList } from './ops'
 
 /** Sends ops to be applied and logged; resolves once `setPeople` has the result. */
@@ -103,7 +103,7 @@ export class FamilyStore {
         for (const cid of new Set(opts.alsoParentOf ?? [])) {
           const child = this.get(cid)
           if (child.parents.length !== 1 || child.parents[0] !== anchorId) {
-            throw new Error(`${displayName(child)} ${t.hasOtherParent}`)
+            throw new Error(tName('hasOtherParent', displayName(child)))
           }
           ops.push({ type: 'update', id: cid, add: { parents: [id] } })
         }
@@ -181,7 +181,7 @@ export class FamilyStore {
       for (const cid of new Set(opts.alsoParentOf ?? [])) {
         const child = this.get(cid)
         if (child.parents.length !== 1 || child.parents[0] !== anchorId) {
-          throw new Error(`${displayName(child)} ${t.hasOtherParent}`)
+          throw new Error(tName('hasOtherParent', displayName(child)))
         }
         const childProblem = this.linkProblem('parent', cid, otherId)
         if (childProblem) throw new Error(`${displayName(child)}: ${childProblem}`)
@@ -209,7 +209,7 @@ export class FamilyStore {
     const cur = a.marriages[bId] ?? emptyMarriage()
     if (cur.married === next.married && cur.divorced === next.divorced && cur.status === next.status) return
     const value = isEmptyMarriage(next) ? null : next
-    await this.commit(editor, `編輯婚姻 Edited marriage: ${this.name(aId)} & ${this.name(bId)}`, [
+    await this.commit(editor, `編輯婚姻資料 Edited marriage details: ${this.name(aId)} & ${this.name(bId)}`, [
       ...this.coupleOps(aId, bId),
       { type: 'update', id: aId, marriages: { [bId]: value } },
       { type: 'update', id: bId, marriages: { [aId]: value } },
@@ -243,11 +243,11 @@ export class FamilyStore {
         { type: 'update', id: anchorId, remove: { spouses: [otherId] } },
         { type: 'update', id: otherId, remove: { spouses: [anchorId] } },
       ]
-      label = '移除伴侶關係 Unlinked partner'
+      label = '移除伴侶關係 Removed partner link'
     } else {
       const [childId, parentId] = rel === 'parent' ? [anchorId, otherId] : [otherId, anchorId]
       ops = [{ type: 'update', id: childId, remove: { parents: [parentId] } }]
-      label = rel === 'parent' ? '移除父母關係 Unlinked parent' : '移除子女關係 Unlinked child'
+      label = rel === 'parent' ? '移除父母關係 Removed parent link' : '移除子女關係 Removed child link'
     }
     await this.commit(editor, `${label}: ${this.name(otherId)} ✕ ${this.name(anchorId)}`, ops)
   }
