@@ -153,7 +153,8 @@ const pairs = {
   reorderHint: ['有出生日期的兄弟姊妹依日期排列', 'Siblings with birth dates stay in date order'],
   birthDateUnknown: ['出生日期不詳', 'Birth date unknown'],
   noParents: ['尚未記錄父母', 'No parents recorded'],
-  sharesChildren: ['他們有共同的子女，請先移除父母關係', 'They share children; remove a parent link first'],
+  sharesChildrenShort: ['有共同子女', 'Shares children'],
+  sharesChildren: ['有共同子女的伴侶無法直接移除，請先移除子女的父母關係', "Partners who share children can't be removed directly. Remove the children's parent link first."],
   personGone: ['此人已被刪除，請重新整理', 'This person no longer exists; please reload'],
   linkExisting: ['連結現有的人', 'Link existing person'],
   linkAs: ['關係', 'Relationship'],
@@ -184,6 +185,10 @@ const pairs = {
   signOutFailed: ['無法登出，請檢查網路連線後再試', "Couldn't sign out. Check your connection and try again."],
   installHint: ['安裝：瀏覽器選單 →「加到主畫面」或「安裝」', 'Install: browser menu → Add to Home screen (or Install)'],
   loadFailed: ['無法載入資料', "Couldn't load data"],
+  couldntConnect: ['無法連線，請檢查網路後再試', "Couldn't connect. Check your connection and try again."],
+  serverRefused: ['伺服器拒絕了這項修改', 'The server refused this change'],
+  serverError: ['伺服器發生錯誤', 'Server error'],
+  copyFailed: ['無法複製', "Couldn't copy"],
 
   more: ['更多', 'More'],
   menu: ['選單', 'Menu'],
@@ -228,6 +233,30 @@ const pairs = {
 } as const satisfies Record<string, readonly [string, string]>
 
 export type Key = keyof typeof pairs
+
+/** A message in both languages, still apart: `both` joins them per the language setting, `prefixed` composes them. */
+export type Pair = readonly [zh: string, en: string]
+
+/** Joins the two sides per the language setting: both ("中文 / English"), or just one. */
+export function both([zh, en]: Pair): string {
+  return join(zh, en)
+}
+
+/** A label's pair, e.g. pair('saveFailed'). */
+export function pair(key: Key): Pair {
+  return pairs[key]
+}
+
+/** A label's pair with {name} filled in, as `tName` does. */
+export function pairName(key: Key, name: string): Pair {
+  const [zh, en] = pairs[key]
+  return [zh.replace('{name}', name), en.replace('{name}', name)]
+}
+
+/** "head：body" in Chinese and "head: body" in English, so each language reads as one sentence. */
+export function prefixed(head: Pair, body: Pair): Pair {
+  return [`${head[0]}：${body[0]}`, `${head[1]}: ${body[1]}`]
+}
 
 function join(zh: string, en: string): string {
   if (lang === 'zh') return zh

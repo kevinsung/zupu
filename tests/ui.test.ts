@@ -58,6 +58,14 @@ describe('app', () => {
     $<HTMLFormElement>('form.login').requestSubmit()
     await tick()
     expect($('.login .dlg-error').textContent).toContain('Wrong password')
+    // No connection: the browser's "Failed to fetch" is worded for people.
+    const reachable = globalThis.fetch
+    vi.stubGlobal('fetch', () => Promise.reject(new TypeError('Failed to fetch')))
+    $<HTMLFormElement>('form.login').requestSubmit()
+    await tick()
+    expect($('.login .dlg-error').textContent).toContain("Couldn't connect")
+    expect($('.login .dlg-error').textContent).not.toContain('Failed to fetch')
+    vi.stubGlobal('fetch', reachable)
     $<HTMLInputElement>('input[type=password]').value = 'dev'
     const fetched: string[] = []
     const online = globalThis.fetch
@@ -239,7 +247,9 @@ describe('app', () => {
     month.value = '3'
     buttonWith('儲存', dlg).click()
     await tick()
-    expect(dlg.querySelector('.dlg-error')!.textContent).toContain('Birth date: 請一併填寫年份 / enter the year too')
+    expect(dlg.querySelector('.dlg-error')!.textContent).toContain('出生日期：請一併填寫年份 / Birth date: enter the year too')
+    // A validation error isn't a failed save.
+    expect(dlg.querySelector('.dlg-error')!.textContent).not.toContain('儲存失敗')
     expect(year.getAttribute('aria-invalid')).toBe('true')
     expect(document.activeElement).toBe(year)
     // The bad box is described by the error message.
@@ -358,7 +368,7 @@ describe('app', () => {
       buttonWith('移除', row).click()
       await tick()
       buttonWith('移除', topDialog()).click()
-      await vi.waitFor(() => expect(dlg.querySelector('.dlg-error')!.textContent).toContain('Save failed: offline'))
+      await vi.waitFor(() => expect(dlg.querySelector('.dlg-error')!.textContent).toContain('Save failed: Server error (offline)'))
     } finally {
       vi.stubGlobal('fetch', (path: string, init?: RequestInit) => w.call(path, init))
     }
@@ -429,7 +439,7 @@ describe('app', () => {
     dlg.querySelector<HTMLInputElement>('input[name=married-y]')!.value = '85'
     buttonWith('儲存', dlg).click()
     await tick()
-    expect(dlg.querySelector('.dlg-error')!.textContent).toContain('Marriage date: 年份應為四位數字')
+    expect(dlg.querySelector('.dlg-error')!.textContent).toContain('結婚日期：年份應為四位數字 / Marriage date: the year must have 4 digits')
     dlg.querySelector<HTMLInputElement>('input[name=married-y]')!.value = '1985'
     dlg.querySelector<HTMLInputElement>('input[name=married-m]')!.value = '10'
     buttonWith('儲存', dlg).click()
@@ -546,7 +556,7 @@ describe('app', () => {
     input.value = 'Jia3 xbio'
     buttonWith('儲存', dlg).click()
     await tick()
-    expect(dlg.querySelector('.dlg-error')!.textContent).toContain('Not valid pinyin: xbio')
+    expect(dlg.querySelector('.dlg-error')!.textContent).toContain('不是有效的拼音：xbio / Not valid pinyin: xbio')
     expect(input.getAttribute('aria-invalid')).toBe('true')
     expect(document.activeElement).toBe(input)
     input.value = 'jia3'
@@ -649,11 +659,14 @@ describe('app', () => {
     const remove = row.querySelector('button')!
     // Focusable, so the reason can be reached; pressing it says why instead of asking to confirm.
     expect(remove.getAttribute('aria-disabled')).toBe('true')
-    expect(remove.title).toContain('They share children')
+    expect(remove.title).toContain('Partners who share children')
+    expect(row.textContent).toContain('Shares children')
+    // The rule is stated up front, as in Reorder; pressing the locked button does nothing.
+    expect(dlg.querySelector('.dlg-hint')!.textContent).toContain('Partners who share children')
     remove.click()
     await tick()
     expect(topDialog()).toBe(dlg)
-    expect(dlg.querySelector('.dlg-error')!.textContent).toContain('They share children')
+    expect(dlg.querySelector('.dlg-error')!.textContent).toBe('')
     dlg.querySelector<HTMLButtonElement>('.dlg-x')!.click()
   })
 
@@ -793,6 +806,45 @@ describe('app', () => {
     topDialog().querySelector<HTMLButtonElement>('.dlg-x')!.click()
   })
 
+  it('clears a failed save in Edit parent relationships on the next change', async () => {
+    location.hash = '#/p/b'
+    await vi.waitFor(() => expect($('#person h1').textContent).toBe('乙'))
+    $<HTMLButtonElement>('#person .pv-actions .more').click()
+    buttonWith('編輯父母關係', popover()).click()
+    const dlg = topDialog()
+    const select = dlg.querySelector<HTMLSelectElement>('select')!
+    vi.stubGlobal('fetch', (path: string, init?: RequestInit) => path === '/api/commit'
+      ? Promise.resolve(new Response(JSON.stringify({ error: 'nope' }), { status: 500 }))
+      : w.call(path, init))
+    try {
+      select.value = 'adoptive'
+      select.dispatchEvent(new Event('change', { bubbles: true }))
+      await vi.waitFor(() => expect(dlg.querySelector('.dlg-error')!.textContent).toContain('Save failed'))
+    } finally {
+      vi.stubGlobal('fetch', (path: string, init?: RequestInit) => w.call(path, init))
+    }
+    expect(select.value).toBe('')
+    select.dispatchEvent(new Event('change', { bubbles: true }))
+    expect(dlg.querySelector('.dlg-error')!.textContent).toBe('')
+    dlg.querySelector<HTMLButtonElement>('.dlg-x')!.click()
+  })
+
+  it('says it could not connect when a save cannot reach the server', async () => {
+    buttonWith('編輯', $('#person')).click()
+    const dlg = topDialog()
+    const online = globalThis.fetch
+    vi.stubGlobal('fetch', () => Promise.reject(new TypeError('Failed to fetch')))
+    dlg.querySelector<HTMLInputElement>('[name=nameEn]')!.value = 'Offline Edit'
+    buttonWith('儲存', dlg).click()
+    await vi.waitFor(() => expect(dlg.querySelector('.dlg-error')!.textContent).toContain("Couldn't connect"))
+    expect(dlg.querySelector('.dlg-error')!.textContent).toContain('儲存失敗')
+    expect(dlg.querySelector('.dlg-error')!.textContent).not.toContain('Failed to fetch')
+    vi.stubGlobal('fetch', online)
+    dlg.querySelector<HTMLButtonElement>('.dlg-x')!.click()
+    window.dispatchEvent(new Event('online'))
+    await vi.waitFor(() => expect($('.offline-banner').hidden).toBe(true))
+  })
+
   it('reorders siblings the dates leave open, saves it in history, and reverts', async () => {
     const kid = (id: string, nameZh: string, order: number, extra = {}) => ({ type: 'set', person: person(id, { nameZh, parents: ['rp'], order, ...extra }) })
     await w.post('/api/commit', { editor: 'import', summary: 'seed', ops: [
@@ -857,7 +909,7 @@ describe('app', () => {
     buttonWith('排序', $('#person .pv-siblings')).click()
     dlg = topDialog()
     expect(btn('m3', 1).getAttribute('aria-disabled')).toBe('true')
-    expect(btn('m3', 1).title).toBe('出生日期已決定順序 / Their birth dates already set this order')
+    expect(btn('m3', 1).title).toBe('下移 / Move down 丙三: 出生日期已決定順序 / Their birth dates already set this order')
     expect(btn('m1', -1).getAttribute('aria-disabled')).toBe('true')
     expect(btn('m3', 1).getAttribute('aria-label')).toContain('出生日期已決定順序')
     // Pressing a locked arrow does nothing, and says nothing.
@@ -865,7 +917,7 @@ describe('app', () => {
     expect(dlg.querySelector('.dlg-error')!.textContent).toBe('')
     expect([...dlg.querySelectorAll('.pcard-name')].map(e => e.textContent)).toEqual(['丙三', '丙一', '丙二'])
     // The rule is stated up front, and rows show full birth dates so it's clear why.
-    expect(dlg.querySelector('.reorder-hint')!.textContent).toContain('Siblings with birth dates stay in date order')
+    expect(dlg.querySelector('.dlg-hint')!.textContent).toContain('Siblings with birth dates stay in date order')
     expect([...dlg.querySelectorAll('.pcard-sub')].map(e => e.textContent)).toEqual(['1961', '1962-05', '1962'])
     btn('m1', 1).click()
     expect([...dlg.querySelectorAll('.pcard-name')].map(e => e.textContent)).toEqual(['丙三', '丙二', '丙一'])

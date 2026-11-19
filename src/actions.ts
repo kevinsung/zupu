@@ -1,5 +1,6 @@
 import { h } from './dom'
-import { L, t, tName } from './i18n'
+import { L, both, pair, t, tName } from './i18n'
+import { UserError, errorText } from './errors'
 import { confirmDialog, marriageForm, openDialog, personForm, personPicker, toast } from './dialog'
 import { halfTag, otherNamesLine, personCard } from './cards'
 import { icon } from './icons'
@@ -22,7 +23,7 @@ export interface AppCtx {
 /** Every write flow starts with this: offline, the data is a read-only copy. True when it is safe to go on. */
 export function canEdit(): boolean {
   if (offlineSince === null) return true
-  toast(t.offlineNoEdit)
+  toast(t.offlineNoEdit, { error: true })
   return false
 }
 
@@ -164,11 +165,11 @@ export function linkExisting(ctx: AppCtx, p: Person) {
       {
         label: L('save'), primary: true, run: async () => {
           const other = picker.selected()
-          if (!other) throw new Error(t.pickPerson)
+          if (!other) throw new UserError(pair('pickPerson'))
           const r = rel.value as LinkRelative
           // store.link checks this too; checking first spares an editor-name prompt for a link that would fail.
           const problem = ctx.store.linkProblem(r, p.id, other.id)
-          if (problem) throw new Error(problem)
+          if (problem) throw new UserError(problem)
           const editor = await ctx.editorName()
           if (!editor) return false
           await ctx.store.link(editor, r, p.id, other.id, r === 'spouse' && also ? also.read() : {})
@@ -188,7 +189,7 @@ export async function deletePerson(ctx: AppCtx, p: Person) {
   try {
     await ctx.store.deletePerson(editor, p.id)
   } catch (e) {
-    toast(`${t.saveFailed}: ${(e as Error).message}`)
+    toast(errorText(e, pair('saveFailed')), { error: true })
     return
   }
   if (next) ctx.select(next)
@@ -200,17 +201,22 @@ export function removeRelationship(ctx: AppCtx, p: Person) {
   if (!canEdit()) return
   const people = ctx.store.people
   const list = h('div', { class: 'form' })
+  let locked = false
   let close = () => {}
   const section = (label: string, rel: LinkRelative, others: Person[]) => others.length
     ? h('section', {}, h('h3', { class: 'section-title' }, label), h('div', { class: 'cards' }, ...others.map(other => {
       // Parents of a shared child stay a couple, so that Remove is disabled, saying why.
       const problem = ctx.store.unlinkProblem(rel, p.id, other.id)
+      if (problem) locked = true
+      // Its name, and when locked its tooltip too, says why: "Remove 倪桂珍: Partners who share children…".
+      const name = [`${t.remove} ${displayName(other)}`, problem && both(problem)].filter(Boolean).join(': ')
       return personCard(other, null, h('button', {
         // Says whose relationship goes; the visible word comes first so voice control still finds it.
-        // Stays focusable (aria-disabled, as in menus) and says why when pressed (in the dialog's error line), since a tooltip never shows on phones.
-        type: 'button', class: 'danger small', 'aria-disabled': problem ? 'true' : undefined, title: problem ?? undefined,
-        'aria-label': [`${t.remove} ${displayName(other)}`, problem].filter(Boolean).join(': '), onclick: async () => {
-          if (problem) { toast(problem); return }
+        // Stays focusable (aria-disabled, as in menus) and does nothing when pressed: the dialog's
+        // hint and the row's tag say why up front, as in Reorder, since a tooltip never shows on phones.
+        type: 'button', class: 'danger small', 'aria-disabled': problem ? 'true' : undefined, title: problem ? name : undefined,
+        'aria-label': name, onclick: async () => {
+          if (problem) return
           if (!(await confirmDialog(`${t.confirmUnlink} ${displayName(p)} — ${displayName(other)}`, t.remove, true))) return
           const editor = await ctx.editorName()
           if (!editor) return
@@ -218,10 +224,10 @@ export function removeRelationship(ctx: AppCtx, p: Person) {
             await ctx.store.unlink(editor, rel, p.id, other.id)
             close()
           } catch (e) {
-            toast(`${t.saveFailed}: ${(e as Error).message}`)
+            toast(errorText(e, pair('saveFailed')), { error: true })
           }
         },
-      }, t.remove))
+      }, t.remove), problem ? t.sharesChildrenShort : '')
     })))
     : null
   const get = (ids: string[]) => ids.map(id => people.get(id)).filter((x): x is Person => !!x)
@@ -231,6 +237,7 @@ export function removeRelationship(ctx: AppCtx, p: Person) {
     section(t.children, 'child', childrenOf(people, p.id)),
   ].filter((x): x is HTMLElement => !!x)
   list.append(...(sections.length ? sections : [h('p', { class: 'muted' }, t.noRelationships)]))
+  if (locked) list.prepend(h('p', { class: 'muted dlg-hint' }, t.sharesChildren))
   close = openDialog(L('removeRelationship'), list, [], { subtitle: displayName(p) })
 }
 
@@ -247,12 +254,12 @@ export function editParentKinds(ctx: AppCtx, p: Person) {
       const kind = select.value as ParentKind | ''
       try {
         const editor = await ctx.editorName()
-        if (!editor) throw new Error()
+        if (!editor) { select.value = saved; return }
         await ctx.store.setParentKind(editor, p.id, parent.id, kind)
         saved = kind
       } catch (e) {
         select.value = saved
-        if ((e as Error).message) toast(`${t.saveFailed}: ${(e as Error).message}`)
+        toast(errorText(e, pair('saveFailed')), { error: true })
       }
     })
     return personCard(parent, null, select)
@@ -283,10 +290,12 @@ export function reorderPeople(ctx: AppCtx, list: Person[], subtitle: string) {
         // Past either end, or across someone their date puts on that side, there's nowhere to go.
         const problem = other && datesDecide(x, other) ? t.datesSetOrder : undefined
         const label = `${dir < 0 ? t.moveUp : t.moveDown} ${displayName(x)}`
+        // An icon button, so its tooltip is its name, with the reason when its dates lock it.
+        const name = problem ? `${label}: ${problem}` : label
         return h('button', {
           // aria-disabled rather than disabled, so it keeps focus when a move takes the person to an end.
-          type: 'button', class: 'small', 'data-dir': String(dir), 'aria-disabled': problem || !other ? 'true' : undefined, title: problem ?? label,
-          'aria-label': problem ? `${label}: ${problem}` : label, onclick: () => {
+          type: 'button', class: 'small', 'data-dir': String(dir), 'aria-disabled': problem || !other ? 'true' : undefined, title: name,
+          'aria-label': name, onclick: () => {
             if (!other || problem) return
             ;[work[i], work[i + dir]] = [work[i + dir], work[i]]
             render({ id: x.id, dir })
@@ -302,7 +311,7 @@ export function reorderPeople(ctx: AppCtx, list: Person[], subtitle: string) {
     if (focus) cards.querySelector<HTMLElement>(`[data-id="${focus.id}"] button[data-dir="${focus.dir}"]`)?.focus()
   }
   render()
-  openDialog(L('reorderTitle'), h('div', { class: 'form' }, h('p', { class: 'muted reorder-hint' }, L('reorderHint')), cards), [
+  openDialog(L('reorderTitle'), h('div', { class: 'form' }, h('p', { class: 'muted dlg-hint' }, L('reorderHint')), cards), [
     {
       label: L('save'), primary: true, run: async () => {
         if (!canEdit()) return false

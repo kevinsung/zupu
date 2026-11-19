@@ -1,6 +1,7 @@
 // Talks to the Worker API (worker/index.ts). Keeps everyone roughly in sync by polling a cheap
 // version number while the tab is visible.
-import { t } from './i18n'
+import { pair } from './i18n'
+import { ApiError, NetworkError, UserError } from './errors'
 import type { Person } from './model'
 import type { ChangeRecord, NewChange, Op } from './ops'
 
@@ -45,9 +46,7 @@ export function setNetworkState(online: boolean) {
   else setOffline(lastFetchedAt)
 }
 
-export class ApiError extends Error {
-  constructor(public status: number, message: string) { super(message) }
-}
+export { ApiError }
 
 async function api<T>(path: string, body?: unknown): Promise<T> {
   let res: Response
@@ -59,7 +58,7 @@ async function api<T>(path: string, body?: unknown): Promise<T> {
     })
   } catch (e) {
     setOffline(offlineSince ?? lastFetchedAt)
-    throw e
+    throw new NetworkError((e as Error).message)
   }
   const cachedAt = Number(res.headers.get(OFFLINE_HEADER))
   if (cachedAt) {
@@ -76,8 +75,8 @@ async function api<T>(path: string, body?: unknown): Promise<T> {
   }
   if (!res.ok) {
     const data = await res.json().catch(() => ({})) as { error?: string }
-    // 409: someone deleted the person being edited; the Worker's message isn't translated.
-    throw new ApiError(res.status, res.status === 409 ? t.personGone : data.error ?? res.statusText)
+    // The Worker's message is English developer detail; errorText words the failure for people.
+    throw new ApiError(res.status, data.error ?? res.statusText)
   }
   return (res.status === 204 ? undefined : await res.json()) as T
 }
@@ -129,7 +128,7 @@ export function watchChanges(cb: (changes: ChangeRecord[]) => void, onError: (e:
 
 export async function commit(ops: Op[], change: NewChange) {
   // The UI refuses first, with a toast (canEdit in actions.ts); this catches any flow that forgets to.
-  if (offlineSince !== null) throw new Error(t.offlineNoEdit)
+  if (offlineSince !== null) throw new UserError(pair('offlineNoEdit'))
   await api('commit', { ops, ...change })
   // Resolve only once the UI has the new data, so callers can navigate to new people.
   await Promise.all([loadPeople(), loadChanges()])

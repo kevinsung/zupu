@@ -1,5 +1,6 @@
 import { h } from './dom'
-import { L, locale, t } from './i18n'
+import { L, locale, pair, t } from './i18n'
+import { errorText } from './errors'
 import { confirmDialog, openDialog, toast } from './dialog'
 import { marriageText } from './cards'
 import { FIELD_KEYS, displayName, formatPhone } from './model'
@@ -83,7 +84,7 @@ export function openHistory(ctx: AppCtx, personId?: string) {
               if (!(await confirmDialog(t.confirmRevert, t.revert, true))) return
               const editor = await ctx.editorName()
               if (!editor) return
-              await ctx.store.revert(editor, c).catch(e => toast(`${t.saveFailed}: ${e.message}`))
+              await ctx.store.revert(editor, c).catch(e => toast(errorText(e, pair('saveFailed')), { error: true }))
             },
           }, L('revert'))),
       ))
@@ -95,7 +96,7 @@ export function openHistory(ctx: AppCtx, personId?: string) {
     ;(target ?? list.closest('dialog')?.querySelector<HTMLElement>('.dlg-x'))?.focus()
   }
   const unsubscribe = watchChanges(render, e => {
-    list.replaceChildren(h('p', { class: 'dlg-error' }, `${t.loadFailed}: ${e.message}`))
+    list.replaceChildren(h('p', { class: 'dlg-error' }, errorText(e, pair('loadFailed'))))
   })
   const who = personId ? ctx.store.people.get(personId) : undefined
   openDialog(L(personId ? 'personHistory' : 'history'), list, [],

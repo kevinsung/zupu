@@ -1,6 +1,7 @@
 import './styles.css'
 import { h, standalone, wide } from './dom'
-import { L, getLang, locale, setLang, t, tTime, type Key, type Lang } from './i18n'
+import { L, getLang, locale, pair, setLang, t, tTime, type Key, type Lang } from './i18n'
+import { errorText } from './errors'
 import { ApiError, clearDataCache, commit, getSession, offlineSince, onOfflineChange, refetchForOffline, setNetworkState, signIn, signOut, watchPeople } from './backend'
 import { FamilyStore } from './store'
 import { TREE_HINT_ID, TreeChart, getTreeDirection, setTreeDirection, type TreeDirection } from './chart'
@@ -47,7 +48,7 @@ function showLogin(signedOut: boolean) {
       const status = err instanceof ApiError ? err.status : 0
       error.textContent = status === 429 ? t.tooManyAttempts
         : status === 401 ? t.wrongPassword
-        : (err as Error).message
+        : errorText(err)
       input.select()
       button.disabled = false
       return
@@ -331,7 +332,7 @@ function startApp() {
         : h('p', { class: 'setting setting-hint' }, L('installHint')),
       menuList([
         { icon: 'source', label: L('sourceCode'), run: () => window.open(SOURCE_URL, '_blank', 'noopener') },
-        { icon: 'signOut', label: L('signOut'), run: () => signOut().then(() => location.reload(), () => toast(t.signOutFailed)) },
+        { icon: 'signOut', label: L('signOut'), run: () => signOut().then(() => location.reload(), () => toast(t.signOutFailed, { error: true })) },
       ], () => close()))
     close = openMenu(anchor ? t.settings : t.menu, body, anchor)
   }
@@ -471,7 +472,7 @@ function startApp() {
   const onError = (e: Error) => {
     // Offline, a failed poll just keeps the banner; only a start with nothing to show is an error.
     if (offlineSince !== null && loaded) return
-    status.textContent = `${t.loadFailed}: ${e.message}`
+    status.textContent = errorText(e, pair('loadFailed'))
     status.hidden = false
   }
   watchPeople(list => {

@@ -1,6 +1,7 @@
 import { type Marriage, type ParentKind, type People, type Person, type PersonFields, FIELD_KEYS, childrenOf, datesDecide, displayName, emptyMarriage, isEmptyMarriage, marriageWithStatus, partnerIds, reorderValues } from './model'
 import { newId } from './ids'
-import { t, tName } from './i18n'
+import { type Pair, pair, pairName, prefixed } from './i18n'
+import { UserError } from './errors'
 import type { ChangeRecord, NewChange, Op, RelList } from './ops'
 
 /** Sends ops to be applied and logged; resolves once `setPeople` has the result. */
@@ -25,7 +26,7 @@ export class FamilyStore {
 
   private get(id: string): Person {
     const p = this.people.get(id)
-    if (!p) throw new Error(`Person not found: ${id}`)
+    if (!p) throw new UserError(pair('personGone'))
     return p
   }
 
@@ -88,7 +89,7 @@ export class FamilyStore {
 
     switch (rel) {
       case 'parent':
-        if (anchor.parents.length >= 2) throw new Error(t.parentsFull)
+        if (anchor.parents.length >= 2) throw new UserError(pair('parentsFull'))
         ops.push({ type: 'update', id: anchorId, add: { parents: [id] } })
         // The new person isn't in `people` yet, so coupleOps can't link them.
         if (anchor.parents.length === 1 && this.people.has(anchor.parents[0])) {
@@ -103,7 +104,7 @@ export class FamilyStore {
         for (const cid of new Set(opts.alsoParentOf ?? [])) {
           const child = this.get(cid)
           if (child.parents.length !== 1 || child.parents[0] !== anchorId) {
-            throw new Error(tName('hasOtherParent', displayName(child)))
+            throw new UserError(pairName('hasOtherParent', displayName(child)))
           }
           ops.push({ type: 'update', id: cid, add: { parents: [id] } })
         }
@@ -112,20 +113,20 @@ export class FamilyStore {
       case 'child':
         if (opts.coParentId) {
           this.get(opts.coParentId)
-          if (opts.coParentId === anchorId) throw new Error(t.needsOneOrTwoParents)
+          if (opts.coParentId === anchorId) throw new UserError(pair('needsOneOrTwoParents'))
           ops.push(...this.coupleOps(anchorId, opts.coParentId))
         }
         person.parents = opts.coParentId ? [anchorId, opts.coParentId] : [anchorId]
         label = '新增子女 Added child'
         break
       case 'sibling': {
-        if (anchor.parents.length === 0) throw new Error(t.siblingNeedsParent)
+        if (anchor.parents.length === 0) throw new UserError(pair('siblingNeedsParent'))
         const parentIds = opts.parentIds ?? anchor.parents
         if (parentIds.length < 1 || parentIds.length > 2 || new Set(parentIds).size !== parentIds.length) {
-          throw new Error(t.needsOneOrTwoParents)
+          throw new UserError(pair('needsOneOrTwoParents'))
         }
         parentIds.forEach(pid => this.get(pid))
-        if (!parentIds.some(pid => anchor.parents.includes(pid))) throw new Error(t.mustShareParent)
+        if (!parentIds.some(pid => anchor.parents.includes(pid))) throw new UserError(pair('mustShareParent'))
         person.parents = [...parentIds]
         if (parentIds.length === 2) ops.push(...this.coupleOps(parentIds[0], parentIds[1]))
         label = '新增兄弟姊妹 Added sibling'
@@ -138,18 +139,18 @@ export class FamilyStore {
   }
 
   /** Why linking would be invalid, or null if it's fine. */
-  linkProblem(rel: LinkRelative, anchorId: string, otherId: string): string | null {
-    if (anchorId === otherId) return t.cannotLinkSelf
+  linkProblem(rel: LinkRelative, anchorId: string, otherId: string): Pair | null {
+    if (anchorId === otherId) return pair('cannotLinkSelf')
     const anchor = this.get(anchorId)
     const other = this.get(otherId)
     if (rel === 'spouse') {
-      if (anchor.spouses.includes(otherId)) return t.alreadySpouses
+      if (anchor.spouses.includes(otherId)) return pair('alreadySpouses')
       return null
     }
     const [child, parent] = rel === 'parent' ? [anchor, other] : [other, anchor]
-    if (child.parents.includes(parent.id)) return t.alreadyParent
-    if (child.parents.length >= 2) return t.parentsFull
-    if (this.isDescendant(parent.id, child.id)) return t.wouldLoop
+    if (child.parents.includes(parent.id)) return pair('alreadyParent')
+    if (child.parents.length >= 2) return pair('parentsFull')
+    if (this.isDescendant(parent.id, child.id)) return pair('wouldLoop')
     return null
   }
 
@@ -173,7 +174,7 @@ export class FamilyStore {
    */
   async link(editor: string, rel: LinkRelative, anchorId: string, otherId: string, opts: { alsoParentOf?: string[] } = {}) {
     const problem = this.linkProblem(rel, anchorId, otherId)
-    if (problem) throw new Error(problem)
+    if (problem) throw new UserError(problem)
     let ops: Op[]
     let label: string
     if (rel === 'spouse') {
@@ -181,10 +182,10 @@ export class FamilyStore {
       for (const cid of new Set(opts.alsoParentOf ?? [])) {
         const child = this.get(cid)
         if (child.parents.length !== 1 || child.parents[0] !== anchorId) {
-          throw new Error(tName('hasOtherParent', displayName(child)))
+          throw new UserError(pairName('hasOtherParent', displayName(child)))
         }
         const childProblem = this.linkProblem('parent', cid, otherId)
-        if (childProblem) throw new Error(`${displayName(child)}: ${childProblem}`)
+        if (childProblem) throw new UserError(prefixed([displayName(child), displayName(child)], childProblem))
         ops.push({ type: 'update', id: cid, add: { parents: [otherId] } })
       }
       label = '連結伴侶 Linked partner'
@@ -204,7 +205,7 @@ export class FamilyStore {
    */
   async setMarriage(editor: string, aId: string, bId: string, marriage: Marriage) {
     const a = this.get(aId)
-    if (!partnerIds(this.people, a).includes(bId)) throw new Error(t.notSpouses)
+    if (!partnerIds(this.people, a).includes(bId)) throw new UserError(pair('notSpouses'))
     const next = marriageWithStatus(marriage)
     const cur = a.marriages[bId] ?? emptyMarriage()
     if (cur.married === next.married && cur.divorced === next.divorced && cur.status === next.status) return
@@ -219,7 +220,7 @@ export class FamilyStore {
   /** Label how a parent is related to their child ('' is a birth parent). */
   async setParentKind(editor: string, childId: string, parentId: string, kind: ParentKind | '') {
     const child = this.get(childId)
-    if (!child.parents.includes(parentId)) throw new Error(t.notParent)
+    if (!child.parents.includes(parentId)) throw new UserError(pair('notParent'))
     if ((child.parentKinds[parentId] ?? '') === kind) return
     await this.commit(editor, `編輯父母關係 Edited parent relationship: ${this.name(parentId)} → ${this.name(childId)}`, [
       { type: 'update', id: childId, parentKinds: { [parentId]: kind || null } },
@@ -236,7 +237,7 @@ export class FamilyStore {
     for (let i = 0; i < group.length; i++) {
       for (let j = i + 1; j < group.length; j++) {
         const [a, b] = [group[i], group[j]]
-        if (datesDecide(a, b) && a.birthDate > b.birthDate) throw new Error(t.datesSetOrder)
+        if (datesDecide(a, b) && a.birthDate > b.birthDate) throw new UserError(pair('datesSetOrder'))
       }
     }
     const values = reorderValues(group)
@@ -246,15 +247,15 @@ export class FamilyStore {
   }
 
   /** Why unlinking would be refused, or null if it's fine. Parents of a shared child stay a couple. */
-  unlinkProblem(rel: LinkRelative, anchorId: string, otherId: string): string | null {
+  unlinkProblem(rel: LinkRelative, anchorId: string, otherId: string): Pair | null {
     if (rel !== 'spouse') return null
     const shares = childrenOf(this.people, anchorId).some(c => c.parents.includes(otherId))
-    return shares ? t.sharesChildren : null
+    return shares ? pair('sharesChildren') : null
   }
 
   async unlink(editor: string, rel: LinkRelative, anchorId: string, otherId: string) {
     const problem = this.unlinkProblem(rel, anchorId, otherId)
-    if (problem) throw new Error(problem)
+    if (problem) throw new UserError(problem)
     let ops: Op[]
     let label: string
     if (rel === 'spouse') {

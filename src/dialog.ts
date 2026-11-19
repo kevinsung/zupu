@@ -1,5 +1,6 @@
 import { h, wide } from './dom'
-import { L, lang, t, tn, type Key } from './i18n'
+import { L, lang, pair, prefixed, t, tn, type Key } from './i18n'
+import { UserError, errorText } from './errors'
 import { type Marriage, type MarriageStatus, type Person, type PersonFields, emptyFields, isDeceased, isValidEmail, isValidPartialDate, marriageWithStatus, normalizePhone, searchPeople, displayName, type People } from './model'
 import { personCard } from './cards'
 import { parsePinyin } from './pinyin'
@@ -38,23 +39,27 @@ export function openDialog(title: string | Node, body: Node, actions: DialogActi
   const errorId = `dlg-error-${seq}`
   const error = h('p', { class: 'dlg-error', role: 'alert', id: errorId })
   const dismiss = () => { opts.onDismiss?.(); close() }
-  // The input named by the last validation error (see fieldError), marked until the next attempt.
+  // The input named by the last validation error (see UserError), marked until the next attempt.
   let invalid: HTMLElement | undefined
+  /** Empties the error line and un-marks the invalid field: no message outlives its cause. */
+  const clearError = () => {
+    error.textContent = ''
+    if (invalid) {
+      invalid.removeAttribute('aria-invalid')
+      describedBy(invalid, errorId, false)
+    }
+    invalid = undefined
+  }
   const button = (a: DialogAction) => {
     const btn = h('button', { type: 'button', class: [a.primary && 'primary', a.danger && 'danger'].filter(Boolean).join(' ') }, a.label)
     btn.addEventListener('click', async () => {
-      error.textContent = ''
-      if (invalid) {
-        invalid.removeAttribute('aria-invalid')
-        describedBy(invalid, errorId, false)
-      }
-      invalid = undefined
+      clearError()
       btn.disabled = true
       try {
         if ((await a.run?.()) !== false) close()
       } catch (e) {
-        error.textContent = `${t.saveFailed}: ${(e as Error).message}`
-        invalid = (e as FieldError).field
+        error.textContent = errorText(e, pair('saveFailed'))
+        invalid = (e as UserError).field
         if (invalid) {
           invalid.setAttribute('aria-invalid', 'true')
           describedBy(invalid, errorId, true)
@@ -88,12 +93,21 @@ export function openDialog(title: string | Node, body: Node, actions: DialogActi
   const opener = document.activeElement as HTMLElement | null
   const close = () => {
     dlg.close()
+    // The toast may be inside this dialog (see toast); put it back before the dialog takes it along.
+    const toastEl = dlg.querySelector('.toast')
+    if (toastEl) document.body.append(toastEl)
     dlg.remove()
     if (opener && opener !== document.body && opener.isConnected && !opener.matches(':disabled')) { opener.focus({ preventScroll: true }); return }
     const under = [...document.querySelectorAll<HTMLElement>('dialog[open]')].at(-1)
     if (under) under.querySelector<HTMLElement>('.dlg-body :is(input, select, textarea), button')?.focus({ preventScroll: true })
     else focusPersonHeading()
   }
+  // A new click or choice starts over, so an old message doesn't sit beside the result of a new
+  // one. Capture phase: the button's own handler may show a new message, which must survive.
+  // Typing into a text field doesn't clear a form's validation error; Save checks it again.
+  const bodyEl = dlg.querySelector('.dlg-body')!
+  bodyEl.addEventListener('click', e => { if ((e.target as Element).closest('button')) clearError() }, true)
+  bodyEl.addEventListener('change', e => { if ((e.target as Element).matches('select')) clearError() })
   dlg.addEventListener('cancel', e => { e.preventDefault(); dismiss() })
   // Tapping the backdrop (outside the dialog box) dismisses it.
   dlg.addEventListener('click', e => { if (e.target === dlg) dismiss() })
@@ -264,17 +278,21 @@ export function mountToast(): HTMLElement {
 let toastTimer: ReturnType<typeof setTimeout> | undefined
 /**
  * Brief message at the bottom of the screen. While a modal dialog is open the rest of the page is
- * inert and under the backdrop, so a toast there could be neither seen nor heard: the message
- * goes into the top dialog's error line (an alert) instead.
+ * inert and under the backdrop, so a toast on the page could be neither seen nor heard. An error
+ * goes into the top dialog's error line (an alert) instead; anything else (e.g. "Copied") moves the
+ * toast element into that dialog, which puts it in the top layer, and back on the body afterwards.
  */
-export function toast(message: string) {
-  const alert = [...document.querySelectorAll('dialog[open]')].at(-1)?.querySelector<HTMLElement>('.dlg-error')
-  if (alert) {
+export function toast(message: string, { error: isError = false }: { error?: boolean } = {}) {
+  const dlg = [...document.querySelectorAll('dialog[open]')].at(-1)
+  const alert = dlg?.querySelector<HTMLElement>('.dlg-error')
+  if (isError && alert) {
     alert.textContent = message
     alert.scrollIntoView?.({ block: 'nearest' })
     return
   }
   const el = mountToast()
+  const home = dlg ?? document.body
+  if (el.parentElement !== home) home.append(el)
   el.textContent = message
   el.classList.add('show')
   clearTimeout(toastTimer)
@@ -282,7 +300,8 @@ export function toast(message: string) {
 }
 
 export function copyText(text: string) {
-  navigator.clipboard?.writeText(text).then(() => toast(t.copied), () => toast(text)) ?? toast(text)
+  const failed = () => toast(t.copyFailed, { error: true })
+  navigator.clipboard?.writeText(text).then(() => toast(t.copied), failed) ?? failed()
 }
 
 /** Adds or removes one id in an element's aria-describedby, keeping any others (e.g. a field hint). */
@@ -294,17 +313,10 @@ function describedBy(el: HTMLElement, id: string, on: boolean) {
   else el.removeAttribute('aria-describedby')
 }
 
-/** A validation error that names the input at fault, so the dialog can mark and focus it. */
-type FieldError = Error & { field?: HTMLElement }
-
-function fieldError(message: string, field: HTMLElement): FieldError {
-  return Object.assign(new Error(message), { field })
-}
-
 /**
  * A date that may be partial (YYYY, YYYY-MM or YYYY-MM-DD) as separate year, month and day
  * boxes. One box with dashes didn't work on iPhones, whose number pad has no "-".
- * `read()` returns the date with month and day zero-padded, or throws a FieldError.
+ * `read()` returns the date with month and day zero-padded, or throws a UserError.
  */
 function partialDateField(label: Key, name: string, initial: string) {
   const [y = '', m = '', d = ''] = initial ? initial.split('-') : []
@@ -322,14 +334,14 @@ function partialDateField(label: Key, name: string, initial: string) {
 
   function read(): string {
     const [yv, mv, dv] = [year, month, day].map(i => i.value.trim())
-    const fail = (msg: string, input: HTMLElement) => fieldError(`${t[label]}: ${msg}`, input)
-    if (!yv && mv) throw fail(t.monthNeedsYear, year)
-    if (!mv && dv) throw fail(t.dayNeedsMonth, month)
-    if (yv && !/^\d{4}$/.test(yv)) throw fail(t.badYear, year)
-    if (mv && !(/^\d{1,2}$/.test(mv) && +mv >= 1 && +mv <= 12)) throw fail(t.badMonth, month)
-    if (dv && !(/^\d{1,2}$/.test(dv) && +dv >= 1 && +dv <= 31)) throw fail(t.badDay, day)
+    const fail = (msg: Key, input: HTMLElement) => new UserError(prefixed(pair(label), pair(msg)), input)
+    if (!yv && mv) throw fail('monthNeedsYear', year)
+    if (!mv && dv) throw fail('dayNeedsMonth', month)
+    if (yv && !/^\d{4}$/.test(yv)) throw fail('badYear', year)
+    if (mv && !(/^\d{1,2}$/.test(mv) && +mv >= 1 && +mv <= 12)) throw fail('badMonth', month)
+    if (dv && !(/^\d{1,2}$/.test(dv) && +dv >= 1 && +dv <= 31)) throw fail('badDay', day)
     const date = [yv, mv && mv.padStart(2, '0'), dv && dv.padStart(2, '0')].filter(Boolean).join('-')
-    if (!isValidPartialDate(date)) throw fail(t.badDate, year)
+    if (!isValidPartialDate(date)) throw fail('badDate', year)
     return date
   }
   return { el, read, focus: () => year.focus() }
@@ -349,7 +361,7 @@ function field(label: string | Node, input: HTMLElement, hint?: string) {
   return h('div', { class: 'field' }, el, h('small', { id }, hint))
 }
 
-/** Person fields form. `read()` returns the fields, or throws a user-facing message (a FieldError where it can). */
+/** Person fields form. `read()` returns the fields, or throws a UserError. */
 export function personForm(initial: PersonFields = emptyFields()) {
   const text = (name: keyof PersonFields, extra: Record<string, string> = {}) =>
     h('input', { type: 'text', name, value: initial[name], autocomplete: 'off', ...extra })
@@ -392,7 +404,7 @@ export function personForm(initial: PersonFields = emptyFields()) {
 
   function read(): PersonFields {
     const py = parsePinyin(pinyin.value)
-    if ('bad' in py) throw fieldError(`${t.badPinyin}: ${py.bad}`, pinyin)
+    if ('bad' in py) throw new UserError(prefixed(pair('badPinyin'), [py.bad, py.bad]), pinyin)
     const g = (gender.querySelector('input:checked') as HTMLInputElement | null)?.value ?? ''
     const fields: PersonFields = {
       nameZh: nameZh.value.trim(),
@@ -411,9 +423,9 @@ export function personForm(initial: PersonFields = emptyFields()) {
       line: line.value.trim(),
       signal: signal.value.trim(),
     }
-    if (!isValidEmail(fields.email)) throw fieldError(t.badEmail, email)
+    if (!isValidEmail(fields.email)) throw new UserError(pair('badEmail'), email)
     const phoneE164 = normalizePhone(fields.phone)
-    if (phoneE164 === null) throw fieldError(t.badPhone, phone)
+    if (phoneE164 === null) throw new UserError(pair('badPhone'), phone)
     return { ...fields, phone: phoneE164 }
   }
 
@@ -423,7 +435,7 @@ export function personForm(initial: PersonFields = emptyFields()) {
 /**
  * A couple's status and marriage dates. Not married hides (and clears) the dates; typing a divorce
  * date switches to Divorced, and a marriage date alone to Married unless already Divorced.
- * `read()` returns the marriage, or throws a FieldError.
+ * `read()` returns the marriage, or throws a UserError.
  */
 export function marriageForm(initial: Marriage) {
   const option = (value: MarriageStatus, label: string) => h('option', { value, selected: initial.status === value }, label)

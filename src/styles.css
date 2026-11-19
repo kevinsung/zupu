@@ -56,13 +56,12 @@ button {
 }
 button:hover:not(:disabled, [aria-disabled="true"]) { border-color: var(--muted); }
 :is(button, a, input, select, textarea, summary, [tabindex]):focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
-button:disabled { opacity: .45; cursor: not-allowed; }
-/* The Remove button for a partner who shares children; it stays focusable to say why. */
-button.danger[aria-disabled="true"] { opacity: .45; cursor: not-allowed; }
+/* aria-disabled buttons stay focusable (focus can rest on one, and its name says why) but look the same. */
+button:is(:disabled, [aria-disabled="true"]) { opacity: .45; cursor: not-allowed; }
 button.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600; }
 button.danger { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 40%, transparent); }
 button.ghost { background: transparent; border-color: transparent; }
-button.ghost:hover:not(:disabled) { background: var(--bg); border-color: transparent; }
+button.ghost:hover:not(:disabled, [aria-disabled="true"]) { background: var(--bg); border-color: transparent; }
 button.icon { width: var(--tap); padding: 0; display: inline-grid; place-items: center; font-size: 1.15rem; }
 button.small, .small { font-size: var(--fs-sm); }
 button.small { min-height: 2.25rem; padding: .25em .7em; }
@@ -100,9 +99,9 @@ a.brand:hover { color: var(--accent); }
   font-size: var(--fs-sm); text-decoration: none; white-space: nowrap; cursor: pointer;
 }
 .chip svg.icon { width: 1.1em; height: 1.1em; }
-.chip:hover { border-color: var(--accent); background: var(--accent-soft); }
+.chip:hover:not(:disabled, [aria-disabled="true"]) { border-color: var(--accent); background: var(--accent-soft); }
 .chip.faint { color: var(--muted); border-style: dashed; background: transparent; }
-.chip.faint:hover { color: var(--accent); }
+.chip.faint:hover:not(:disabled, [aria-disabled="true"]) { color: var(--accent); }
 
 /* Avatar: first character of the name, tinted by gender */
 .avatar {
@@ -247,7 +246,7 @@ main:not([data-view="home"]) .home-pane, main:not([data-view="stats"]) .stats-pa
   display: grid; place-items: center; color: var(--ink);
 }
 .chart-tools button + button { border-top: 1px solid var(--line); }
-.chart-tools button:hover:not(:disabled) { background: var(--bg); }
+.chart-tools button:hover:not(:disabled, [aria-disabled="true"]) { background: var(--bg); }
 /* Inside the ring, which the tools' overflow: hidden would otherwise clip. */
 .chart-tools button:focus-visible { outline-offset: -3px; }
 .peek {
@@ -391,7 +390,7 @@ main:not([data-view="home"]) .home-pane, main:not([data-view="stats"]) .stats-pa
 }
 /* Text in an add slot's shape, where there's nothing to add yet. */
 .slot-note { display: grid; place-content: center; margin: 0; padding: .5em .9em; }
-.add-slot:hover:not(:disabled) { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
+.add-slot:hover:not(:disabled, [aria-disabled="true"]) { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
 
 /* Person page */
 .pv { max-width: 40rem; margin: 0 auto; padding: 1rem .9rem 2.5rem; display: grid; gap: 1.25rem; }
@@ -403,13 +402,12 @@ main:not([data-view="home"]) .home-pane, main:not([data-view="stats"]) .stats-pa
   border: none; background: none; color: var(--accent); font-size: var(--fs-sm); font-weight: 600;
   min-height: 2.25rem; padding: .2rem .5rem; margin-right: -.5rem; border-radius: 8px;
 }
-.section-add:hover:not(:disabled) { background: var(--accent-soft); }
+.section-add:hover:not(:disabled, [aria-disabled="true"]) { background: var(--accent-soft); }
 .section-actions { display: flex; align-items: center; gap: .25rem; }
 .family-kids-head { display: flex; align-items: center; justify-content: space-between; gap: .5rem; margin-bottom: .35rem; }
 .family-kids-head .family-kids-label { margin: 0; }
 .move-btns { display: flex; gap: .25rem; margin-right: .5rem; flex: none; }
 .move-btns button { min-height: 2.25rem; min-width: 2.25rem; padding: .25em; display: inline-flex; align-items: center; justify-content: center; }
-.move-btns button[aria-disabled="true"] { opacity: .4; }
 .pv-hero {
   background: var(--surface); border-radius: calc(var(--radius) + 4px); padding: 1.25rem 1rem 1rem;
   border: 1px solid var(--line); box-shadow: var(--shadow); text-align: center; display: grid; justify-items: center;
