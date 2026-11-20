@@ -3,40 +3,45 @@ import { type Key, type Pair, L, both, colon, fill, pair, prefixed } from './i18
 import { icon } from './icons'
 import { personCard } from './cards'
 import { type AppCtx, addRelative, editMarriage, editPerson } from './actions'
-import { MAX_EDGES, kinSteps } from './kinship'
+import { type Distance, kinDistance } from './kinship'
 import { type People, type Person, type PersonFields, displayName, partnerIds, rankPeople } from './model'
 
 export type GapKind = 'gender' | 'name' | 'nameZh' | 'birthDate' | 'deathDate' | 'marriage' | 'parents' | 'otherParent'
 /** Something unrecorded about `person` (or, for a marriage, about the couple of `person` and `partner`), and how likely the user is to know it. */
-export interface Gap { kind: GapKind, person: Person, partner?: Person, score: number }
+export interface Gap { kind: GapKind, person: Person, partner?: Person, cost: number }
 
-const DECAY = 0.75
-/** Parents are asked about only for relatives this close. */
-const PARENTS_WITHIN = 3
-/** With no "me", everyone is equally close, so only the kind of gap sets the order. */
-const CLOSENESS_NO_ME = 0.5
-
-const WEIGHT: Record<GapKind, number> = {
-  gender: 1, name: 0.9, birthDate: 0.8, deathDate: 0.8, marriage: 0.8, nameZh: 0.7, parents: 0.6, otherParent: 0.6,
+/** How many steps of kinship distance each kind of gap is worth: gender is known to anyone who knows the person, parents are harder. */
+const DIFFICULTY: Record<GapKind, number> = {
+  gender: 0, name: 0, birthDate: 1, deathDate: 1, marriage: 1, nameZh: 1, parents: 2, otherParent: 2,
 }
+/** For gaps that tie on everything else (on one person, mostly). */
+const KIND_ORDER: GapKind[] = ['gender', 'name', 'birthDate', 'deathDate', 'marriage', 'nameZh', 'parents', 'otherParent']
 
 /**
- * What is missing, most likely known first. Score is closeness to `meId` (0.75 per kinship step;
- * everyone equal with no me) times how easy that kind of fact is to know. Ties go by closeness,
- * then `rankPeople` order. A marriage gap is listed once per couple, on the closer partner.
+ * Everything missing, most likely known first: cost = kinship steps from `meId` + the gap's
+ * difficulty, lowest first (with no me, everyone is 0 steps away; anyone unreachable comes last).
+ * Ties go to the closer person, then the one with fewer partner links (blood before in-laws), then
+ * KIND_ORDER, then `rankPeople` order. A marriage gap is listed once per couple, on the closer partner.
  */
 export function findGaps(people: People, meId: string): Gap[] {
   const hasMe = people.has(meId)
-  const steps = hasMe ? kinSteps(people, meId) : new Map<string, number>()
-  const stepsOf = (id: string) => steps.get(id) ?? MAX_EDGES + 1
-  const closeness = (id: string) => (hasMe ? DECAY ** stepsOf(id) : CLOSENESS_NO_ME)
+  const distance = hasMe ? kinDistance(people, meId) : new Map<string, Distance>()
+  const SAME: Distance = { steps: 0, partners: 0 }
+  // Unreachable people are compared by difficulty alone, after everyone reachable.
+  const distOf = (id: string): Distance | null => (hasMe ? distance.get(id) ?? null : SAME)
   const ranked = rankPeople(people)
   const order = new Map(ranked.map((p, i) => [p.id, i]))
+  /** Negative when `a` is closer to me than `b`. */
+  const closer = (a: string, b: string) => {
+    const da = distOf(a), db = distOf(b)
+    if (!da || !db) return (da ? 0 : 1) - (db ? 0 : 1)
+    return da.steps - db.steps || da.partners - db.partners
+  }
 
-  const found: (Gap & { closeness: number })[] = []
+  const found: (Gap & { reached: boolean })[] = []
   const add = (kind: GapKind, person: Person, partner?: Person) => {
-    const c = closeness(person.id)
-    found.push({ kind, person, partner, closeness: c, score: c * WEIGHT[kind] })
+    const d = distOf(person.id)
+    found.push({ kind, person, partner, reached: !!d, cost: (d?.steps ?? 0) + DIFFICULTY[kind] })
   }
   for (const p of ranked) {
     if (!p.gender) add('gender', p)
@@ -45,20 +50,22 @@ export function findGaps(people: People, meId: string): Gap[] {
     if (!p.birthDate) add('birthDate', p)
     if (p.deceased === 'yes' && !p.deathDate) add('deathDate', p)
     const parents = p.parents.filter(id => people.has(id)).length
-    if (parents < 2 && hasMe && stepsOf(p.id) <= PARENTS_WITHIN) add(parents ? 'otherParent' : 'parents', p)
+    if (parents < 2) add(parents ? 'otherParent' : 'parents', p)
     for (const qid of partnerIds(people, p)) {
       const q = people.get(qid)!
       const m = p.marriages[qid] ?? q.marriages[p.id]
       if (m?.married || m?.status === 'unmarried') continue
       // Each couple once: from the closer partner (the earlier in rank on a tie).
-      const pc = closeness(p.id), qc = closeness(qid)
-      if (pc < qc || (pc === qc && order.get(p.id)! > order.get(qid)!)) continue
+      const c = closer(p.id, qid)
+      if (c > 0 || (c === 0 && order.get(p.id)! > order.get(qid)!)) continue
       add('marriage', p, q)
     }
   }
+  const rank = (p?: Person) => (p ? order.get(p.id)! : -1)
   return found
-    .sort((a, b) => b.score - a.score || b.closeness - a.closeness || order.get(a.person.id)! - order.get(b.person.id)!)
-    .map(({ closeness: _c, ...gap }) => gap)
+    .sort((a, b) => Number(b.reached) - Number(a.reached) || a.cost - b.cost || closer(a.person.id, b.person.id)
+      || KIND_ORDER.indexOf(a.kind) - KIND_ORDER.indexOf(b.kind) || rank(a.person) - rank(b.person) || rank(a.partner) - rank(b.partner))
+    .map(({ reached: _r, ...gap }) => gap)
 }
 
 // ---------------------------------------------------------------------------------------------

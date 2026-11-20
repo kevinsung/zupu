@@ -28,7 +28,7 @@ type Edge = 'up' | 'down' | 'partner'
 interface Reach { prev: string, edge: Edge, cost: number }
 interface Search { reach: Map<string, Reach>, terms: Map<string, Kin | null> }
 
-export const MAX_EDGES = 10
+const MAX_EDGES = 10
 const STEP = 1000 // cost of an edge; a partner edge costs one more, so fewer partner edges win among shortest paths
 
 /** Keyed by the People map (the store makes a new one on each update), then by who "me" is. */
@@ -42,10 +42,28 @@ function searchFor(people: People, meId: string): Search {
   return s
 }
 
-/** Edges on the cheapest path from `meId` to each person within MAX_EDGES (0 for `meId`); anyone further, or not connected, is absent. */
-export function kinSteps(people: People, meId: string): Map<string, number> {
+/** How far someone is from "me": kinship steps (an up then a down is one sibling step, as in the terms) and how many are partner links. */
+export interface Distance { steps: number, partners: number }
+
+/** Distance along the cached kinship path from `meId` to everyone within MAX_EDGES (0 for `meId`); anyone further, or not connected, is absent. */
+export function kinDistance(people: People, meId: string): Map<string, Distance> {
   if (!people.has(meId)) return new Map()
-  return new Map([...searchFor(people, meId).reach].map(([id, r]) => [id, Math.floor(r.cost / STEP)]))
+  const reach = searchFor(people, meId).reach
+  return new Map([...reach.keys()].map(id => {
+    const edges = pathTo(reach, id).edges
+    return [id, { steps: tokenCount(edges), partners: edges.filter(e => e === 'partner').length }]
+  }))
+}
+
+/** The people and edges from me to `targetId`, which must be in `reach`. */
+function pathTo(reach: Map<string, Reach>, targetId: string) {
+  const ids = [targetId]
+  const edges: Edge[] = []
+  for (let r = reach.get(targetId)!; r.prev; r = reach.get(r.prev)!) {
+    ids.push(r.prev)
+    edges.push(r.edge)
+  }
+  return { ids: ids.reverse(), edges: edges.reverse() }
 }
 
 const genderRank = (p: Person) => (p.gender === 'M' ? 0 : p.gender === 'F' ? 1 : 2)
@@ -93,12 +111,22 @@ function letter(kind: Edge | 'sibling', p: Person): string {
   return LETTERS[kind][p.gender === 'M' ? 0 : p.gender === 'F' ? 1 : 2]
 }
 
-/** Tokens for a path, and the people they land on (with `me` first). An up then a down is one sibling token. */
+/** An up then a down is one sibling token. */
+const siblingAt = (edges: Edge[], i: number) => edges[i] === 'up' && edges[i + 1] === 'down'
+
+/** How many tokens `tokenize` makes of a path. */
+function tokenCount(edges: Edge[]): number {
+  let n = 0
+  for (let i = 0; i < edges.length; i += siblingAt(edges, i) ? 2 : 1) n++
+  return n
+}
+
+/** Tokens for a path, and the people they land on (with `me` first). */
 function tokenize(people: People, ids: string[], edges: Edge[]) {
   const tokens: string[] = []
   const persons: Person[] = [people.get(ids[0]!)!]
   for (let i = 0; i < edges.length;) {
-    const sibling = edges[i] === 'up' && edges[i + 1] === 'down'
+    const sibling = siblingAt(edges, i)
     const to = people.get(ids[sibling ? i + 2 : i + 1]!)!
     tokens.push(letter(sibling ? 'sibling' : edges[i]!, to))
     persons.push(to)
@@ -400,14 +428,7 @@ function gloss(tokens: string[], persons: Person[]): string {
 
 function compute(people: People, reach: Map<string, Reach>, meId: string, targetId: string): Kin | null {
   if (!reach.has(targetId)) return null
-  const ids = [targetId]
-  const edges: Edge[] = []
-  for (let r = reach.get(targetId)!; r.prev; r = reach.get(r.prev)!) {
-    ids.push(r.prev)
-    edges.push(r.edge)
-  }
-  ids.reverse()
-  edges.reverse()
+  const { ids, edges } = pathTo(reach, targetId)
   if (ids[0] !== meId) return null
   const { tokens, persons } = tokenize(people, ids, edges)
   let term: Pair | null = null
