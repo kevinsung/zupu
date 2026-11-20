@@ -1,6 +1,6 @@
 // One place that turns anything thrown into text. Messages stay as [中文, English] pairs until the
 // last step, so a prefix can be added to each language before they're joined (see prefixed).
-import { type Pair, both, pair, prefixed } from './i18n'
+import { type Pair, both, noted, pair, prefixed } from './i18n'
 
 /**
  * An expected refusal or validation error, worded for the person using the app. It isn't a
@@ -20,9 +20,7 @@ export class ApiError extends Error {
 export class NetworkError extends Error {}
 
 /** Adds the Worker's raw detail to each side, so a bug report still has something to quote. */
-function withDetail([zh, en]: Pair, detail: string): Pair {
-  return detail ? [`${zh}（${detail}）`, `${en} (${detail})`] : [zh, en]
-}
+const withDetail = (base: Pair, detail: string): Pair => (detail ? noted(base, detail) : base)
 
 /**
  * The only formatter for errors shown to people. `failed` (e.g. 儲存失敗 / Save failed) goes in
@@ -32,8 +30,7 @@ export function errorText(e: unknown, failed?: Pair): string {
   if (e instanceof UserError) return both(e.pair)
   const body: Pair =
     e instanceof NetworkError ? pair('couldntConnect')
-    : e instanceof ApiError ? (e.status === 409 ? pair('personGone')
-      : withDetail(pair(e.status === 400 ? 'serverRefused' : 'serverError'), e.message))
+    : e instanceof ApiError ? (e.status === 409 ? pair('personGone') : withDetail(pair(e.status === 400 ? 'serverRefused' : 'serverError'), e.message))
     : [(e as Error)?.message ?? String(e), (e as Error)?.message ?? String(e)]
   return both(failed ? prefixed(failed, body) : body)
 }

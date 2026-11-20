@@ -1,6 +1,6 @@
 import './styles.css'
 import { h, standalone, wide } from './dom'
-import { L, getLang, locale, pair, setLang, t, tTime, type Key, type Lang } from './i18n'
+import { L, both, fill, getLang, locale, pair, prefixed, setLang, t, tTime, type Key, type Lang } from './i18n'
 import { UserError, errorText } from './errors'
 import { ApiError, clearDataCache, commit, getSession, offlineSince, onOfflineChange, refetchForOffline, setNetworkState, signIn, signOut, watchPeople } from './backend'
 import { FamilyStore } from './store'
@@ -97,8 +97,8 @@ function startApp() {
   const menuBtn = h('button', { type: 'button', class: 'ghost settings-btn', 'aria-haspopup': 'dialog', title: t.menu },
     icon('menu'), menuLabel, icon('chevronDown', 'caret'))
   const refreshEditor = () => {
-    menuLabel.textContent = savedEditor() || t.menu
-    menuBtn.setAttribute('aria-label', `${t.menu}: ${t.editorLabel} ${savedEditor() || '—'}`)
+    menuLabel.replaceChildren(savedEditor() || L('menu'))
+    menuBtn.setAttribute('aria-label', both(prefixed(pair('menu'), fill('editorIs', { name: savedEditor() || '—' }))))
   }
   refreshEditor()
 
@@ -348,6 +348,7 @@ function startApp() {
     const row = (label: Key, control: Node) =>
       h('div', { class: 'setting' }, h('span', { class: 'setting-label' }, L(label)), control)
     const body = h('div', { class: 'settings' },
+      // Deliberately each language's own name, whatever the current language, so it can always be found.
       row('language', segmented<Lang>(t.language,
         [['both', h('span', { lang: 'zh-Hant' }, '中英')], ['zh', h('span', { lang: 'zh-Hant' }, '中文')], ['en', h('span', { lang: 'en' }, 'English')]],
         getLang(), lang => { setLang(lang); location.reload() })),

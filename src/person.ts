@@ -1,5 +1,5 @@
 import { coarsePointer, h } from './dom'
-import { L, lang, t, tName, type Key } from './i18n'
+import { L, lang, pairName, t, type Key } from './i18n'
 import { actionSheet, copyText, sectionHead } from './dialog'
 import { type IconName, icon } from './icons'
 import { avatar, datesLine, genderWord, marriageText, parentKindTag, personCard, selfCard } from './cards'
@@ -163,7 +163,7 @@ export function renderPerson(cont: HTMLElement, ctx: AppCtx, id: string, opts: P
     if (!halves.has(key)) {
       halves.set(key, g === 'M' ? { cls: 'pv-half-paternal', title: L('halfSiblingsPaternal'), kids: [] }
         : g === 'F' ? { cls: 'pv-half-maternal', title: L('halfSiblingsMaternal'), kids: [] }
-        : { cls: 'pv-half-via', title: document.createTextNode(tName('halfVia', displayName(parent))), kids: [] })
+        : { cls: 'pv-half-via', title: L(pairName('halfVia', displayName(parent))), kids: [] })
     }
     halves.get(key)!.kids.push(s)
   }

@@ -117,12 +117,12 @@ export function openDialog(title: string | Node, body: Node, actions: DialogActi
   return close
 }
 
-export function confirmDialog(message: string, label: string, danger = false): Promise<boolean> {
+export function confirmDialog(message: string, label: string | Node, danger = false, subtitle?: string): Promise<boolean> {
   return new Promise(resolve => {
     openDialog(message, h('div'), [
-      { label: t.cancel, run: () => resolve(false) },
+      { label: L('cancel'), run: () => resolve(false) },
       { label, primary: !danger, danger, run: () => resolve(true) },
-    ], { onDismiss: () => resolve(false), cls: 'confirm' })
+    ], { onDismiss: () => resolve(false), cls: 'confirm', subtitle })
   })
 }
 
@@ -320,6 +320,7 @@ function describedBy(el: HTMLElement, id: string, on: boolean) {
  */
 function partialDateField(label: Key, name: string, initial: string) {
   const [y = '', m = '', d = ''] = initial ? initial.split('-') : []
+  // Deliberately one language, not both: the three boxes are too narrow for a pair.
   const placeholders = lang === 'zh' ? ['年', '月', '日'] : ['YYYY', 'MM', 'DD']
   const part = (suffix: string, value: string, maxlength: number, ariaLabel: string, i: number) => h('input', {
     type: 'text', name: `${name}-${suffix}`, value, inputmode: 'numeric', pattern: '[0-9]*', maxlength: String(maxlength),

@@ -1,4 +1,18 @@
 // Labels as [中文, English] pairs. Each relative picks 中英 (both, the default), 中文 or English.
+//
+// How 中英 text is written:
+// 1. Labels use L(): the English follows the Chinese, smaller, with no slash, so the two read as one
+//    unit. That covers prominent UI (headings, dialog titles, buttons, menu items, field labels) and any
+//    label with a value after it (a date, name, list or count), which then appears once:
+//    L('married'), ' 1962' → 結婚 Married 1962; L(key), colon, list(names) → 標籤 Label: 甲, 乙.
+// 2. Plain strings, where there's no markup to style (attributes, <option>, toasts, errors,
+//    document.title, card subtitles), use "中文 / English" (t, tn, both).
+// 3. Never glue text onto a joined pair ("移除 / Remove 丈夫" reads as if 丈夫 were only English).
+//    In a plain string, build each language side completely, then join: a value inside the text is a
+//    {name}/{n}/{date} template (fill), label + detail is prefixed(), base + note is noted(). The value
+//    then repeats, so keep this to plain strings.
+// 4. A number that is part of the wording is a template even on screen ("41歲 / age 41"): it's a
+//    word of the phrase, and repeating it costs a few characters.
 import { h } from './dom'
 
 const LANG_KEY = 'ft-lang'
@@ -177,7 +191,7 @@ const pairs = {
   confirmUnlink: ['確定要移除這個關係嗎？', 'Remove this relationship?'],
   otherParent: ['另一位父母', 'Other parent'],
   otherParentNone: ['不詳或無', 'Unknown or none'],
-  alsoParentOf: ['同時為這些子女的父母：', 'Also a parent of:'],
+  alsoParentOf: ['同時為這些子女的父母', 'Also a parent of'],
   delete: ['刪除', 'Delete'],
   confirmDelete: ['確定要刪除此人嗎？此操作會記錄在修改紀錄中，之後可以還原。', 'Delete this person? This is logged in the change history and can be reverted.'],
   copied: ['已複製', 'Copied'],
@@ -213,6 +227,10 @@ const pairs = {
   removeRelationship: ['移除關係', 'Remove relationship'],
   noRelationships: ['沒有可移除的關係', 'No relationships to remove'],
   remove: ['移除', 'Remove'],
+  removeName: ['移除{name}', 'Remove {name}'],
+  moveUpName: ['上移{name}', 'Move {name} up'],
+  moveDownName: ['下移{name}', 'Move {name} down'],
+  editorIs: ['編輯者{name}', 'Editor {name}'],
   showInTree: ['在族譜中查看', 'Show in tree'],
   viewPerson: ['查看', 'View'],
   center: ['回到選取的人', 'Back to selected person'],
@@ -266,21 +284,44 @@ export function pair(key: Key): Pair {
   return pairs[key]
 }
 
-/** A label's pair with {name} filled in, as `tName` does. */
-export function pairName(key: Key, name: string): Pair {
+/** A label's template with every {var} filled in, on both sides. */
+export function fill(key: Key, vars: Record<string, string | number>): Pair {
+  const sub = (s: string) => s.replace(/\{(\w+)\}/g, (m, v) => (v in vars ? String(vars[v]) : m))
   const [zh, en] = pairs[key]
-  return [zh.replace('{name}', name), en.replace('{name}', name)]
+  return [sub(zh), sub(en)]
 }
 
-/** "head：body" in Chinese and "head: body" in English, so each language reads as one sentence. */
-export function prefixed(head: Pair, body: Pair): Pair {
-  return [`${head[0]}：${body[0]}`, `${head[1]}: ${body[1]}`]
+/** A label's pair with {name} filled in, as `tName` does. */
+export function pairName(key: Key, name: string): Pair {
+  return fill(key, { name })
 }
+
+/** "head：body" in Chinese and "head: body" in English, so each language reads as one sentence. A string body is the same on both sides. */
+export function prefixed(head: Pair, body: Pair | string): Pair {
+  const [bz, be] = typeof body === 'string' ? [body, body] : body
+  return [`${head[0]}：${bz}`, `${head[1]}: ${be}`]
+}
+
+/** "base（note）" in Chinese and "base (note)" in English. A string is the same on both sides. */
+export function noted(base: Pair | string, note: Pair | string): Pair {
+  const [bz, be] = typeof base === 'string' ? [base, base] : base
+  const [nz, ne] = typeof note === 'string' ? [note, note] : note
+  return [`${bz}（${nz}）`, `${be} (${ne})`]
+}
+
 
 function join(zh: string, en: string): string {
   if (lang === 'zh') return zh
   if (lang === 'en') return en
   return zh === en ? zh : `${zh} / ${en}`
+}
+
+/** The separator between an L() label and the value after it. */
+export const colon = lang === 'zh' ? '：' : ': '
+
+/** Values listed once after an L() label: 、 in Chinese only, else ", " to match `colon`. */
+export function list(items: string[]): string {
+  return items.join(lang === 'zh' ? '、' : ', ')
 }
 
 /** Plain-text labels in the chosen language(s), for attributes, titles, messages and inline text. */
@@ -290,28 +331,25 @@ export const t = Object.fromEntries(
 
 /** A label with a number filled in, e.g. tn('age', 33) → "33歲 / age 33". */
 export function tn(key: Key, n: number): string {
-  const [zh, en] = pairs[key]
-  return join(zh.replace('{n}', String(n)), en.replace('{n}', String(n)))
+  return both(fill(key, { n }))
 }
 
 /** A label with {time} filled in with an already formatted time. */
 export function tTime(key: Key, time: string): string {
-  const [zh, en] = pairs[key]
-  return join(zh.replace('{time}', time), en.replace('{time}', time))
+  return both(fill(key, { time }))
 }
 
 /** A label with {name} filled in with a person's name. */
 export function tName(key: Key, name: string): string {
-  const [zh, en] = pairs[key]
-  return join(zh.replace('{name}', name), en.replace('{name}', name))
+  return both(fill(key, { name }))
 }
 
 /**
  * A label as a node for prominent UI text. With both languages, the English follows the
  * Chinese in a smaller, lighter span (stacked where CSS says so, e.g. in the tab bar).
  */
-export function L(key: Key): Node {
-  const [zh, en] = pairs[key]
+export function L(keyOrPair: Key | Pair): Node {
+  const [zh, en] = typeof keyOrPair === 'string' ? pairs[keyOrPair] : keyOrPair
   if (lang !== 'both' || zh === en) return document.createTextNode(join(zh, en))
   const frag = document.createDocumentFragment()
   frag.append(h('span', { class: 'zh', lang: 'zh-Hant' }, zh), ' ', h('span', { class: 'en', lang: 'en' }, en))

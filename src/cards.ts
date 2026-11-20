@@ -1,21 +1,26 @@
 import { h } from './dom'
-import { lang, t, tn, tName } from './i18n'
+import { type Key, type Pair, L, both, pair, pairName, t, tn } from './i18n'
 import { icon } from './icons'
 import type { Kin } from './kinship'
 import { type Marriage, type ParentKind, type Person, UNKNOWN, age, allNames, displayName, isDeceased, lifespan } from './model'
 
 /**
- * e.g. "結婚 / Married 1962 · 離婚 / Divorced 1975", or the status where there's no date to say it
- * ("已婚 / Married", "結婚 / Married 1962 · 已離婚 / Divorced"); '' if nothing is recorded.
- * Partial because history snapshots from before `status` existed lack it.
+ * Labels with their dates, each date once (e.g. 結婚 Married 1962 · 離婚 Divorced 1975), or the status
+ * where there's no date to say it (已婚 Married; 結婚 Married 1962 · 已離婚 Divorced); null if nothing
+ * is recorded. Partial because history snapshots from before `status` existed lack it.
  */
-export function marriageText(m: Partial<Marriage> | undefined): string {
-  if (!m) return ''
-  const status = m.status === 'married' ? t.statusMarried : m.status === 'divorced' ? t.statusDivorced
-    : m.status === 'unmarried' ? t.statusUnmarried : ''
-  const parts = [m.married && `${t.married} ${m.married}`, m.divorced && `${t.divorced} ${m.divorced}`]
-  if (m.status === 'divorced' && !m.divorced) parts.push(status)
-  return parts.filter(Boolean).join(' · ') || status
+export function marriageText(m: Partial<Marriage> | undefined): Node | null {
+  if (!m) return null
+  const statusKey: Key | null = m.status === 'married' ? 'statusMarried' : m.status === 'divorced' ? 'statusDivorced'
+    : m.status === 'unmarried' ? 'statusUnmarried' : null
+  const parts: (Node | string)[][] = []
+  if (m.married) parts.push([L('married'), ` ${m.married}`])
+  if (m.divorced) parts.push([L('divorced'), ` ${m.divorced}`])
+  else if (m.status === 'divorced' && statusKey) parts.push([L(statusKey)])
+  if (!parts.length) return statusKey ? L(statusKey) : null
+  const frag = document.createDocumentFragment()
+  parts.forEach((nodes, i) => frag.append(...(i ? [' · '] : []), ...nodes))
+  return frag
 }
 
 /** Years for a card ("1920–1990", "1920–?"), or 已故 / Deceased if marked deceased with no dates; '' if neither. */
@@ -50,7 +55,7 @@ export function datesLine(p: Person): string {
 /** What the kinship term reads on a card, in the chosen language(s), e.g. "堂哥 / older cousin". */
 export function kinText(kin: Kin | 'self'): string {
   if (kin === 'self') return t.meTag
-  return lang === 'zh' ? kin.zh : lang === 'en' ? kin.en : `${kin.zh} / ${kin.en}`
+  return both([kin.zh, kin.en])
 }
 
 let kinOf: (p: Person) => string = () => ''
@@ -78,8 +83,8 @@ export function avatar(p: Person, cls = ''): HTMLElement {
 }
 
 /** How a half sibling is related, from the one parent they share: "同父異母 / Half · same father" etc. */
-export function halfTag(parent: Person | undefined): string {
-  return parent?.gender === 'M' ? t.halfPaternal : parent?.gender === 'F' ? t.halfMaternal : tName('halfVia', displayName(parent))
+export function halfTag(parent: Person | undefined): Pair {
+  return parent?.gender === 'M' ? pair('halfPaternal') : parent?.gender === 'F' ? pair('halfMaternal') : pairName('halfVia', displayName(parent))
 }
 
 /** Card tag for a non-birth parent link, from the parent's or the child's side; '' for birth. */

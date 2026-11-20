@@ -1,5 +1,5 @@
 import { h } from './dom'
-import { L, locale, pair, t } from './i18n'
+import { type Key, L, colon, locale, pair, t } from './i18n'
 import { errorText } from './errors'
 import { confirmDialog, openDialog, toast } from './dialog'
 import { marriageText } from './cards'
@@ -11,15 +11,15 @@ import { type AppCtx, canEdit } from './actions'
 function diffLines(ctx: AppCtx, d: PersonDiff): Node[] {
   const name = (id: string) => displayName(ctx.store.people.get(id))
   const ids = (list: string[]) => list.map(name).join(', ') || '—'
-  if (!d.before) return [h('li', {}, `${t.created}: ${displayName(d.after!)}`)]
-  if (!d.after) return [h('li', {}, `${t.deleted}: ${displayName(d.before)}`)]
+  if (!d.before) return [h('li', {}, L('created'), colon, displayName(d.after!))]
+  if (!d.after) return [h('li', {}, L('deleted'), colon, displayName(d.before))]
   const lines: Node[] = []
   // Each key doubles as the i18n key of its label.
   for (const k of [...FIELD_KEYS, 'parents', 'spouses'] as const) {
     const [a, b] = [d.before[k], d.after[k]]
     if (JSON.stringify(a) === JSON.stringify(b)) continue
     const fmt = (v: unknown) => (Array.isArray(v) ? ids(v) : (k === 'phone' ? formatPhone(String(v)) : k === 'deceased' && v === 'yes' ? t.deceased : String(v)) || '—')
-    lines.push(h('li', {}, `${t[k]}: `, h('del', {}, fmt(a)), ' → ', h('ins', {}, fmt(b))))
+    lines.push(h('li', {}, L(k as Key), colon, h('del', {}, fmt(a)), ' → ', h('ins', {}, fmt(b))))
   }
   // The raw values are timestamps, so just say it changed.
   if (d.before.order !== d.after.order) lines.push(h('li', {}, t.birthOrderChanged))
@@ -27,14 +27,14 @@ function diffLines(ctx: AppCtx, d: PersonDiff): Node[] {
   const [ma, mb] = [d.before.marriages ?? {}, d.after.marriages ?? {}]
   for (const sid of new Set([...Object.keys(ma), ...Object.keys(mb)])) {
     if (JSON.stringify(ma[sid]) === JSON.stringify(mb[sid])) continue
-    lines.push(h('li', {}, `${t.marriage} (${name(sid)}): `,
-      h('del', {}, marriageText(ma[sid]) || '—'), ' → ', h('ins', {}, marriageText(mb[sid]) || '—')))
+    lines.push(h('li', {}, L('marriage'), ` (${name(sid)})`, colon,
+      h('del', {}, marriageText(ma[sid]) ?? '—'), ' → ', h('ins', {}, marriageText(mb[sid]) ?? '—')))
   }
   const [ka, kb] = [d.before.parentKinds ?? {}, d.after.parentKinds ?? {}]
   const kindLabel = (k: string | undefined) => (k ? t[k as 'adoptive'] : t.birthParent)
   for (const pid of new Set([...Object.keys(ka), ...Object.keys(kb)])) {
     if (ka[pid] === kb[pid]) continue
-    lines.push(h('li', {}, `${t.parentKind} (${name(pid)}): `, h('del', {}, kindLabel(ka[pid])), ' → ', h('ins', {}, kindLabel(kb[pid]))))
+    lines.push(h('li', {}, L('parentKind'), ` (${name(pid)})`, colon, h('del', {}, kindLabel(ka[pid])), ' → ', h('ins', {}, kindLabel(kb[pid]))))
   }
   return lines
 }
@@ -81,7 +81,7 @@ export function openHistory(ctx: AppCtx, personId?: string) {
           h('button', {
             type: 'button', class: 'danger small', onclick: async () => {
               if (!canEdit()) return
-              if (!(await confirmDialog(t.confirmRevert, t.revert, true))) return
+              if (!(await confirmDialog(t.confirmRevert, L('revert'), true))) return
               const editor = await ctx.editorName()
               if (!editor) return
               await ctx.store.revert(editor, c).catch(e => toast(errorText(e, pair('saveFailed')), { error: true }))

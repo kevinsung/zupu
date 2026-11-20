@@ -392,7 +392,7 @@ describe('app', () => {
     // The row's only control is its Remove button, which says whom it removes; the name isn't a dead button.
     expect(row.querySelectorAll('button').length).toBe(1)
     expect(row.querySelector('.pcard-main')!.tagName).toBe('DIV')
-    expect(row.querySelector('button')!.getAttribute('aria-label')).toBe('移除 / Remove 丈夫')
+    expect(row.querySelector('button')!.getAttribute('aria-label')).toBe('移除丈夫 / Remove 丈夫')
     buttonWith('移除', row).click()
     await tick()
     buttonWith('移除', topDialog()).click()
@@ -447,10 +447,10 @@ describe('app', () => {
     dlg.querySelector<HTMLInputElement>('input[name=married-m]')!.value = '10'
     buttonWith('儲存', dlg).click()
     await closed(dlg)
-    expect(families().querySelector('.marriage')!.textContent).toContain('結婚 / Married 1985-10')
+    expect(families().querySelector('.marriage')!.textContent).toContain('結婚 Married 1985-10')
     $<HTMLButtonElement>('.settings-btn').click(); await tick(50); buttonWith('修改紀錄').click()
     await tick(300)
-    expect(topDialog().querySelector('.history-item')!.textContent).toContain('婚姻 / Marriage (丈夫): —')
+    expect(topDialog().querySelector('.history-item')!.textContent).toContain('婚姻 Marriage (丈夫): —')
     topDialog().querySelector<HTMLButtonElement>('.dlg-x')!.click()
   })
 
@@ -475,7 +475,7 @@ describe('app', () => {
     expect(dates).not.toMatch(/歲|aged|age/i)
     $<HTMLButtonElement>('.settings-btn').click(); await tick(50); buttonWith('修改紀錄').click()
     await tick(300)
-    expect(topDialog().querySelector('.history-item')!.textContent).toContain('已故 / Deceased: — → 已故 / Deceased')
+    expect(topDialog().querySelector('.history-item')!.textContent).toContain('已故 Deceased: — → 已故 / Deceased')
     topDialog().querySelector<HTMLButtonElement>('.dlg-x')!.click()
   })
 
@@ -619,7 +619,7 @@ describe('app', () => {
     buttonWith('儲存', dlg).click()
     await closed(dlg)
     const after = [...document.querySelectorAll('#person .pv-families .family')].find(f => f.querySelector('.pcard-name')?.textContent === '繼祖母')!
-    expect(after.querySelector('.marriage')!.textContent).toContain('未婚 / Not married')
+    expect(after.querySelector('.marriage')!.textContent).toContain('未婚 Not married')
   })
 
   it('records a divorce, with or without a divorce date', async () => {
@@ -637,7 +637,7 @@ describe('app', () => {
     expect(status.value).toBe('divorced')
     buttonWith('儲存', dlg).click()
     await closed(dlg)
-    expect(family().querySelector('.marriage')!.textContent).toContain('結婚 / Married 1965 · 已離婚 / Divorced')
+    expect(family().querySelector('.marriage')!.textContent).toContain('結婚 Married 1965 · 已離婚 Divorced')
 
     family().querySelector<HTMLButtonElement>('.marriage button')!.click()
     dlg = topDialog()
@@ -650,7 +650,7 @@ describe('app', () => {
     expect(status.value).toBe('divorced')
     buttonWith('儲存', dlg).click()
     await closed(dlg)
-    expect(family().querySelector('.marriage')!.textContent).toContain('結婚 / Married 1965 · 離婚 / Divorced 1975')
+    expect(family().querySelector('.marriage')!.textContent).toContain('結婚 Married 1965 · 離婚 Divorced 1975')
   })
 
   it('refuses to remove a spouse who shares children', async () => {
@@ -859,7 +859,7 @@ describe('app', () => {
     $<HTMLButtonElement>('.settings-btn').click(); await tick(50); buttonWith('修改紀錄').click()
     await tick(300)
     const item = topDialog().querySelector<HTMLElement>('.history-item')!
-    expect(item.textContent).toContain('關係類型 / Relationship type (祖父): 親生 / Birth → 收養 / Adoptive')
+    expect(item.textContent).toContain('關係類型 Relationship type (祖父): 親生 / Birth → 收養 / Adoptive')
     item.querySelector('details')!.open = true
     buttonWith('還原', item).click()
     await tick()
@@ -971,7 +971,7 @@ describe('app', () => {
     buttonWith('排序', $('#person .pv-siblings')).click()
     dlg = topDialog()
     expect(btn('m3', 1).getAttribute('aria-disabled')).toBe('true')
-    expect(btn('m3', 1).title).toBe('下移 / Move down 丙三: 出生日期已決定順序 / Their birth dates already set this order')
+    expect(btn('m3', 1).title).toBe('下移丙三：出生日期已決定順序 / Move 丙三 down: Their birth dates already set this order')
     expect(btn('m1', -1).getAttribute('aria-disabled')).toBe('true')
     expect(btn('m3', 1).getAttribute('aria-label')).toContain('出生日期已決定順序')
     // Pressing a locked arrow does nothing, and says nothing.

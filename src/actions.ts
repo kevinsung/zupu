@@ -1,5 +1,5 @@
 import { h } from './dom'
-import { L, both, pair, t, tName } from './i18n'
+import { type Key, L, both, colon, fill, list as listNames, noted, pair, pairName, prefixed, t } from './i18n'
 import { UserError, errorText } from './errors'
 import { confirmDialog, marriageForm, openDialog, personForm, personPicker, toast } from './dialog'
 import { halfTag, otherNamesLine, personCard } from './cards'
@@ -119,7 +119,7 @@ function alsoParentOfBox(people: People, p: Person) {
   const kids = childrenOf(people, p.id).filter(c => c.parents.length === 1)
   if (!kids.length) return null
   const box = h('input', { type: 'checkbox', checked: true })
-  const el = h('label', { class: 'checkbox' }, box, `${t.alsoParentOf} ${kids.map(displayName).join(', ')}`)
+  const el = h('label', { class: 'checkbox' }, box, L('alsoParentOf'), colon, listNames(kids.map(displayName)))
   return { el, read: () => (box.checked ? { alsoParentOf: kids.map(c => c.id) } : {}) }
 }
 
@@ -132,7 +132,6 @@ function siblingParentChoices(people: People, p: Person): { ids: string[]; label
   const choices: { ids: string[]; label: string }[] = []
   const seen = new Set<string>()
   const name = (id: string) => displayName(people.get(id))
-  const half = (via: string) => ` (${halfTag(people.get(via))})`
   const add = (ids: string[], label: string) => {
     const key = [...ids].sort().join(',')
     if (seen.has(key)) return
@@ -143,10 +142,10 @@ function siblingParentChoices(people: People, p: Person): { ids: string[]; label
   for (const pid of p.parents) {
     const parent = people.get(pid)
     for (const sid of parent ? partnerIds(people, parent) : []) {
-      if (!p.parents.includes(sid)) add([pid, sid], `${name(pid)} & ${name(sid)}${half(pid)}`)
+      if (!p.parents.includes(sid)) add([pid, sid], both(noted(`${name(pid)} & ${name(sid)}`, halfTag(people.get(pid)))))
     }
   }
-  for (const pid of p.parents) add([pid], `${tName('onlyParent', name(pid))}${half(pid)}`)
+  for (const pid of p.parents) add([pid], both(noted(pairName('onlyParent', name(pid)), halfTag(people.get(pid)))))
   return choices
 }
 
@@ -185,7 +184,7 @@ export function linkExisting(ctx: AppCtx, p: Person) {
 
 export async function deletePerson(ctx: AppCtx, p: Person) {
   if (!canEdit()) return
-  if (!(await confirmDialog(`${t.confirmDelete} — ${displayName(p)}`, t.delete, true))) return
+  if (!(await confirmDialog(t.confirmDelete, L('delete'), true, displayName(p)))) return
   const editor = await ctx.editorName()
   if (!editor) return
   // A parent or partner is the nearest place to land; with neither, the list of everyone.
@@ -207,13 +206,14 @@ export function removeRelationship(ctx: AppCtx, p: Person) {
   const list = h('div', { class: 'form' })
   let locked = false
   let close = () => {}
-  const section = (label: string, rel: LinkRelative, others: Person[]) => others.length
-    ? h('section', {}, h('h3', { class: 'section-title' }, label), h('div', { class: 'cards' }, ...others.map(other => {
+  const section = (label: Key, rel: LinkRelative, others: Person[]) => others.length
+    ? h('section', {}, h('h3', { class: 'section-title' }, L(label)), h('div', { class: 'cards' }, ...others.map(other => {
       // Parents of a shared child stay a couple, so that Remove is disabled, saying why.
       const problem = ctx.store.unlinkProblem(rel, p.id, other.id)
       if (problem) locked = true
       // Its name, and when locked its tooltip too, says why: "Remove 倪桂珍: Partners who share children…".
-      const name = [`${t.remove} ${displayName(other)}`, problem && both(problem)].filter(Boolean).join(': ')
+      const removeLabel = fill('removeName', { name: displayName(other) })
+      const name = both(problem ? prefixed(removeLabel, problem) : removeLabel)
       return personCard(other, null, h('button', {
         // Says whose relationship goes; the visible word comes first so voice control still finds it.
         // Stays focusable (aria-disabled, as in menus) and does nothing when pressed: the dialog's
@@ -221,7 +221,7 @@ export function removeRelationship(ctx: AppCtx, p: Person) {
         type: 'button', class: 'danger small', 'aria-disabled': problem ? 'true' : undefined, title: problem ? name : undefined,
         'aria-label': name, onclick: async () => {
           if (problem) return
-          if (!(await confirmDialog(`${t.confirmUnlink} ${displayName(p)} — ${displayName(other)}`, t.remove, true))) return
+          if (!(await confirmDialog(t.confirmUnlink, L('remove'), true, `${displayName(p)} — ${displayName(other)}`))) return
           const editor = await ctx.editorName()
           if (!editor) return
           try {
@@ -231,14 +231,14 @@ export function removeRelationship(ctx: AppCtx, p: Person) {
             toast(errorText(e, pair('saveFailed')), { error: true })
           }
         },
-      }, t.remove), problem ? t.sharesChildrenShort : '')
+      }, L('remove')), problem ? t.sharesChildrenShort : '')
     })))
     : null
   const get = (ids: string[]) => ids.map(id => people.get(id)).filter((x): x is Person => !!x)
   const sections = [
-    section(t.parents, 'parent', get(p.parents)),
-    section(t.spouses, 'spouse', partnersOf(people, p)),
-    section(t.children, 'child', childrenOf(people, p.id)),
+    section('parents', 'parent', get(p.parents)),
+    section('spouses', 'spouse', partnersOf(people, p)),
+    section('children', 'child', childrenOf(people, p.id)),
   ].filter((x): x is HTMLElement => !!x)
   list.append(...(sections.length ? sections : [h('p', { class: 'muted' }, t.noRelationships)]))
   if (locked) list.prepend(h('p', { class: 'muted dlg-hint' }, t.sharesChildren))
@@ -292,10 +292,10 @@ export function reorderPeople(ctx: AppCtx, list: Person[], subtitle: string) {
       const btn = (dir: -1 | 1) => {
         const other = work[i + dir]
         // Past either end, or across someone their date puts on that side, there's nowhere to go.
-        const problem = other && datesDecide(x, other) ? t.datesSetOrder : undefined
-        const label = `${dir < 0 ? t.moveUp : t.moveDown} ${displayName(x)}`
+        const problem = other && datesDecide(x, other) ? pair('datesSetOrder') : undefined
+        const label = fill(dir < 0 ? 'moveUpName' : 'moveDownName', { name: displayName(x) })
         // An icon button, so its tooltip is its name, with the reason when its dates lock it.
-        const name = problem ? `${label}: ${problem}` : label
+        const name = both(problem ? prefixed(label, problem) : label)
         return h('button', {
           // aria-disabled rather than disabled, so it keeps focus when a move takes the person to an end.
           type: 'button', class: 'small', 'data-dir': String(dir), 'aria-disabled': problem || !other ? 'true' : undefined, title: name,

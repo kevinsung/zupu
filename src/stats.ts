@@ -1,5 +1,5 @@
 import { h } from './dom'
-import { L, t, tn, type Key } from './i18n'
+import { type Pair, L, both, colon, pair, prefixed, t, tn, fill as fillPair, type Key } from './i18n'
 import { personCard } from './cards'
 import {
   type People, type Person, age, byBirth, childrenIndex, datesDecide, isDeceased, lineScore, partnerIds, rankPeople, seniorAncestor, yearsBetween,
@@ -134,7 +134,7 @@ export function computeStats(people: People, today = new Date()) {
 type Stats = ReturnType<typeof computeStats>
 
 /** One bar, column or segment: tapping it lists `people` under its chart. */
-interface Bucket { key: string, name: string, people: Person[] }
+interface Bucket { key: string, name: Pair, people: Person[] }
 
 /**
  * The 族譜統計 page: headline numbers, then charts of people per generation, births per decade and
@@ -174,12 +174,12 @@ export function statsPage(people: () => People, select: (id: string) => void) {
       list.hidden = !b
       if (!b) { list.replaceChildren(); return }
       list.replaceChildren(
-        h('h3', { class: 'section-title' }, `${b.name}: ${b.people.length}`),
+        h('h3', { class: 'section-title' }, L(b.name), colon, String(b.people.length)),
         h('div', { class: 'cards' }, ...b.people.map(p => personCard(p, () => select(p.id)))))
     }
     const bar = (b: Bucket, cls: string, ...kids: (Node | string)[]) => {
       const n = b.people.length
-      const label = `${b.name}: ${n}`
+      const label = both(prefixed(b.name, String(n)))
       return h('button', {
         type: 'button', class: `${cls}${n ? '' : ' none'}`, 'data-key': b.key, 'aria-label': label, title: label,
         'aria-expanded': 'false', 'aria-controls': listId, disabled: !n,
@@ -204,20 +204,20 @@ export function statsPage(people: () => People, select: (id: string) => void) {
   const note = (text: string) => h('p', { class: 'stat-note' }, text)
 
   function generationsChart(s: Stats) {
-    const buckets = s.generations.map((g, i) => ({ key: String(i + 1), name: tn('genN', i + 1), people: g }))
+    const buckets = s.generations.map((g, i) => ({ key: String(i + 1), name: fillPair('genN', { n: i + 1 }), people: g }))
     const max = Math.max(1, ...buckets.map(b => b.people.length))
     return chart('gen', 'chartGenerations', buckets,
       bar => h('div', { class: 'hbars' }, ...buckets.map(b => {
         const fill = h('span', { class: 'hbar-fill' })
         fill.style.setProperty('--p', String(b.people.length / max))
-        return bar(b, 'hbar', h('span', { class: 'hbar-label' }, b.name), h('span', { class: 'hbar-track' }, fill, h('span', { class: 'hbar-count' }, String(b.people.length))))
+        return bar(b, 'hbar', h('span', { class: 'hbar-label' }, L(b.name)), h('span', { class: 'hbar-track' }, fill, h('span', { class: 'hbar-count' }, String(b.people.length))))
       })),
-      { head: [t.chartGenerations, t.statPeople], rows: buckets.map(b => [b.name, String(b.people.length)]) },
+      { head: [t.chartGenerations, t.statPeople], rows: buckets.map(b => [both(b.name), String(b.people.length)]) },
       s.unlinked.length ? note(tn('notLinked', s.unlinked.length)) : null)
   }
 
   function decadesChart(s: Stats) {
-    const buckets = s.decades.map(d => ({ key: String(d.decade), name: tn('decadeN', d.decade), people: d.people }))
+    const buckets = s.decades.map(d => ({ key: String(d.decade), name: fillPair('decadeN', { n: d.decade }), people: d.people }))
     const max = Math.max(1, ...buckets.map(b => b.people.length))
     return chart('decade', 'chartDecades', buckets,
       bar => h('div', { class: 'cols' }, ...buckets.map(b => {
@@ -232,13 +232,13 @@ export function statsPage(people: () => People, select: (id: string) => void) {
           h('span', { class: 'col-label', 'aria-hidden': 'true' },
             h('span', { class: 'col-full' }, decade), h('span', { class: 'col-short' }, h('span', {}, decade.slice(0, 2)), h('span', {}, decade.slice(2)))))
       })),
-      { head: [t.chartDecades, t.statPeople], rows: buckets.map(b => [b.name, String(b.people.length)]) },
+      { head: [t.chartDecades, t.statPeople], rows: buckets.map(b => [both(b.name), String(b.people.length)]) },
       s.noBirthYear.length ? note(tn('noBirthYear', s.noBirthYear.length)) : null)
   }
 
   function genderChart(s: Stats) {
     const kinds: [string, Key, Person[]][] = [['M', 'male', s.gender.M], ['F', 'female', s.gender.F], ['U', 'unknownGender', s.gender.U]]
-    const buckets = kinds.map(([key, label, list]) => ({ key, name: t[label], people: list }))
+    const buckets = kinds.map(([key, label, list]) => ({ key, name: pair(label), people: list }))
     const pct = (n: number) => `${Math.round((n / (s.total || 1)) * 100)}%`
     return chart('gender', 'gender', buckets,
       bar => h('div', {},
@@ -248,8 +248,8 @@ export function statsPage(people: () => People, select: (id: string) => void) {
           return btn
         })),
         h('ul', { class: 'legend' }, ...buckets.map(b =>
-          h('li', {}, h('span', { class: `swatch g-${b.key}`, 'aria-hidden': 'true' }), `${b.name} ${b.people.length} (${pct(b.people.length)})`)))),
-      { head: [t.gender, t.statPeople, '%'], rows: buckets.map(b => [b.name, String(b.people.length), pct(b.people.length)]) })
+          h('li', {}, h('span', { class: `swatch g-${b.key}`, 'aria-hidden': 'true' }), L(b.name), ` ${b.people.length} (${pct(b.people.length)})`)))),
+      { head: [t.gender, t.statPeople, '%'], rows: buckets.map(b => [both(b.name), String(b.people.length), pct(b.people.length)]) })
   }
 
   const yearsLabel = (n: number, approx: boolean) =>
