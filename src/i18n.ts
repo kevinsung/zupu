@@ -78,7 +78,6 @@ const pairs = {
   showSkipped: ['顯示已略過的 {n} 項', 'Show {n} skipped'],
   hideSkipped: ['隱藏已略過的項目', 'Hide skipped'],
   undoSkip: ['復原', 'Undo'],
-  showMore: ['顯示更多', 'Show more'],
   chartGenerations: ['每代人數', 'People per generation'],
   chartDecades: ['各年代出生人數', 'Births by decade'],
   genN: ['第{n}代', 'Gen {n}'],

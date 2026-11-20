@@ -240,6 +240,8 @@ describe('app', () => {
     $<HTMLButtonElement>('.missing-pane .gap-skip').click()
     expect(chips()).toHaveLength(before - 1)
     expect($('.missing-pane .chip.faint').textContent).toContain('1')
+    // The skipped toggle comes before the list, not after it.
+    expect($('.missing-pane .missing-skipped').compareDocumentPosition($('.missing-pane .missing-person')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(localStorage.getItem('ft-missing-skip')).not.toBeNull()
     localStorage.removeItem('ft-missing-skip')
     // The menu item goes there too, and Back returns.

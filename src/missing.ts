@@ -90,7 +90,6 @@ function setSkipped(keys: Set<string>) {
 // ---------------------------------------------------------------------------------------------
 // Page
 
-const PAGE = 25
 
 const LABEL: Record<Exclude<GapKind, 'marriage'>, Key> = {
   gender: 'gender', name: 'gapName', nameZh: 'nameZh', birthDate: 'birthDate', deathDate: 'deathDate', parents: 'parents', otherParent: 'otherParent',
@@ -115,7 +114,6 @@ const gapLabel = (g: Gap): Node => {
  * `refresh` rebuilds from the current people.
  */
 export function missingPage(people: () => People, ctx: AppCtx, askMe: () => void) {
-  let shown = PAGE
   let showSkipped = false
   const heading = h('h1', { class: 'missing-title', tabindex: '-1', 'data-refocus-key': 'h1' }, L('missingTitle'))
   const body = h('div', { class: 'missing' })
@@ -180,13 +178,14 @@ export function missingPage(people: () => People, ctx: AppCtx, askMe: () => void
         h('button', { type: 'button', class: 'chip', onclick: () => askMe() }, L(me ? 'change' : 'choose'))),
       // What 我是 does here.
       h('p', { class: 'missing-why' }, L('missingWhy')),
-      ...(gaps.length ? rows.slice(0, shown).map(r => personRow(r[0].person, r)) : [h('p', { class: 'muted' }, L('missingNone'))]),
-      rows.length > shown
-        ? h('button', { type: 'button', class: 'chip missing-more', 'data-refocus-key': 'more', 'data-refocus': 'more h1', onclick: () => { shown += PAGE; refresh() } }, L('showMore')) : null,
+      // Skipped gaps, at the top so they're reachable without scrolling past the whole list.
       hidden.length
-        ? h('button', { type: 'button', class: 'chip faint', 'data-refocus-key': 'toggle', 'data-refocus': 'toggle h1', onclick: () => { showSkipped = !showSkipped; refresh() } },
-          showSkipped ? L('hideSkipped') : L(fill('showSkipped', { n: hidden.length }))) : null,
-      ...(showSkipped ? hidden.map(skippedRow) : [])]
+        ? h('div', { class: 'missing-skipped' },
+          h('button', { type: 'button', class: 'chip faint', 'aria-expanded': String(showSkipped), 'data-refocus-key': 'toggle', 'data-refocus': 'toggle h1', onclick: () => { showSkipped = !showSkipped; refresh() } },
+            showSkipped ? L('hideSkipped') : L(fill('showSkipped', { n: hidden.length }))),
+          ...(showSkipped ? hidden.map(skippedRow) : []))
+        : null,
+      ...(gaps.length ? rows.map(r => personRow(r[0].person, r)) : [h('p', { class: 'muted' }, L('missingNone'))])]
     body.replaceChildren(...parts.filter((n): n is Node => !!n))
 
     // A rebuild destroys the control that had focus (after a dialog saves, say): move to the
