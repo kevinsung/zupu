@@ -91,3 +91,84 @@ describe('computeStats birth years', () => {
     expect([s.firstYear, s.lastYear]).toEqual([null, null])
   })
 })
+
+describe('computeStats records', () => {
+  const today = new Date(2026, 10, 19)
+  const rec = (list: Person[], id: string) => computeStats(peopleOf(list), today).records.find(r => r.id === id)
+
+  it('ties a couple on most descendants and most children', () => {
+    const list = [
+      person('gp', { spouses: ['gm'] }), person('gm', { spouses: ['gp'] }),
+      person('k1', { parents: ['gp', 'gm'] }), person('k2', { parents: ['gp', 'gm'] }), person('g', { parents: ['k1'] }),
+    ]
+    expect(ids(rec(list, 'mostDescendants')!.people)).toEqual(['gm', 'gp'])
+    expect(rec(list, 'mostDescendants')!.n).toBe(3)
+    expect(ids(rec(list, 'mostChildren')!.people)).toEqual(['gm', 'gp'])
+    expect(rec(list, 'mostChildren')!.n).toBe(2)
+  })
+
+  it('omits records nobody qualifies for', () => {
+    const s = computeStats(peopleOf([person('a'), person('b')]), today)
+    expect(s.records).toEqual([])
+  })
+
+  it('has no age cap on oldest living and skips the deceased', () => {
+    const list = [
+      person('old', { birthDate: '1890-01-01' }), person('dead', { birthDate: '1850', deceased: 'yes' }),
+      person('mid', { birthDate: '1980-05-05' }), person('kid', { birthDate: '2020-02-02' }),
+      person('gone', { birthDate: '2024-01-01', deathDate: '2025-01-01' }),
+    ]
+    expect(rec(list, 'oldestLiving')).toMatchObject({ n: 136, approx: false })
+    expect(ids(rec(list, 'oldestLiving')!.people)).toEqual(['old'])
+    expect(ids(rec(list, 'youngest')!.people)).toEqual(['kid'])
+  })
+
+  it('ties same-age people whose birth order is not decided', () => {
+    const list = [person('a', { birthDate: '1990' }), person('b', { birthDate: '1990-06' }), person('c', { birthDate: '1990-06-12' })]
+    expect(ids(rec(list, 'oldestLiving')!.people)).toEqual(['a', 'b', 'c'])
+  })
+
+  it('finds the oldest even with undated people entered between', () => {
+    const list = [person('young', { birthDate: '1990' }), person('undated'), person('elder', { birthDate: '1950' })]
+    expect(ids(rec(list, 'oldestLiving')!.people)).toEqual(['elder'])
+    expect(ids(rec(list, 'youngest')!.people)).toEqual(['young'])
+  })
+
+  it('leaves out youngest when only one living person has an age', () => {
+    expect(rec([person('a', { birthDate: '1990' }), person('b')], 'youngest')).toBeUndefined()
+  })
+
+  it('ranks longest lived by the death date', () => {
+    const list = [
+      person('a', { birthDate: '1900-01-01', deathDate: '1990-01-01' }), person('b', { birthDate: '1900-01-01', deathDate: '1980-01-01' }),
+      person('c', { birthDate: '1900-01-01', deceased: 'yes' }), person('d', { birthDate: '1800-01-01' }),
+    ]
+    expect(rec(list, 'longestLived')).toMatchObject({ n: 90, approx: false })
+    expect(ids(rec(list, 'longestLived')!.people)).toEqual(['a'])
+  })
+
+  describe('longest marriage', () => {
+    const couple = (m: Partial<Person['marriages'][string]>, a: Partial<Person> = {}, b: Partial<Person> = {}) => [
+      person('a', { spouses: ['b'], marriages: { b: { married: '', divorced: '', status: 'married', ...m } }, ...a }),
+      person('b', { spouses: ['a'], ...b }),
+    ]
+    it('runs to today by default', () => {
+      const r = rec(couple({ married: '2000-01-01' }), 'longestMarriage')!
+      expect(r).toMatchObject({ n: 26, approx: false })
+      expect(ids(r.people)).toEqual(['a', 'b'])
+    })
+    it('ends at a divorce date', () => {
+      expect(rec(couple({ married: '2000', divorced: '2010', status: 'divorced' }), 'longestMarriage')).toMatchObject({ n: 10, approx: true })
+    })
+    it('ends at a death, whichever is first', () => {
+      expect(rec(couple({ married: '2000-01-01' }, {}, { deathDate: '2005-01-01' }), 'longestMarriage')!.n).toBe(5)
+      expect(rec(couple({ married: '2000-01-01', divorced: '2003-01-01' }, {}, { deathDate: '2005-01-01' }), 'longestMarriage')!.n).toBe(3)
+    })
+    it('skips couples whose end is unknown', () => {
+      expect(rec(couple({ married: '2000-01-01', status: 'divorced' }), 'longestMarriage')).toBeUndefined()
+      expect(rec(couple({ married: '2000-01-01' }, {}, { deceased: 'yes' }), 'longestMarriage')).toBeUndefined()
+      expect(rec(couple({ status: 'married' }), 'longestMarriage')).toBeUndefined()
+      expect(rec(couple({ married: '2000-01-01' }, {}, { deathDate: '1990-01-01' }), 'longestMarriage')).toBeUndefined()
+    })
+  })
+})

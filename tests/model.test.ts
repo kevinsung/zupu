@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 // jsdom because FamilyStore's messages come from i18n, which reads the language setting from localStorage.
 import { describe, expect, it } from 'vitest'
-import { type People, type Person, age, byBirth, datesDecide, reorderValues, childrenByCoParent, emptyFields, formatPhone, halfSiblingVia, isDeceased, isValidEmail, isValidPartialDate, isValidPhone, lifespan, normalizePerson, normalizePhone, rankPeople, rootAncestors, searchPeople, seniorAncestor, siblingsOf, partnerIds, partnersOf } from '../src/model'
+import { type People, type Person, age, byBirth, datesDecide, reorderValues, childrenByCoParent, emptyFields, formatPhone, halfSiblingVia, isDeceased, isValidEmail, isValidPartialDate, isValidPhone, lifespan, normalizePerson, normalizePhone, rankPeople, rootAncestors, yearsBetween, searchPeople, seniorAncestor, siblingsOf, partnerIds, partnersOf } from '../src/model'
 import { applyOp, simulate, type ChangeRecord, type NewChange, type Op } from '../src/ops'
 import { FamilyStore } from '../src/store'
 import { seedToPeople } from '../src/seed-format'
@@ -48,6 +48,17 @@ describe('model', () => {
     expect(at('1920', '1990')).toEqual({ years: 70, approx: true, atDeath: true })
     expect(at('1900')).toEqual({ years: 126, approx: true, atDeath: false })
     expect(at('1900', '1980')).toEqual({ years: 80, approx: true, atDeath: true })
+  })
+
+  it('computes whole years between partial dates', () => {
+    expect(yearsBetween('1990-03-14', '2000-03-14')).toEqual({ years: 10, approx: false })
+    expect(yearsBetween('1990-03-14', '2000-03-13')).toEqual({ years: 9, approx: false })
+    expect(yearsBetween('1990', '2000-06-01')).toEqual({ years: 10, approx: true })
+    expect(yearsBetween('1990-03', '2000-03-10')).toEqual({ years: 10, approx: true })
+    expect(yearsBetween('1990-03-14', new Date(2026, 10, 19))).toEqual({ years: 36, approx: false })
+    expect(yearsBetween('2000', '1990')).toBeNull()
+    expect(yearsBetween('', '1990')).toBeNull()
+    expect(yearsBetween('1990', 'bad')).toBeNull()
   })
 
   it('treats deceased with no death date as having no age', () => {

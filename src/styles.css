@@ -310,6 +310,12 @@ main:not([data-view="home"]) .home-pane, main:not([data-view="stats"]) .stats-pa
 .tile-value.range { font-size: 1.35rem; line-height: 1.5; white-space: nowrap; }
 .tile-label { font-size: var(--fs-sm); color: var(--muted); }
 .stat-chart { margin-top: 1.5rem; }
+.records { display: grid; grid-template-columns: 1fr; gap: .5rem; }
+.record { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); padding: .75rem .9rem; min-width: 0; }
+.record-label { font-size: var(--fs-sm); color: var(--muted); }
+.record-value { font-size: var(--fs-md); font-weight: 600; font-variant-numeric: tabular-nums; }
+.record .cards { margin-top: .5rem; }
+.record .stat-note { margin-top: .4rem; }
 .stat-title { font-size: var(--fs-md); margin: 0 0 .5rem; }
 .stat-note { margin: .5rem 0 0; font-size: var(--fs-sm); color: var(--muted); }
 .stat-chart :is(.hbar, .col, .split-seg) { background: none; border: 0; border-radius: 0; padding: 0; }
@@ -359,6 +365,7 @@ main:not([data-view="home"]) .home-pane, main:not([data-view="stats"]) .stats-pa
 .stat-table td:not(:first-child), .stat-table thead th:not(:first-child) { text-align: right; }
 @media (width >= 560px) {
   .tiles { grid-template-columns: repeat(4, 1fr); }
+  .records { grid-template-columns: repeat(2, 1fr); }
 }
 @media (width < 560px) {
   .col-full { display: none; }

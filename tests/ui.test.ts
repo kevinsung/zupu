@@ -194,6 +194,7 @@ describe('app', () => {
     expect(document.title).toBe('統計 / Stats — 族譜 / Family Tree')
     expect($('.stats-pane h1').textContent).toContain('族譜統計')
     expect([...document.querySelectorAll('.tile-value')].map(e => e.textContent)).toEqual(['6', '2', '1960–1970', '6'])
+    expect($('.stats-pane').textContent).toContain('家族之最')
     expect($('.toptabs [aria-current="page"]').textContent).toContain('統計')
     expect($('.tab[aria-current="page"]').dataset.tab).toBe('stats')
     // Tapping a bar lists its people; tapping a person opens them.

@@ -2,7 +2,7 @@ import { h } from './dom'
 import { L, t, tn, type Key } from './i18n'
 import { personCard } from './cards'
 import {
-  type People, type Person, byBirth, childrenIndex, isDeceased, partnerIds, rankPeople, seniorAncestor,
+  type People, type Person, age, byBirth, childrenIndex, datesDecide, isDeceased, lineScore, partnerIds, rankPeople, seniorAncestor, yearsBetween,
 } from './model'
 
 const yearOf = (p: Person): number | null => {
@@ -10,11 +10,14 @@ const yearOf = (p: Person): number | null => {
   return /^\d{4}$/.test(y) ? Number(y) : null
 }
 
+export type RecordId = 'mostDescendants' | 'mostChildren' | 'oldestLiving' | 'youngest' | 'longestLived' | 'longestMarriage'
+export interface SuperRecord { id: RecordId, people: Person[], n: number, approx: boolean }
+
 /**
  * Everything the stats page shows, as lists of people (counts are their lengths) so a bar can
  * list who is in it. Each list is in birth order.
  */
-export function computeStats(people: People) {
+export function computeStats(people: People, today = new Date()) {
   const all = [...people.values()].sort(byBirth)
   // Living unless marked deceased or given a death date; no one is presumed dead from their age.
   const living = all.filter(p => !isDeceased(p))
@@ -75,7 +78,57 @@ export function computeStats(people: People) {
     }
   }
   const noBirthYear = all.filter(p => yearOf(p) === null)
-  return { total: all.length, living, gender, generations, unlinked, decades, noBirthYear, firstYear, lastYear }
+
+  // Superlatives. Holders come in birth order (`all` is sorted) and every tie is kept.
+  const records: SuperRecord[] = []
+  const add = (id: RecordId, scored: { p: Person, n: number, approx?: boolean }[], pick: 1 | -1) => {
+    if (!scored.length) return
+    const best = scored.reduce((m, x) => (x.n - m) * pick > 0 ? x.n : m, scored[0].n)
+    if (best <= 0) return
+    const top = scored.filter(x => x.n === best)
+    records.push({ id, people: top.map(x => x.p), n: best, approx: top.some(x => x.approx) })
+  }
+  const counted = (f: (p: Person) => number) => all.map(p => ({ p, n: f(p) }))
+  add('mostDescendants', counted(p => lineScore(kids, p.id).descendants), 1)
+  add('mostChildren', counted(p => kids.get(p.id)?.length ?? 0), 1)
+  // Oldest and youngest go by birth order so partial dates sort as elsewhere; only those it can't
+  // separate and who are the same age tie. No age cap: no recorded death means living.
+  // Sorted again among themselves: in `all`, someone undated sorts by entry order and can leave
+  // dated people out of date order around them.
+  const aged = living.flatMap(p => { const a = age(p, today); return a ? [{ p, n: a.years, approx: a.approx }] : [] })
+    .sort((a, b) => byBirth(a.p, b.p))
+  for (const [id, edge] of [['oldestLiving', aged[0]], ['youngest', aged[aged.length - 1]]] as const) {
+    // With one living person of known age, they'd be both; oldest says it.
+    if (!edge || (id === 'youngest' && aged.length === 1)) continue
+    const ties = aged.filter(x => x.n === edge.n && !datesDecide(x.p, edge.p))
+    records.push({ id, people: ties.map(x => x.p), n: edge.n, approx: ties.some(x => x.approx) })
+  }
+  add('longestLived', all.flatMap(p => { const a = p.deathDate ? age(p) : null; return a ? [{ p, n: a.years, approx: a.approx }] : [] }), 1)
+  // A marriage runs to the earliest of the divorce and either death; with none of those it runs to
+  // today. A divorce or a death with no date leaves the end unknown, so that couple is skipped.
+  const marriageYears: { p: Person, q: Person, n: number, approx: boolean }[] = []
+  for (const p of all) {
+    for (const qid of partnerIds(people, p)) {
+      const q = people.get(qid)!
+      if (p.id > q.id) continue
+      const m = p.marriages[q.id] ?? q.marriages[p.id]
+      if (!m?.married) continue
+      const ends = [m.divorced, p.deathDate, q.deathDate].filter(Boolean)
+      if (!ends.length && (m.status === 'divorced' || isDeceased(p) || isDeceased(q))) continue
+      // An end before the wedding (or a bad date) means the record contradicts itself; skip it.
+      const span = (ends.length ? ends : [today]).map(e => yearsBetween(m.married, e))
+        .reduce((a, b) => !a || !b ? null : b.years < a.years ? b : a)
+      if (!span) continue
+      marriageYears.push({ p, q, n: span.years, approx: span.approx })
+    }
+  }
+  const couple = marriageYears.reduce((m, x) => Math.max(m, x.n), 0)
+  const longest = marriageYears.filter(x => x.n === couple)
+  if (couple > 0) {
+    const both = [...new Set(longest.flatMap(x => [x.p, x.q]))].sort(byBirth)
+    records.push({ id: 'longestMarriage', people: both, n: couple, approx: longest.some(x => x.approx) })
+  }
+  return { total: all.length, living, gender, generations, unlinked, decades, noBirthYear, firstYear, lastYear, records }
 }
 
 type Stats = ReturnType<typeof computeStats>
@@ -199,6 +252,34 @@ export function statsPage(people: () => People, select: (id: string) => void) {
       { head: [t.gender, t.statPeople, '%'], rows: buckets.map(b => [b.name, String(b.people.length), pct(b.people.length)]) })
   }
 
+  const yearsLabel = (n: number, approx: boolean) =>
+    tn(n === 1 ? (approx ? 'yearOneApprox' : 'yearOne') : (approx ? 'yearsNApprox' : 'yearsN'), n)
+
+  function recordsSection(s: Stats) {
+    if (!s.records.length) return null
+    const label: Record<RecordId, Key> = {
+      mostDescendants: 'recordMostDescendants', mostChildren: 'recordMostChildren', oldestLiving: 'recordOldestLiving',
+      youngest: 'recordYoungest', longestLived: 'recordLongestLived', longestMarriage: 'recordLongestMarriage',
+    }
+    const value = (r: SuperRecord) => {
+      switch (r.id) {
+        case 'oldestLiving': case 'youngest': return tn(r.approx ? 'ageApprox' : 'age', r.n)
+        case 'longestLived': return tn(r.approx ? 'agedAtDeathApprox' : 'agedAtDeath', r.n)
+        case 'longestMarriage': return yearsLabel(r.n, r.approx)
+        default: return String(r.n)
+      }
+    }
+    const MAX = 4
+    return h('section', { class: 'stat-chart', 'aria-labelledby': 'stat-h-records' },
+      h('h2', { class: 'stat-title', id: 'stat-h-records' }, L('records')),
+      h('div', { class: 'records' }, ...s.records.map(r =>
+        h('div', { class: 'record' },
+          h('div', { class: 'record-label' }, L(label[r.id])),
+          h('div', { class: 'record-value' }, value(r)),
+          h('div', { class: 'cards compact' }, ...r.people.slice(0, MAX).map(p => personCard(p, () => select(p.id)))),
+          r.people.length > MAX ? h('p', { class: 'stat-note' }, tn('andNMore', r.people.length - MAX)) : null))))
+  }
+
   function refresh() {
     const s = computeStats(people())
     const years = s.firstYear === null ? '—' : s.firstYear === s.lastYear ? String(s.firstYear) : `${s.firstYear}–${s.lastYear}`
@@ -208,7 +289,7 @@ export function statsPage(people: () => People, select: (id: string) => void) {
         tile('statGenerations', String(s.generations.length)),
         tile('statYears', years, 'range'),
         tile('statLiving', String(s.living.length))),
-      generationsChart(s), decadesChart(s), genderChart(s))
+      generationsChart(s), decadesChart(s), genderChart(s), recordsSection(s) ?? '')
   }
   // Built on the first refresh, once the data is in: before that it would show all zeros.
   return { el, refresh }

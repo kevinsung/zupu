@@ -187,14 +187,14 @@ export interface Age {
   atDeath: boolean
 }
 
-/** Age today, or at death if a death date is recorded; null when the birth date is unknown. */
-export function age(p: Person, today = new Date()): Age | null {
-  const b = parsePartialDate(p.birthDate)
-  if (!b) return null
-  if (!p.deathDate && p.deceased === 'yes') return null
-  const atDeath = !!p.deathDate
-  const e = atDeath ? parsePartialDate(p.deathDate) : { y: today.getFullYear(), m: today.getMonth() + 1, d: today.getDate() }
-  if (!e) return null
+/**
+ * Whole years from `start` to `end` (a partial date or a day), counting a year only once its month
+ * and day have come; null when either is unparseable or the span is negative.
+ */
+export function yearsBetween(start: string, end: string | Date): { years: number, approx: boolean } | null {
+  const b = parsePartialDate(start)
+  const e = typeof end === 'string' ? parsePartialDate(end) : { y: end.getFullYear(), m: end.getMonth() + 1, d: end.getDate() }
+  if (!b || !e) return null
   let years = e.y - b.y
   let approx = !b.m || !e.m
   if (!approx) {
@@ -205,7 +205,15 @@ export function age(p: Person, today = new Date()): Age | null {
     }
   }
   if (years < 0) return null
-  return { years, approx, atDeath }
+  return { years, approx }
+}
+
+/** Age today, or at death if a death date is recorded; null when the birth date is unknown. */
+export function age(p: Person, today = new Date()): Age | null {
+  if (!p.deathDate && p.deceased === 'yes') return null
+  const atDeath = !!p.deathDate
+  const span = yearsBetween(p.birthDate, atDeath ? p.deathDate : today)
+  return span && { ...span, atDeath }
 }
 
 type Birth = Pick<Person, 'birthDate' | 'order'>
@@ -314,7 +322,7 @@ export function rootAncestors(people: People): Person[] {
  * How far a person's line reaches: generations below them and the number of descendants.
  * Walks down a generation at a time; `seen` keeps cousin marriages (or bad data) from double counting.
  */
-function lineScore(children: Map<string, string[]>, id: string) {
+export function lineScore(children: Map<string, string[]>, id: string) {
   const seen = new Set([id])
   let generations = 0
   let level = [id]
