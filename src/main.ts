@@ -214,7 +214,7 @@ function startApp() {
     peek,
     treeNobody)
   const personPane = h('section', { class: 'pane person-pane', 'aria-label': t.tabPerson }, personEl)
-  const home = homeList(() => store.people, id => ctx.select(id))
+  const home = homeList(() => store.people, id => ctx.select(id), askMe)
   const homePane = h('section', { class: 'pane home-pane', 'aria-label': t.tabSearch }, home.el)
   const stats = statsPage(() => store.people, id => ctx.select(id))
   const statsPane = h('section', { class: 'pane stats-pane', 'aria-label': t.stats }, stats.el)

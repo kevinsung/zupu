@@ -1,8 +1,8 @@
 import { h } from './dom'
 import { L, t, type Key } from './i18n'
 import { closePopover, personPicker } from './dialog'
-import { type People, type Person, rankPeople } from './model'
-import { getMe } from './me'
+import { type People, type Person, displayName, rankPeople } from './model'
+import { getMe, meChooser } from './me'
 
 const RECENT_KEY = 'ft-recent'
 const RECENT_MAX = 5
@@ -55,15 +55,19 @@ export function recentAndEveryone(people: () => People, opts: { skip?: () => str
  * limit. While the box is empty, the people recently viewed come first. The box stays put and
  * the list scrolls under it.
  */
-export function homeList(people: () => People, select: (id: string) => void) {
+export function homeList(people: () => People, select: (id: string) => void, askMe: () => void) {
   const picker = personPicker(people, p => select(p.id), { idle: recentAndEveryone(people, { heading: 'h2' }) })
   picker.input.classList.add('home-filter')
-  const scroller = h('div', { class: 'home-list' }, picker.list)
+  // Who you are, which decides what each person is called in the list.
+  const chooser = meChooser('meHint', askMe)
+  const scroller = h('div', { class: 'home-list' }, chooser.el, picker.list)
 
   /** Rebuilds the list (after an edit, here or elsewhere), keeping the filter and the focused person. */
   function refresh() {
     const active = document.activeElement
     const focusedId = active && picker.list.contains(active) ? active.closest<HTMLElement>('.pcard')?.dataset.id : undefined
+    const me = people().get(getMe())
+    chooser.update(me ? displayName(me) : undefined)
     picker.refresh()
     if (!focusedId) return
     const card = [...picker.list.querySelectorAll<HTMLElement>('.pcard')].find(c => c.dataset.id === focusedId)

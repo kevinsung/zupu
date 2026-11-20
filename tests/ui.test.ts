@@ -90,6 +90,11 @@ describe('app', () => {
     expect(document.querySelector('.ft-card')).toBeNull()
     expect($('.home-pane').getAttribute('aria-label')).toBe('搜尋 / Search')
     expect($('.topbar .brand').getAttribute('aria-current')).toBe('page')
+    // Above the list, a prompt to choose who you are, saying what it's for.
+    expect($('.home-list > .me-chooser').compareDocumentPosition($('.home-list > .picker-results')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect($('.home-pane .me-row').textContent).toContain('—')
+    expect($('.home-pane .me-row button').textContent).toContain('選擇')
+    expect($('.home-pane .me-why').textContent).toContain('what you call each person')
     // On wide screens (jsdom counts as wide) the list's filter is the top bar's only search box.
     const boxes = [...document.querySelectorAll<HTMLElement>('.topbar .search-box')].filter(b => !b.hidden)
     expect(boxes.length).toBe(1)
@@ -224,9 +229,9 @@ describe('app', () => {
     expect(document.querySelector('.tab[aria-current="page"]')).toBeNull()
     expect(document.querySelector('.toptab[aria-current="page"]')).toBeNull()
     // With no 我是, the line says so and offers to choose.
-    expect($('.missing-me').textContent).toContain('我是')
-    expect($('.missing-me button').textContent).toContain('選擇')
-    expect($('.missing-why').textContent).toContain('排序這份清單')
+    expect($('.missing-pane .me-row').textContent).toContain('我是')
+    expect($('.missing-pane .me-row button').textContent).toContain('選擇')
+    expect($('.missing-pane .me-why').textContent).toContain('Used to sort this list')
     const chips = () => [...document.querySelectorAll<HTMLElement>('.missing-pane .gap-chips .gap > .chip')]
     const birth = chips().find(c => c.textContent!.includes('出生日期'))!
     birth.click()
@@ -765,6 +770,16 @@ describe('app', () => {
     const firstSection = $('.home-pane section')
     expect(firstSection.querySelector('.section-title')!.textContent).toContain('Me')
     expect([...firstSection.querySelectorAll('.pcard')].map(c => (c as HTMLElement).dataset.id)).toEqual(['a'])
+    // Its 我是 row names her and offers to change it, from the same button.
+    const meButton = $<HTMLButtonElement>('.home-pane .me-row button')
+    expect($('.home-pane .me-row strong').textContent).toBe('甲')
+    expect(meButton.textContent).toContain('更改')
+    meButton.focus()
+    meButton.click()
+    const pick = topDialog()
+    pick.dispatchEvent(new Event('cancel'))
+    await closed(pick)
+    expect(document.activeElement).toBe(meButton)
     // The settings row names her, and the more menu offers to undo it.
     settings.click()
     expect(popover().textContent).toContain('甲')

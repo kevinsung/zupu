@@ -7,6 +7,7 @@ import { errorText } from './errors'
 import { focusRefocusTarget, menuList, openMenu, toast } from './dialog'
 import { type Gap, type GapKind, findGaps, getSkipped, pruneSkipped, setSkipped, skipKey } from './gaps'
 import { type People, type Person, type PersonFields, displayName, partnerIds } from './model'
+import { meChooser } from './me'
 
 // ---------------------------------------------------------------------------------------------
 // Page
@@ -41,6 +42,7 @@ export function missingPage(people: () => People, ctx: AppCtx, askMe: () => void
   const heading = h('h1', { class: 'missing-title', tabindex: '-1', 'data-refocus-key': 'missing:h1' }, L('missingTitle'))
   const body = h('div', { class: 'missing' })
   const el = h('div', { class: 'missing-page' }, heading, body)
+  const chooser = meChooser('missingWhy', askMe)
 
   /**
    * Adding a parent always makes a new person, so first offer who's likely already in the tree: the
@@ -128,13 +130,11 @@ export function missingPage(people: () => People, ctx: AppCtx, askMe: () => void
     const byPerson = new Map<string, Gap[]>()
     for (const g of gaps) (byPerson.get(g.person.id) ?? byPerson.set(g.person.id, []).get(g.person.id)!).push(g)
     const rows = [...byPerson.values()]
+    chooser.update(me ? displayName(people().get(me)) : undefined)
 
     const parts: (Node | null)[] = [
-      // Who the order is for (— before anyone is chosen), with a way to choose or change it.
-      h('p', { class: 'missing-me' }, h('span', {}, L('meLabel'), colon, me ? h('strong', {}, displayName(people().get(me))) : '—'),
-        h('button', { type: 'button', class: 'chip', onclick: () => askMe() }, L(me ? 'change' : 'choose'))),
-      // What 我是 does here.
-      h('p', { class: 'missing-why' }, L('missingWhy')),
+      // Who the order is for, with a way to choose or change it.
+      chooser.el,
       // Skipped gaps, at the top so they're reachable without scrolling past the whole list.
       hidden.length
         ? h('div', { class: 'missing-skipped' },

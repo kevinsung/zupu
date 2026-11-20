@@ -71,7 +71,7 @@ const pairs = {
   andNMore: ['還有 {n} 人', 'and {n} more'],
   missing: ['待補資料', 'Missing info'],
   missingTitle: ['補齊族譜資料', 'Fill in missing info'],
-  missingWhy: ['用來顯示您對每個人的稱呼，並排序這份清單', 'Used to show what you call each person and to sort this list'],
+  missingWhy: ['用來排序這份清單', 'Used to sort this list'],
   missingNone: ['沒有待補的資料', 'Nothing missing'],
   gapName: ['姓名', 'Name'],
   dontKnow: ['不知道', "Don't know"],
