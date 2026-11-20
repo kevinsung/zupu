@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 // jsdom because findGaps lives beside the page code, which imports i18n (it reads localStorage).
 import { describe, expect, it } from 'vitest'
-import { type People, type Person, emptyFields } from '../src/model'
+import { type MarriageStatus, type People, type Person, emptyFields } from '../src/model'
 import { kinDistance } from '../src/kinship'
 import { type Gap, findGaps } from '../src/missing'
 
@@ -85,6 +85,26 @@ describe('findGaps ranking', () => {
     expect(gaps[0].person.id).toBe('dad')
     expect(gaps[0].partner!.id).toBe('mom')
     expect(findGaps(couple('unmarried'), 'me').some(g => g.kind === 'marriage')).toBe(false)
+  })
+
+  it('asks whether a couple married, or for the dates they lack, once, on the closer partner', () => {
+    const couple = (married: string, divorced: string, status: MarriageStatus) => {
+      const m = { married, divorced, status }
+      return peopleOf([
+        full('me', { parents: ['dad'] }), full('dad', { spouses: ['mom'], marriages: { mom: m } }), full('mom', { gender: 'F', spouses: ['dad'], marriages: { dad: m } }),
+      ])
+    }
+    const couples = (married: string, divorced: string, status: MarriageStatus) =>
+      findGaps(couple(married, divorced, status), 'me').filter(g => g.partner).map(g => `${g.kind}:${g.person.id}:${g.partner!.id}:${g.cost}`)
+    // Unknown status asks whether they married; a known one asks for the dates it lacks.
+    expect(couples('', '', '')).toEqual(['marriage:dad:mom:2'])
+    expect(couples('', '', 'married')).toEqual(['marriedDate:dad:mom:2'])
+    expect(couples('1980', '', 'married')).toEqual([])
+    expect(couples('1980', '', 'divorced')).toEqual(['divorcedDate:dad:mom:2'])
+    expect(couples('', '', 'divorced')).toEqual(['marriedDate:dad:mom:2', 'divorcedDate:dad:mom:2'])
+    expect(couples('', '1990', 'divorced')).toEqual(['marriedDate:dad:mom:2'])
+    expect(couples('1980', '1990', 'divorced')).toEqual([])
+    expect(couples('', '', 'unmarried')).toEqual([])
   })
 
   it('asks about missing parents at any distance, and with no me', () => {

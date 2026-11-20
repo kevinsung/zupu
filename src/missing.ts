@@ -6,22 +6,23 @@ import { type AppCtx, addRelative, editMarriage, editPerson } from './actions'
 import { type Distance, kinDistance } from './kinship'
 import { type People, type Person, type PersonFields, displayName, partnerIds, rankPeople } from './model'
 
-export type GapKind = 'gender' | 'name' | 'nameZh' | 'birthDate' | 'deathDate' | 'marriage' | 'parents' | 'otherParent'
+export type GapKind = 'gender' | 'name' | 'nameZh' | 'birthDate' | 'deathDate' | 'marriage' | 'marriedDate' | 'divorcedDate' | 'parents' | 'otherParent'
 /** Something unrecorded about `person` (or, for a marriage, about the couple of `person` and `partner`), and how likely the user is to know it. */
 export interface Gap { kind: GapKind, person: Person, partner?: Person, cost: number }
 
 /** How many steps of kinship distance each kind of gap is worth: gender is known to anyone who knows the person, parents are harder. */
 const DIFFICULTY: Record<GapKind, number> = {
-  gender: 0, name: 0, birthDate: 1, deathDate: 1, marriage: 1, nameZh: 1, parents: 2, otherParent: 2,
+  gender: 0, name: 0, birthDate: 1, deathDate: 1, marriage: 1, marriedDate: 1, divorcedDate: 1, nameZh: 1, parents: 2, otherParent: 2,
 }
 /** For gaps that tie on everything else (on one person, mostly). */
-const KIND_ORDER: GapKind[] = ['gender', 'name', 'birthDate', 'deathDate', 'marriage', 'nameZh', 'parents', 'otherParent']
+const KIND_ORDER: GapKind[] = ['gender', 'name', 'birthDate', 'deathDate', 'marriage', 'marriedDate', 'divorcedDate', 'nameZh', 'parents', 'otherParent']
 
 /**
  * Everything missing, most likely known first: cost = kinship steps from `meId` + the gap's
  * difficulty, lowest first (with no me, everyone is 0 steps away; anyone unreachable comes last).
  * Ties go to the closer person, then the one with fewer partner links (blood before in-laws), then
- * KIND_ORDER, then `rankPeople` order. A marriage gap is listed once per couple, on the closer partner.
+ * KIND_ORDER, then `rankPeople` order. A couple's gaps (whether they married, else the dates they lack)
+ * are listed once per couple, on the closer partner.
  */
 export function findGaps(people: People, meId: string): Gap[] {
   const hasMe = people.has(meId)
@@ -54,11 +55,16 @@ export function findGaps(people: People, meId: string): Gap[] {
     for (const qid of partnerIds(people, p)) {
       const q = people.get(qid)!
       const m = p.marriages[qid] ?? q.marriages[p.id]
-      if (m?.married || m?.status === 'unmarried') continue
+      // A status of '' means unknown: a stored date always sets one (see marriageWithStatus).
+      const status = m?.status ?? ''
+      const kinds: GapKind[] = !status ? ['marriage']
+        : status === 'unmarried' ? []
+        : [...(m!.married ? [] : ['marriedDate' as const]), ...(status === 'divorced' && !m!.divorced ? ['divorcedDate' as const] : [])]
+      if (!kinds.length) continue
       // Each couple once: from the closer partner (the earlier in rank on a tie).
       const c = closer(p.id, qid)
       if (c > 0 || (c === 0 && order.get(p.id)! > order.get(qid)!)) continue
-      add('marriage', p, q)
+      for (const kind of kinds) add(kind, p, q)
     }
   }
   const rank = (p?: Person) => (p ? order.get(p.id)! : -1)
@@ -91,20 +97,21 @@ function setSkipped(keys: Set<string>) {
 // Page
 
 
-const LABEL: Record<Exclude<GapKind, 'marriage'>, Key> = {
-  gender: 'gender', name: 'gapName', nameZh: 'nameZh', birthDate: 'birthDate', deathDate: 'deathDate', parents: 'parents', otherParent: 'otherParent',
+const LABEL: Record<GapKind, Key> = {
+  gender: 'gender', name: 'gapName', nameZh: 'nameZh', birthDate: 'birthDate', deathDate: 'deathDate',
+  marriage: 'marriage', marriedDate: 'marriedDate', divorcedDate: 'divorcedDate', parents: 'parents', otherParent: 'otherParent',
 }
 const FOCUS: Partial<Record<GapKind, keyof PersonFields>> = {
   gender: 'gender', name: 'nameZh', nameZh: 'nameZh', birthDate: 'birthDate', deathDate: 'deathDate',
 }
 
 /** The chip's text as a pair, for accessible names. */
-const gapPair = (g: Gap): Pair => g.kind === 'marriage' ? prefixed(pair('marriage'), displayName(g.partner)) : pair(LABEL[g.kind])
-/** The chip's label: marriage carries the partner's name after it, shown once. */
+const gapPair = (g: Gap): Pair => g.partner ? prefixed(pair(LABEL[g.kind]), displayName(g.partner)) : pair(LABEL[g.kind])
+/** The chip's label: a couple's gap carries the partner's name after it, shown once. */
 const gapLabel = (g: Gap): Node => {
-  if (g.kind !== 'marriage') return L(LABEL[g.kind])
+  if (!g.partner) return L(LABEL[g.kind])
   const frag = document.createDocumentFragment()
-  frag.append(L('marriage'), colon, displayName(g.partner))
+  frag.append(L(LABEL[g.kind]), colon, displayName(g.partner))
   return frag
 }
 
@@ -125,6 +132,8 @@ export function missingPage(people: () => People, ctx: AppCtx, askMe: () => void
     const p = g.person
     switch (g.kind) {
       case 'marriage': return editMarriage(ctx, p, g.partner!)
+      case 'marriedDate': return editMarriage(ctx, p, g.partner!, 'married')
+      case 'divorcedDate': return editMarriage(ctx, p, g.partner!, 'divorced')
       case 'parents': case 'otherParent': return addRelative(ctx, p, 'parent')
       default: return editPerson(ctx, p, FOCUS[g.kind])
     }

@@ -48,8 +48,11 @@ export function editPerson(ctx: AppCtx, p: Person, focus?: keyof PersonFields) {
   form.focus(focus)
 }
 
-/** For any partner (spouse or co-parent); see FamilyStore.setMarriage. */
-export function editMarriage(ctx: AppCtx, p: Person, spouse: Person) {
+/**
+ * For any partner (spouse or co-parent); see FamilyStore.setMarriage.
+ * `focus` names the date to put the cursor in (default: the status).
+ */
+export function editMarriage(ctx: AppCtx, p: Person, spouse: Person, focus?: 'married' | 'divorced') {
   if (!canEdit()) return
   const form = marriageForm(p.marriages[spouse.id] ?? emptyMarriage())
   openDialog(L('editMarriage'), form.el, [
@@ -62,7 +65,7 @@ export function editMarriage(ctx: AppCtx, p: Person, spouse: Person) {
       },
     },
   ], { subtitle: `${displayName(p)} & ${displayName(spouse)}` })
-  form.focus()
+  form.focus(focus)
 }
 
 const ADD_TITLES = { parent: 'addParent', spouse: 'addSpouse', child: 'addChild', sibling: 'addSibling' } as const satisfies Record<NewRelative, string>

@@ -475,7 +475,14 @@ export function marriageForm(initial: Marriage) {
   const read = (): Marriage => marriageWithStatus({
     married: married.read(), divorced: divorced.read(), status: status.value as MarriageStatus,
   })
-  return { el, read, focus: () => status.focus() }
+  /** Focuses a date's year box, else the status. */
+  function focus(field?: 'married' | 'divorced') {
+    if (field === 'married') married.focus()
+    else if (field === 'divorced') divorced.focus()
+    else status.focus()
+  }
+
+  return { el, read, focus }
 }
 
 /**
