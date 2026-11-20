@@ -31,7 +31,8 @@ export function canEdit(): boolean {
   return false
 }
 
-export function editPerson(ctx: AppCtx, p: Person) {
+/** `focus` names the field to put the cursor in (default: the Chinese name). */
+export function editPerson(ctx: AppCtx, p: Person, focus?: keyof PersonFields) {
   if (!canEdit()) return
   const form = personForm(p)
   openDialog(L('edit'), form.el, [
@@ -44,7 +45,7 @@ export function editPerson(ctx: AppCtx, p: Person) {
       },
     },
   ], { subtitle: displayName(p) })
-  form.focus()
+  form.focus(focus)
 }
 
 /** For any partner (spouse or co-parent); see FamilyStore.setMarriage. */

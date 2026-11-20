@@ -1,5 +1,6 @@
 import { h } from './dom'
 import { type Pair, L, both, colon, pair, prefixed, t, tn, fill as fillPair, type Key } from './i18n'
+import { icon } from './icons'
 import { personCard } from './cards'
 import {
   type People, type Person, age, byBirth, childrenIndex, datesDecide, isDeceased, lineScore, partnerIds, rankPeople, seniorAncestor, yearsBetween,
@@ -280,6 +281,10 @@ export function statsPage(people: () => People, select: (id: string) => void) {
           r.people.length > MAX ? h('p', { class: 'stat-note' }, tn('andNMore', r.people.length - MAX)) : null))))
   }
 
+  /** A card-like button under the tiles that opens the fill-in page. */
+  const missingLink = () => h('a', { href: '#/missing', class: 'stat-link' },
+    icon('fillIn'), h('span', { class: 'stat-link-label' }, L('missingTitle')), icon('chevronRight'))
+
   function refresh() {
     const s = computeStats(people())
     const years = s.firstYear === null ? '—' : s.firstYear === s.lastYear ? String(s.firstYear) : `${s.firstYear}–${s.lastYear}`
@@ -289,6 +294,7 @@ export function statsPage(people: () => People, select: (id: string) => void) {
         tile('statGenerations', String(s.generations.length)),
         tile('statYears', years, 'range'),
         tile('statLiving', String(s.living.length))),
+      missingLink(),
       generationsChart(s), decadesChart(s), genderChart(s), recordsSection(s) ?? '')
   }
   // Built on the first refresh, once the data is in: before that it would show all zeros.

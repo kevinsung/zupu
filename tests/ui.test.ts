@@ -216,6 +216,44 @@ describe('app', () => {
     await vi.waitFor(() => expect($('main').dataset.view).not.toBe('stats'))
   })
 
+  it('lists missing info at #/missing, with chips that open the right field and a way to skip them', async () => {
+    location.hash = '#/missing'
+    await vi.waitFor(() => expect($('main').dataset.view).toBe('missing'))
+    expect($('.missing-pane h1').textContent).toContain('補齊族譜資料')
+    // No tab is current on this page.
+    expect(document.querySelector('.tab[aria-current="page"]')).toBeNull()
+    expect(document.querySelector('.toptab[aria-current="page"]')).toBeNull()
+    // With no 我是, the line says so and offers to choose.
+    expect($('.missing-me').textContent).toContain('我是')
+    expect($('.missing-me button').textContent).toContain('選擇')
+    expect($('.missing-why').textContent).toContain('排序這份清單')
+    const chips = () => [...document.querySelectorAll<HTMLElement>('.missing-pane .gap-chips .gap > .chip')]
+    const birth = chips().find(c => c.textContent!.includes('出生日期'))!
+    birth.click()
+    const dlg = topDialog()
+    expect(document.activeElement).toBe(dlg.querySelector('input[name="birthDate-y"]'))
+    dlg.dispatchEvent(new Event('cancel'))
+    await vi.waitFor(() => expect(dlg.isConnected).toBe(false))
+    // "Don't know" hides the chip and offers the skipped list.
+    const before = chips().length
+    expect(document.querySelector('.missing-pane .chip.faint')).toBeNull()
+    $<HTMLButtonElement>('.missing-pane .gap-skip').click()
+    expect(chips()).toHaveLength(before - 1)
+    expect($('.missing-pane .chip.faint').textContent).toContain('1')
+    expect(localStorage.getItem('ft-missing-skip')).not.toBeNull()
+    localStorage.removeItem('ft-missing-skip')
+    // The menu item goes there too, and Back returns.
+    location.hash = '#/p/a'
+    await vi.waitFor(() => expect($('main').dataset.view).not.toBe('missing'))
+    $<HTMLButtonElement>('.settings-btn').click()
+    buttonWith('待補資料', popover()).click()
+    await vi.waitFor(() => expect(location.hash).toBe('#/missing'))
+    await vi.waitFor(() => expect($('main').dataset.view).toBe('missing'))
+    expect(document.querySelector('.missing-pane .chip.faint')).toBeNull()
+    history.back()
+    await vi.waitFor(() => expect($('main').dataset.view).not.toBe('missing'))
+  })
+
   it('adds a spouse, asking for the editor name first', async () => {
     buttonWith('新增伴侶').click()
     const dlg = $('dialog[open]')

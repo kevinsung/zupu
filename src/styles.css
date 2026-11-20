@@ -171,7 +171,7 @@ svg.tab-icon { width: 1.4rem; height: 1.4rem; }
 /* Main: one pane at a time on phones */
 main { flex: 1; min-height: 0; position: relative; }
 .pane { position: absolute; inset: 0; }
-main:not([data-view="home"]) .home-pane, main:not([data-view="stats"]) .stats-pane, main:not([data-view="tree"]) .tree-pane, main:not([data-view="person"]) .person-pane { display: none; }
+main:not([data-view="home"]) .home-pane, main:not([data-view="stats"]) .stats-pane, main:not([data-view="missing"]) .missing-pane, main:not([data-view="tree"]) .tree-pane, main:not([data-view="person"]) .person-pane { display: none; }
 .person-pane { overflow-y: auto; overscroll-behavior: contain; }
 /* Before anyone is picked, the Tree and Person tabs offer the way back to the list. */
 .nobody { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: .25rem; padding: 1rem; text-align: center; }
@@ -199,9 +199,9 @@ main:not([data-view="home"]) .home-pane, main:not([data-view="stats"]) .stats-pa
      to the tree. */
   main { display: grid; grid-template-columns: 1fr 24rem; }
   .pane { position: relative; inset: auto; min-height: 0; }
-  main:not([data-view="home"], [data-view="stats"]) :is(.tree-pane, .person-pane) { display: block; }
+  main:not([data-view="home"], [data-view="stats"], [data-view="missing"]) :is(.tree-pane, .person-pane) { display: block; }
   /* The list of everyone takes the whole width. */
-  main:is([data-view="home"], [data-view="stats"]) { grid-template-columns: 1fr; }
+  main:is([data-view="home"], [data-view="stats"], [data-view="missing"]) { grid-template-columns: 1fr; }
   .person-pane { border-left: 1px solid var(--line); background: var(--bg); }
   /* The person pane hidden: the tree takes the whole width, with the bar that opens the pane
      under it, kept narrow so it clears the tools in the corner. */
@@ -300,10 +300,10 @@ main:not([data-view="home"]) .home-pane, main:not([data-view="stats"]) .stats-pa
 }
 
 /* Family stats: tiles, then charts. Bars are buttons whose hit area is the whole row or column. */
-.stats-pane { overflow-y: auto; overscroll-behavior: contain; background: var(--bg); }
-.stats-page { max-width: 40rem; margin-inline: auto; padding: .75rem .9rem 2.5rem; }
-.stats-title { font-size: var(--fs-lg); margin: .25rem 0 .75rem; }
-.stats-title:focus { outline: none; }
+.stats-pane, .missing-pane { overflow-y: auto; overscroll-behavior: contain; background: var(--bg); }
+.stats-page, .missing-page { max-width: 40rem; margin-inline: auto; padding: .75rem .9rem 2.5rem; }
+.stats-title, .missing-title { font-size: var(--fs-lg); margin: .25rem 0 .75rem; }
+.stats-title:focus, .missing-title:focus { outline: none; }
 .tiles { display: grid; grid-template-columns: repeat(2, 1fr); gap: .5rem; }
 .tile { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); padding: .75rem .9rem; min-width: 0; }
 .tile-value { font-size: var(--fs-xl); font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1.15; }
@@ -373,7 +373,7 @@ main:not([data-view="home"]) .home-pane, main:not([data-view="stats"]) .stats-pa
   .col-label { height: 2rem; line-height: 1; }
 }
 @media (width >= 700px) and (height >= 500px) {
-  .stats-page { padding-top: 1.25rem; }
+  .stats-page, .missing-page { padding-top: 1.25rem; }
 }
 
 /* Person cards (lists of relatives, search results) */
@@ -637,3 +637,23 @@ fieldset.field > legend { padding: 0; margin-bottom: .3rem; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
 }
+
+/* Fill-in page: each person's card, then a row of chips for what's missing. */
+.missing-me { display: flex; flex-wrap: wrap; align-items: center; gap: .25rem .5rem; margin: 0 0 .25rem; }
+.missing-why { margin: 0 0 1rem; font-size: var(--fs-sm); color: var(--muted); }
+.missing-person { margin-bottom: .75rem; }
+.gap-chips { display: flex; flex-wrap: wrap; gap: .4rem; margin: .3rem 0 0 .25rem; }
+.gap { display: inline-flex; align-items: center; gap: .15rem; }
+.gap .chip { min-height: 2rem; }
+.gap-skip { min-width: 1.75rem; min-height: 1.75rem; padding: 0; display: inline-grid; place-items: center; border-radius: 50%; color: var(--muted); }
+.missing-more { margin: .5rem 0; }
+.missing-skipped-row { display: flex; align-items: center; gap: .5rem; margin: .25rem 0; }
+/* Stats page: the way to the fill-in page, a full-width card under the tiles. */
+.stat-link {
+  display: flex; align-items: center; gap: .6rem; margin: .5rem 0 1rem; padding: .75rem .9rem; min-height: var(--tap);
+  background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); color: var(--accent); text-decoration: none; font-weight: 600;
+}
+.stat-link:hover { background: var(--accent-soft); }
+.stat-link-label { flex: 1; }
+.stat-link svg.icon { width: 1.25rem; height: 1.25rem; flex: none; }
+.stat-link svg.icon:last-child { color: var(--muted); }

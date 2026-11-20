@@ -10,6 +10,7 @@ import { renderPerson } from './person'
 import { openHistory } from './history'
 import { homeList, recentAndEveryone, rememberRecent, searchBox } from './search'
 import { statsPage } from './stats'
+import { missingPage } from './missing'
 import { avatar, kinText, personSubtitle, setKinOf } from './cards'
 import { focusPersonHeading, menuList, mountToast, openDialog, openMenu, personForm, personPicker, segmented, toast } from './dialog'
 import { type Person, displayName } from './model'
@@ -66,13 +67,17 @@ function showLogin(signedOut: boolean) {
 
 // 'home' is the list of everyone, the phone's Search tab.
 // 'stats' is the family stats page, `#/stats`; like home it takes the whole width.
-type View = 'home' | 'person' | 'tree' | 'stats'
+// 'missing' is the fill-in page, `#/missing`, also full width.
+type View = 'home' | 'person' | 'tree' | 'stats' | 'missing'
 
 function idFromHash() {
   return /^#\/p\/(.+)$/.exec(location.hash)?.[1] ?? ''
 }
 
 const statsHash = () => location.hash === '#/stats'
+const missingHash = () => location.hash === '#/missing'
+/** Views that take the whole width, with no tree beside them. */
+const fullWidth = (v: View) => v === 'home' || v === 'stats' || v === 'missing'
 
 function startApp() {
   const store = new FamilyStore(commit)
@@ -80,7 +85,7 @@ function startApp() {
   let selected = ''
   // A link to someone opens on their page (on phones; wide screens show the tree beside it).
   // Otherwise the app opens on the list, with no one selected.
-  let view: View = idFromHash() ? 'person' : statsHash() ? 'stats' : 'home'
+  let view: View = idFromHash() ? 'person' : statsHash() ? 'stats' : missingHash() ? 'missing' : 'home'
   let loaded = false
   let chartStale = true
 
@@ -213,7 +218,9 @@ function startApp() {
   const homePane = h('section', { class: 'pane home-pane', 'aria-label': t.tabSearch }, home.el)
   const stats = statsPage(() => store.people, id => ctx.select(id))
   const statsPane = h('section', { class: 'pane stats-pane', 'aria-label': t.stats }, stats.el)
-  const main = h('main', {}, homePane, statsPane, treePane, personPane, emptyEl, status, announcer)
+  const missing = missingPage(() => store.people, ctx, askMe)
+  const missingPane = h('section', { class: 'pane missing-pane', 'aria-label': t.missing }, missing.el)
+  const main = h('main', {}, homePane, statsPane, missingPane, treePane, personPane, emptyEl, status, announcer)
   personPane.id = 'person-pane'
   paneToggle.setAttribute('aria-controls', personPane.id)
   setPaneHidden(paneHidden)
@@ -236,17 +243,20 @@ function startApp() {
     topTab('stats', 'chart', 'stats', () => openStats()))
 
   // Wide screens show the tree beside the person, but not on the list, which takes the whole width.
-  const treeVisible = () => view !== 'home' && view !== 'stats' && (wide.matches || view === 'tree')
+  const treeVisible = () => !fullWidth(view) && (wide.matches || view === 'tree')
 
   function setView(v: View) {
     // "Show in tree" (phones) is chosen from the person page, which is about to be hidden.
     const fromPerson = v === 'tree' && personPane.contains(document.activeElement)
     // Going back to the list hides what had focus (Back from a person's page, say).
     const entering = v === 'home' && view !== 'home'
-    const hidingFocus = entering && (statsPane.contains(document.activeElement) || treePane.contains(document.activeElement) || personPane.contains(document.activeElement))
+    const hidingFocus = entering && (statsPane.contains(document.activeElement) || missingPane.contains(document.activeElement) || treePane.contains(document.activeElement) || personPane.contains(document.activeElement))
     // Same for the stats page, which can also be left from the list.
     const enteringStats = v === 'stats' && view !== 'stats'
-    const statsHidingFocus = enteringStats && (homePane.contains(document.activeElement) || treePane.contains(document.activeElement) || personPane.contains(document.activeElement))
+    const statsHidingFocus = enteringStats && (homePane.contains(document.activeElement) || missingPane.contains(document.activeElement) || treePane.contains(document.activeElement) || personPane.contains(document.activeElement))
+    // And the fill-in page.
+    const enteringMissing = v === 'missing' && view !== 'missing'
+    const missingHidingFocus = enteringMissing && (homePane.contains(document.activeElement) || statsPane.contains(document.activeElement) || treePane.contains(document.activeElement) || personPane.contains(document.activeElement))
     view = v
     main.dataset.view = v
     tabbar.querySelectorAll<HTMLElement>('.tab').forEach(b => {
@@ -265,6 +275,11 @@ function startApp() {
     if (v === 'stats') {
       if (enteringStats && loaded) stats.refresh()
       if (statsHidingFocus) stats.el.querySelector<HTMLElement>('h1')!.focus({ preventScroll: true })
+      return
+    }
+    if (v === 'missing') {
+      if (enteringMissing && loaded) missing.refresh()
+      if (missingHidingFocus) missing.el.querySelector<HTMLElement>('h1')!.focus({ preventScroll: true })
       return
     }
     if (v === 'home') {
@@ -292,13 +307,13 @@ function startApp() {
   }
 
   function setTitle() {
-    const p = view !== 'home' && view !== 'stats' ? store.people.get(selected) : undefined
-    document.title = view === 'stats' ? `${t.stats} — ${t.title}` : p ? `${displayName(p)} — ${t.title}` : t.title
+    const p = !fullWidth(view) ? store.people.get(selected) : undefined
+    document.title = view === 'stats' ? `${t.stats} — ${t.title}` : view === 'missing' ? `${t.missing} — ${t.title}` : p ? `${displayName(p)} — ${t.title}` : t.title
   }
 
   /** The list of everyone. Leaves the person's address, so Back returns to them. */
   function goHome() {
-    if (idFromHash() || statsHash()) location.hash = '#/'
+    if (idFromHash() || statsHash() || missingHash()) location.hash = '#/'
     setView('home')
   }
 
@@ -306,6 +321,12 @@ function startApp() {
   function openStats() {
     if (statsHash()) setView('stats')
     else location.hash = '#/stats'
+  }
+
+  /** The fill-in page, from the menu and the stats page's link. */
+  function openMissing() {
+    if (missingHash()) setView('missing')
+    else location.hash = '#/missing'
   }
 
   /** The phone's Tree and Person tabs. The person shown gets their address back, as a step Back can undo. */
@@ -368,6 +389,7 @@ function startApp() {
       standalone.matches || (navigator as { standalone?: boolean }).standalone ? null
         : h('p', { class: 'setting setting-hint' }, L('installHint')),
       menuList([
+        { icon: 'fillIn', label: L('missing'), run: () => openMissing() },
         { icon: 'history', label: L('history'), run: () => openHistory(ctx) },
         { icon: 'source', label: L('sourceCode'), run: () => window.open(SOURCE_URL, '_blank', 'noopener') },
         { icon: 'signOut', label: L('signOut'), run: () => signOut().then(() => location.reload(), () => toast(t.signOutFailed, { error: true })) },
@@ -388,6 +410,7 @@ function startApp() {
     emptyEl.hidden = people.size > 0
     home.refresh()
     stats.refresh()
+    missing.refresh()
     // `#/p/<id>` selects that person; someone unknown (deleted, or a bad link) means the list.
     // On `#/stats` this is '': no one new is selected, but whoever was stays for the phone's tabs.
     const id = idFromHash()
@@ -401,7 +424,7 @@ function startApp() {
     if (!people.has(selected)) selected = ''
     if (id === selected && selected) rememberRecent(selected)
     // Picking someone from the list opens the tree around them (beside their page on wide screens).
-    const fromHome = (view === 'home' || view === 'stats') && !!id && id === selected
+    const fromHome = fullWidth(view) && !!id && id === selected
     if (!selected) {
       chart.reset()
       chartStale = true
@@ -482,8 +505,9 @@ function startApp() {
     if (!loaded) return
     const id = idFromHash()
     if (statsHash()) setView('stats')
+    else if (missingHash()) setView('missing')
     else if (!id) setView('home')
-    else if (id !== selected || view === 'home' || view === 'stats') {
+    else if (id !== selected || fullWidth(view)) {
       render(true)
       personPane.scrollTop = 0
     }

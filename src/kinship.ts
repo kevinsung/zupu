@@ -28,7 +28,7 @@ type Edge = 'up' | 'down' | 'partner'
 interface Reach { prev: string, edge: Edge, cost: number }
 interface Search { reach: Map<string, Reach>, terms: Map<string, Kin | null> }
 
-const MAX_EDGES = 10
+export const MAX_EDGES = 10
 const STEP = 1000 // cost of an edge; a partner edge costs one more, so fewer partner edges win among shortest paths
 
 /** Keyed by the People map (the store makes a new one on each update), then by who "me" is. */
@@ -40,6 +40,12 @@ function searchFor(people: People, meId: string): Search {
   let s = byMe.get(meId)
   if (!s) byMe.set(meId, (s = { reach: bfs(people, meId), terms: new Map() }))
   return s
+}
+
+/** Edges on the cheapest path from `meId` to each person within MAX_EDGES (0 for `meId`); anyone further, or not connected, is absent. */
+export function kinSteps(people: People, meId: string): Map<string, number> {
+  if (!people.has(meId)) return new Map()
+  return new Map([...searchFor(people, meId).reach].map(([id, r]) => [id, Math.floor(r.cost / STEP)]))
 }
 
 const genderRank = (p: Person) => (p.gender === 'M' ? 0 : p.gender === 'F' ? 1 : 2)

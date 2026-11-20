@@ -99,7 +99,11 @@ export function openDialog(title: string | Node, body: Node, actions: DialogActi
     dlg.remove()
     if (opener && opener !== document.body && opener.isConnected && !opener.matches(':disabled')) { opener.focus({ preventScroll: true }); return }
     const under = [...document.querySelectorAll<HTMLElement>('dialog[open]')].at(-1)
-    if (under) under.querySelector<HTMLElement>('.dlg-body :is(input, select, textarea), button')?.focus({ preventScroll: true })
+    // A page that rebuilds its list names, in order, the controls to try when the opener is gone.
+    const successor = under ? undefined : (opener?.dataset?.refocus?.split(' ') ?? [])
+      .flatMap(k => [...document.querySelectorAll<HTMLElement>('[data-refocus-key]')].filter(n => n.dataset.refocusKey === k))[0]
+    if (successor) successor.focus({ preventScroll: true })
+    else if (under) under.querySelector<HTMLElement>('.dlg-body :is(input, select, textarea), button')?.focus({ preventScroll: true })
     else focusPersonHeading()
   }
   // A new click or choice starts over, so an old message doesn't sit beside the result of a new
@@ -430,7 +434,16 @@ export function personForm(initial: PersonFields = emptyFields()) {
     return { ...fields, phone: phoneE164 }
   }
 
-  return { el, read, focus: () => nameZh.focus() }
+  /** Focuses `field`'s control (the year box for a date, the checked or first radio for gender), else the Chinese name. */
+  function focus(field?: keyof PersonFields) {
+    if (field === 'birthDate') birthDate.focus()
+    else if (field === 'deathDate') deathDate.focus()
+    else if (field === 'gender') (gender.querySelector<HTMLInputElement>('input:checked') ?? gender.querySelector<HTMLInputElement>('input'))?.focus()
+    else if (field === 'nameEn') nameEn.focus()
+    else nameZh.focus()
+  }
+
+  return { el, read, focus }
 }
 
 /**
