@@ -342,17 +342,15 @@ function startApp() {
   }
 
 
-  /** Change history, editor name, appearance, tree direction, language and sign-out: a menu under the top-bar button, or a sheet from the phone's Menu tab. */
+  /** Language, appearance, tree direction, who you are, editor name, change history, source code and sign-out: a menu under the top-bar button, or a sheet from the phone's Menu tab. */
   function showMainMenu(anchor?: HTMLElement) {
     let close = () => {}
     const row = (label: Key, control: Node) =>
       h('div', { class: 'setting' }, h('span', { class: 'setting-label' }, L(label)), control)
     const body = h('div', { class: 'settings' },
-      menuList([{ icon: 'history', label: L('history'), run: () => openHistory(ctx) }], () => close()),
-      row('editorLabel', h('button', { type: 'button', class: 'setting-value', onclick: () => { close(); askEditor() } },
-        h('span', {}, savedEditor() || '—'), h('span', { class: 'chip' }, L('change')))),
-      row('meLabel', h('button', { type: 'button', class: 'setting-value', onclick: () => { close(); askMe() } },
-        h('span', {}, ctx.me() ? displayName(store.people.get(ctx.me())) : '—'), h('span', { class: 'chip' }, L('change')))),
+      row('language', segmented<Lang>(t.language,
+        [['both', h('span', { lang: 'zh-Hant' }, '中英')], ['zh', h('span', { lang: 'zh-Hant' }, '中文')], ['en', h('span', { lang: 'en' }, 'English')]],
+        getLang(), lang => { setLang(lang); location.reload() })),
       row('appearance', segmented<Theme>(t.appearance,
         [['auto', L('themeAuto')], ['light', L('themeLight')], ['dark', L('themeDark')]], getTheme(), setTheme)),
       row('treeDirection', segmented<TreeDirection>(t.treeDirection,
@@ -362,12 +360,14 @@ function startApp() {
           chartStale = true
           renderChart(true)
         })),
-      row('language', segmented<Lang>(t.language,
-        [['both', h('span', { lang: 'zh-Hant' }, '中英')], ['zh', h('span', { lang: 'zh-Hant' }, '中文')], ['en', h('span', { lang: 'en' }, 'English')]],
-        getLang(), lang => { setLang(lang); location.reload() })),
+      row('meLabel', h('button', { type: 'button', class: 'setting-value', onclick: () => { close(); askMe() } },
+        h('span', {}, ctx.me() ? displayName(store.people.get(ctx.me())) : '—'), h('span', { class: 'chip' }, L('change')))),
+      row('editorLabel', h('button', { type: 'button', class: 'setting-value', onclick: () => { close(); askEditor() } },
+        h('span', {}, savedEditor() || '—'), h('span', { class: 'chip' }, L('change')))),
       standalone.matches || (navigator as { standalone?: boolean }).standalone ? null
         : h('p', { class: 'setting setting-hint' }, L('installHint')),
       menuList([
+        { icon: 'history', label: L('history'), run: () => openHistory(ctx) },
         { icon: 'source', label: L('sourceCode'), run: () => window.open(SOURCE_URL, '_blank', 'noopener') },
         { icon: 'signOut', label: L('signOut'), run: () => signOut().then(() => location.reload(), () => toast(t.signOutFailed, { error: true })) },
       ], () => close()))
