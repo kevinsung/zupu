@@ -34,6 +34,9 @@ const closed = (dlg: Element) => vi.waitFor(() => {
   if (dlg.isConnected) throw new Error(`dialog still open; error: "${dlg.querySelector('.dlg-error')?.textContent ?? ''}"`)
 }, { timeout: 5000, interval: 20 })
 
+/** Retries `check` until it passes: a fixed wait for the Worker's reply can be too short on CI. */
+const eventually = (check: () => void) => vi.waitFor(check, { timeout: 5000, interval: 20 })
+
 beforeAll(async () => {
   w = await startWorker('dev')
   await w.post('/api/login', { password: 'dev' })
@@ -56,14 +59,12 @@ describe('app', () => {
   it('rejects a wrong password, then signs in', async () => {
     $<HTMLInputElement>('input[type=password]').value = 'wrong'
     $<HTMLFormElement>('form.login').requestSubmit()
-    await tick()
-    expect($('.login .dlg-error').textContent).toContain('Wrong password')
+    await eventually(() => expect($('.login .dlg-error').textContent).toContain('Wrong password'))
     // No connection: the browser's "Failed to fetch" is worded for people.
     const reachable = globalThis.fetch
     vi.stubGlobal('fetch', () => Promise.reject(new TypeError('Failed to fetch')))
     $<HTMLFormElement>('form.login').requestSubmit()
-    await tick()
-    expect($('.login .dlg-error').textContent).toContain("Couldn't connect")
+    await eventually(() => expect($('.login .dlg-error').textContent).toContain("Couldn't connect"))
     expect($('.login .dlg-error').textContent).not.toContain('Failed to fetch')
     vi.stubGlobal('fetch', reachable)
     $<HTMLInputElement>('input[type=password]').value = 'dev'
@@ -71,7 +72,8 @@ describe('app', () => {
     const online = globalThis.fetch
     vi.stubGlobal('fetch', (path: string, init?: RequestInit) => (fetched.push(`${init?.method ?? 'GET'} ${path}`), online(path, init)))
     $<HTMLFormElement>('form.login').requestSubmit()
-    await tick(300)
+    // Signed in once the list of everyone has loaded (the next test reads it straight away).
+    await eventually(() => expect(document.querySelectorAll('.home-pane .pcard')).toHaveLength(seed.length))
     vi.stubGlobal('fetch', online)
     expect(document.querySelector('header')).toBeTruthy()
     // The session is asked again after signing in, so the service worker's offline copy says signed in.
