@@ -1071,6 +1071,59 @@ describe('app', () => {
     topDialog().querySelector<HTMLButtonElement>('.dlg-x')!.click()
   })
 
+  it('offers an existing partner as the missing parent, rather than always adding a new person', async () => {
+    await w.post('/api/commit', { editor: 'import', summary: 'seed', ops: [
+      { type: 'set', person: person('pd', { nameZh: '爸', gender: 'M', spouses: ['pm'], order: 50 }) },
+      { type: 'set', person: person('pm', { nameZh: '媽', gender: 'F', spouses: ['pd'], order: 51 }) },
+      { type: 'set', person: person('pk', { nameZh: '孩', gender: 'M', parents: ['pd'], birthDate: '2000', order: 52 }) },
+    ] })
+    document.dispatchEvent(new Event('visibilitychange'))
+    location.hash = '#/missing'
+    await vi.waitFor(() => expect($('main').dataset.view).toBe('missing'))
+    const row = () => [...document.querySelectorAll<HTMLElement>('.missing-person')].find(r => r.textContent!.includes('孩'))
+    const chip = () => row() && buttonWith('另一位父母', row())
+    await eventually(() => expect(chip()).toBeTruthy())
+    const all = async () => ((await (await fetch('/api/people')).json()) as { people: { id: string, parents: string[] }[] }).people
+    const before = (await all()).length
+    chip()!.focus()
+    chip()!.click()
+    const menu = popover()
+    // The name follows the label, once.
+    expect(menu.textContent).toContain('連結為父母 Link as parent: 媽')
+    expect(menu.textContent).toContain('連結現有的人')
+    expect(menu.textContent).toContain('新增父母')
+    // Linking the partner makes the gap go; nobody new appears.
+    buttonWith('連結為父母', menu).click()
+    await eventually(() => expect(row() ? buttonWith('另一位父母', row()) : undefined).toBeFalsy())
+    expect(document.querySelectorAll('.popover').length).toBe(0)
+    // The chip is gone: focus lands on the person's card, not <body>.
+    await eventually(() => expect(document.activeElement).not.toBe(document.body))
+    expect(document.querySelector('.missing-pane')!.contains(document.activeElement)).toBe(true)
+    const after = await all()
+    expect(after).toHaveLength(before)
+    expect(after.find(p => p.id === 'pk')!.parents.sort()).toEqual(['pd', 'pm'])
+    // The other items open the matching dialog.
+    await w.post('/api/commit', { editor: 'import', summary: 'seed', ops: [
+      { type: 'set', person: person('pz', { nameZh: '獨', gender: 'M', parents: ['pd'], birthDate: '2001', spouses: [], order: 53 }) },
+    ] })
+    document.dispatchEvent(new Event('visibilitychange'))
+    await eventually(() => expect([...document.querySelectorAll('.missing-person')].some(r => r.textContent!.includes('獨') && r.textContent!.includes('另一位父母'))).toBe(true))
+    const lone = [...document.querySelectorAll<HTMLElement>('.missing-person')].find(r => r.textContent!.includes('獨'))!
+    buttonWith('另一位父母', lone).click()
+    buttonWith('連結現有的人', popover()).click()
+    const dlg = topDialog()
+    expect(dlg.querySelector<HTMLSelectElement>('select')!.value).toBe('parent')
+    dlg.querySelector<HTMLButtonElement>('.dlg-x')!.click()
+    await eventually(() => expect(dlg.isConnected).toBe(false))
+    buttonWith('另一位父母', lone).click()
+    buttonWith('新增父母', popover()).click()
+    const add = topDialog()
+    expect(add.querySelector('.dlg-title h2')!.textContent).toContain('新增父母')
+    add.querySelector<HTMLButtonElement>('.dlg-x')!.click()
+    await eventually(() => expect(add.isConnected).toBe(false))
+    history.back()
+  })
+
   it('reports a sign-in check that fails, rather than calling it signed out', async () => {
     const online = globalThis.fetch
     const { getSession } = await import('../src/backend')

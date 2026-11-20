@@ -153,13 +153,15 @@ function siblingParentChoices(people: People, p: Person): { ids: string[]; label
   return choices
 }
 
-export function linkExisting(ctx: AppCtx, p: Person) {
+/** `initial` is the relationship the select starts on. */
+export function linkExisting(ctx: AppCtx, p: Person, initial: LinkRelative = 'spouse') {
   if (!canEdit()) return
   const rel = h('select', {},
     h('option', { value: 'spouse' }, t.asSpouse),
     h('option', { value: 'parent' }, t.asParent),
     h('option', { value: 'child' }, t.asChild),
   )
+  rel.value = initial
   const picker = personPicker(() => ctx.store.people, () => {}, { exclude: p.id, selectable: true, idle: recentAndEveryone(() => ctx.store.people, { skip: () => p.id }) })
   // As in Add spouse; only offered while linking a spouse.
   const also = alsoParentOfBox(ctx.store.people, p)

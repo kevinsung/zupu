@@ -25,6 +25,23 @@ export interface DialogOpts {
 let dialogSeq = 0
 
 /**
+ * Pages that rebuild their list (so a control that had focus is destroyed) mark what to refocus:
+ * a control's `data-refocus` lists, space-separated and best first, the keys to try when it is gone,
+ * and `data-refocus-key` names the controls that answer to a key. Keys are namespaced by page
+ * ("missing:h1"), since the lookup spans the document. Focuses the earliest key's first rendered
+ * match and returns whether anything took focus. Panes are hidden by CSS, so rendered is
+ * checkVisibility() where it exists (jsdom lacks it, so there only [hidden] counts).
+ */
+export function focusRefocusTarget(keys: string[], root: ParentNode = document): boolean {
+  const all = [...root.querySelectorAll<HTMLElement>('[data-refocus-key]')].filter(n => (n.checkVisibility ? n.checkVisibility() : !n.closest('[hidden]')))
+  for (const k of keys) {
+    const el = all.find(n => n.dataset.refocusKey === k)
+    if (el) { el.focus({ preventScroll: true }); return true }
+  }
+  return false
+}
+
+/**
  * Modal dialog: a centered card on wide screens, a bottom sheet on phones.
  *
  * Buttons stay at the top, never the bottom: on phones the keyboard or a browser autofill bar
@@ -100,10 +117,9 @@ export function openDialog(title: string | Node, body: Node, actions: DialogActi
     if (opener && opener !== document.body && opener.isConnected && !opener.matches(':disabled')) { opener.focus({ preventScroll: true }); return }
     const under = [...document.querySelectorAll<HTMLElement>('dialog[open]')].at(-1)
     // A page that rebuilds its list names, in order, the controls to try when the opener is gone.
-    const successor = under ? undefined : (opener?.dataset?.refocus?.split(' ') ?? [])
-      .flatMap(k => [...document.querySelectorAll<HTMLElement>('[data-refocus-key]')].filter(n => n.dataset.refocusKey === k))[0]
-    if (successor) successor.focus({ preventScroll: true })
-    else if (under) under.querySelector<HTMLElement>('.dlg-body :is(input, select, textarea), button')?.focus({ preventScroll: true })
+    const successor = !under && focusRefocusTarget(opener?.dataset?.refocus?.split(' ') ?? [])
+    if (successor) return
+    if (under) under.querySelector<HTMLElement>('.dlg-body :is(input, select, textarea), button')?.focus({ preventScroll: true })
     else focusPersonHeading()
   }
   // A new click or choice starts over, so an old message doesn't sit beside the result of a new

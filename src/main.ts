@@ -248,15 +248,14 @@ function startApp() {
   function setView(v: View) {
     // "Show in tree" (phones) is chosen from the person page, which is about to be hidden.
     const fromPerson = v === 'tree' && personPane.contains(document.activeElement)
-    // Going back to the list hides what had focus (Back from a person's page, say).
-    const entering = v === 'home' && view !== 'home'
-    const hidingFocus = entering && (statsPane.contains(document.activeElement) || missingPane.contains(document.activeElement) || treePane.contains(document.activeElement) || personPane.contains(document.activeElement))
-    // Same for the stats page, which can also be left from the list.
-    const enteringStats = v === 'stats' && view !== 'stats'
-    const statsHidingFocus = enteringStats && (homePane.contains(document.activeElement) || missingPane.contains(document.activeElement) || treePane.contains(document.activeElement) || personPane.contains(document.activeElement))
-    // And the fill-in page.
-    const enteringMissing = v === 'missing' && view !== 'missing'
-    const missingHidingFocus = enteringMissing && (homePane.contains(document.activeElement) || statsPane.contains(document.activeElement) || treePane.contains(document.activeElement) || personPane.contains(document.activeElement))
+    // Entering a full-width view hides every other pane, so focus inside one (Back from a person's
+    // page, say) would be lost: it goes to the new view's heading instead.
+    const entering = fullWidth(v) && v !== view
+    const panes: Record<'home' | 'stats' | 'missing', HTMLElement> = { home: homePane, stats: statsPane, missing: missingPane }
+    const hidingFocus = entering && [homePane, statsPane, missingPane, treePane, personPane]
+      .some(pane => pane !== panes[v as keyof typeof panes] && pane.contains(document.activeElement))
+    const enteringStats = v === 'stats' && entering
+    const enteringMissing = v === 'missing' && entering
     view = v
     main.dataset.view = v
     tabbar.querySelectorAll<HTMLElement>('.tab').forEach(b => {
@@ -274,12 +273,12 @@ function startApp() {
     setTitle()
     if (v === 'stats') {
       if (enteringStats && loaded) stats.refresh()
-      if (statsHidingFocus) stats.el.querySelector<HTMLElement>('h1')!.focus({ preventScroll: true })
+      if (hidingFocus) statsPane.querySelector<HTMLElement>('h1')!.focus({ preventScroll: true })
       return
     }
     if (v === 'missing') {
       if (enteringMissing && loaded) missing.refresh()
-      if (missingHidingFocus) missing.el.querySelector<HTMLElement>('h1')!.focus({ preventScroll: true })
+      if (hidingFocus) missingPane.querySelector<HTMLElement>('h1')!.focus({ preventScroll: true })
       return
     }
     if (v === 'home') {

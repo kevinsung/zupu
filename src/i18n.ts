@@ -195,6 +195,7 @@ const pairs = {
   linkAs: ['關係', 'Relationship'],
   pickPerson: ['請先選擇一個人', 'Choose a person first'],
   asParent: ['是此人的父母', 'is a parent of this person'],
+  linkAsParent: ['連結為父母', 'Link as parent'],
   asSpouse: ['是此人的伴侶', 'is a partner of this person'],
   asChild: ['是此人的子女', 'is a child of this person'],
   confirmUnlink: ['確定要移除這個關係嗎？', 'Remove this relationship?'],

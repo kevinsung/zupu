@@ -1,9 +1,7 @@
-// @vitest-environment jsdom
-// jsdom because findGaps lives beside the page code, which imports i18n (it reads localStorage).
 import { describe, expect, it } from 'vitest'
 import { type MarriageStatus, type People, type Person, emptyFields } from '../src/model'
 import { kinDistance } from '../src/kinship'
-import { type Gap, findGaps } from '../src/missing'
+import { type Gap, findGaps, pruneSkipped, skipKey } from '../src/gaps'
 
 const person = (id: string, extra: Partial<Person> = {}): Person =>
   ({ ...emptyFields(), id, parents: [], spouses: [], marriages: {}, parentKinds: {}, order: 0, ...extra })
@@ -192,5 +190,27 @@ describe('kinDistance', () => {
     expect(of('bil')).toEqual({ steps: 2, partners: 1 })
     expect(d.has('stranger')).toBe(false)
     expect(kinDistance(peopleOf([full('a')]), 'nobody').size).toBe(0)
+  })
+})
+
+describe('pruneSkipped', () => {
+  it('keeps keys of gaps that still exist and drops the rest', () => {
+    const gaps = findGaps(peopleOf([full('a', { birthDate: '' }), full('b', { gender: '' })]), '')
+    const live = skipKey(find(gaps, 'birthDate', 'a')!)
+    expect(live).toBe('birthDate:a')
+    expect([...pruneSkipped(new Set([live, 'gender:a', 'marriage:x:y']), gaps)]).toEqual([live])
+    expect(pruneSkipped(new Set(), gaps).size).toBe(0)
+  })
+
+  it('keys a couple the same whichever partner carries the gap, so changing 我是 keeps the skip', () => {
+    const people = peopleOf([
+      full('kid', { parents: ['dad', 'mom'] }), full('dad', { spouses: ['mom'] }), full('mom', { gender: 'F', spouses: ['dad'] }),
+      full('x', { parents: ['mom'] }),
+    ])
+    const fromDad = findGaps(people, 'dad').find(g => g.kind === 'marriage')!
+    const fromMom = findGaps(people, 'mom').find(g => g.kind === 'marriage')!
+    expect(fromDad.person.id).not.toBe(fromMom.person.id)
+    expect(skipKey(fromDad)).toBe(skipKey(fromMom))
+    expect(pruneSkipped(new Set([skipKey(fromDad)]), findGaps(people, 'mom')).size).toBe(1)
   })
 })
