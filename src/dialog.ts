@@ -264,11 +264,13 @@ export function menuList(items: (MenuItem | null)[], close: () => void): HTMLEle
     h('span', { class: 'menu-label' }, item.label, item.disabled ? h('small', {}, item.disabled) : null))))
 }
 
-/** A row of mutually exclusive buttons (aria-pressed). */
+/** A row of mutually exclusive buttons (aria-pressed). Clicking the one already pressed does nothing. */
 export function segmented<V extends string>(label: string, options: [V, string | Node][], current: V, onPick: (v: V) => void): HTMLElement {
   const group = h('div', { class: 'seg', role: 'group', 'aria-label': label })
   for (const [value, text] of options) {
     const btn = h('button', { type: 'button', 'aria-pressed': String(value === current), onclick: () => {
+      if (value === current) return
+      current = value
       group.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b === btn)))
       onPick(value)
     } }, text)
