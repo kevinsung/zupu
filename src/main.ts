@@ -1,6 +1,6 @@
 import './styles.css'
 import { h, standalone, wide } from './dom'
-import { L, both, fill, getLang, locale, pair, prefixed, setLang, t, tTime, type Key, type Lang } from './i18n'
+import { L, both, fill, getLang, getScript, locale, pair, prefixed, setLang, setScript, t, tTime, type Key, type Lang, type Script } from './i18n'
 import { UserError, errorText } from './errors'
 import { ApiError, clearDataCache, commit, getSession, offlineSince, onOfflineChange, refetchForOffline, setNetworkState, signIn, signOut, watchPeople } from './backend'
 import { FamilyStore } from './store'
@@ -34,6 +34,7 @@ function showLogin(signedOut: boolean) {
   // Nobody is signed in, so no family data may stay on the device. A failed check proves nothing,
   // and the offline copy may be all a signed-in user has.
   if (signedOut) clearDataCache()
+  document.title = t.title // index.html's is fixed; this follows the language and script settings
   const input = h('input', { type: 'password', autocomplete: 'current-password', required: true })
   const error = h('p', { class: 'dlg-error', role: 'alert' })
   const button = h('button', { type: 'submit', class: 'primary' }, L('signIn'))
@@ -369,9 +370,14 @@ function startApp() {
       h('div', { class: 'setting' }, h('span', { class: 'setting-label' }, L(label)), control)
     const body = h('div', { class: 'settings' },
       // Deliberately each language's own name, whatever the current language, so it can always be found.
-      row('language', segmented<Lang>(t.language,
-        [['both', h('span', { lang: 'zh-Hant' }, '中英')], ['zh', h('span', { lang: 'zh-Hant' }, '中文')], ['en', h('span', { lang: 'en' }, 'English')]],
-        getLang(), lang => { setLang(lang); location.reload() })),
+      row('language', h('div', { class: 'setting-lang' },
+        segmented<Lang>(t.language,
+          [['both', h('span', { lang: 'zh-Hant' }, '中英')], ['zh', h('span', { lang: 'zh-Hant' }, '中文')], ['en', h('span', { lang: 'en' }, 'English')]],
+          getLang(), lang => { setLang(lang); location.reload() }),
+        // Which script the Chinese is shown in; always offered, so it can be chosen before switching language.
+        segmented<Script>(t.script,
+          [['Hant', h('span', { lang: 'zh-Hant' }, '繁')], ['Hans', h('span', { lang: 'zh-Hans' }, '简')]],
+          getScript(), s => { setScript(s); location.reload() }))),
       row('appearance', segmented<Theme>(t.appearance,
         [['auto', L('themeAuto')], ['light', L('themeLight')], ['dark', L('themeDark')]], getTheme(), setTheme)),
       row('treeDirection', segmented<TreeDirection>(t.treeDirection,

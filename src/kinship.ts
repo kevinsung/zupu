@@ -148,6 +148,10 @@ function older(a: Person, b: Person): boolean | null {
 // Term table
 
 type Pair = [zh: string, en: string]
+
+let zhTerm = (zh: string) => zh
+/** Sets how each table term's Chinese is written (identity by default: Traditional); set before any kinTerm call. */
+export function setZhTerm(fn: (zh: string) => string) { zhTerm = fn }
 type Cmp = [number, number]
 /** A term that depends on the people involved; null means the row doesn't apply, so matching moves on. */
 type Dyn = (persons: Person[], people: People) => Pair | null
@@ -358,7 +362,7 @@ function combos(tokens: string[]): string[][] {
  */
 function resolve(tokens: string[], persons: Person[], people: People): Map<string, string> | null {
   const out = new Map<string, string>()
-  const put = (p: Pair) => { if (!out.has(p[0])) out.set(p[0], p[1]) }
+  const put = (p: Pair) => { const z = zhTerm(p[0]); if (!out.has(z)) out.set(z, p[1]) }
   const add = (letters: string[]): boolean => {
     const h = lookup(letters, persons, people)
     if (!h) return false
@@ -405,7 +409,7 @@ function compose(tokens: string[], persons: Person[], people: People): Pair {
     }
     const last = i + used === tokens.length
     // Only a sibling of unknown gender and age gets here without a term (four candidates)
-    term ??= ['兄弟姊妹', 'sibling']
+    term ??= [zhTerm('兄弟姊妹'), 'sibling']
     zh.push(term[0])
     en.push(last ? term[1] : plain(term[1]))
     i += used

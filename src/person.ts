@@ -1,5 +1,5 @@
 import { coarsePointer, h } from './dom'
-import { L, lang, pairName, t, type Key } from './i18n'
+import { L, lang, pairName, t, zhLang, type Key } from './i18n'
 import { actionSheet, copyText, sectionHead } from './dialog'
 import { type IconName, icon } from './icons'
 import { avatar, datesLine, genderWord, marriageText, parentKindTag, personCard, selfCard } from './cards'
@@ -84,7 +84,7 @@ export function renderPerson(cont: HTMLElement, ctx: AppCtx, id: string, opts: P
         h('strong', { lang: 'en', class: 'pv-kin-term' }, kin.en),
         kin.gloss ? h('span', { class: 'pv-kin-en', lang: 'en' }, kin.gloss) : null,
       ] : [
-        h('strong', { lang: 'zh-Hant', class: 'pv-kin-term' }, kin.zh),
+        h('strong', { lang: zhLang, class: 'pv-kin-term' }, kin.zh),
         lang === 'zh' ? null : h('span', { class: 'pv-kin-en', lang: 'en' }, kin.en + (kin.gloss ? ` · ${kin.gloss}` : '')),
       ])) : null,
     facts ? h('p', { class: 'pv-dates' }, facts) : null,

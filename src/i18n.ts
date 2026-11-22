@@ -13,7 +13,14 @@
 //    then repeats, so keep this to plain strings.
 // 4. A number that is part of the wording is a template even on screen ("41歲 / age 41"): it's a
 //    word of the phrase, and repeating it costs a few characters.
+//
+// Simplified Chinese (简体) is a UI-only setting, separate from the language: `pairs` is converted once at
+// load (src/hans.ts), before any {name} is filled in, so names and stored data are never converted. The
+// converter's character map is generated: after adding strings, run `npm run gen:hans` (a test fails if
+// it's needed), and put Taiwan-only words in VOCAB in src/hans.ts.
 import { h } from './dom'
+import { hansKin, scriptFor, uiHans, type Script } from './hans'
+import { setZhTerm } from './kinship'
 
 const LANG_KEY = 'ft-lang'
 
@@ -30,8 +37,24 @@ export function setLang(lang: Lang) {
   else localStorage.setItem(LANG_KEY, lang)
 }
 
+export type { Script }
+
+const SCRIPT_KEY = 'ft-script'
+
+export function getScript(): Script {
+  return scriptFor(localStorage.getItem(SCRIPT_KEY), navigator.languages ?? [])
+}
+
+/** Always stores the choice (the default depends on the browser); the caller reloads. */
+export function setScript(s: Script) {
+  localStorage.setItem(SCRIPT_KEY, s)
+}
+
 export const lang = getLang()
-document.documentElement.lang = lang === 'en' ? 'en' : 'zh-Hant'
+export const script = getScript()
+/** The language tag of Chinese text in the chosen script. */
+export const zhLang = script === 'Hans' ? 'zh-Hans' : 'zh-Hant'
+document.documentElement.lang = lang === 'en' ? 'en' : zhLang
 
 const pairs = {
   title: ['族譜', 'Family Tree'],
@@ -86,6 +109,7 @@ const pairs = {
   noBirthYear: ['{n} 人沒有出生年份', '{n} with no birth year'],
   showTable: ['顯示表格', 'Show as table'],
   language: ['語言', 'Language'],
+  script: ['繁簡', 'Chinese script'],
 
   nameZh: ['中文姓名', 'Chinese name'],
   pinyin: ['拼音', 'Pinyin'],
@@ -278,7 +302,12 @@ const pairs = {
   ageApprox: ['約{n}歲', 'about age {n}'],
   agedAtDeath: ['享年{n}歲', 'aged {n}'],
   agedAtDeathApprox: ['享年約{n}歲', 'aged about {n}'],
-} as const satisfies Record<string, readonly [string, string]>
+} satisfies Record<string, [string, string]>
+
+if (script === 'Hans') {
+  for (const p of Object.values(pairs) as [string, string][]) p[0] = uiHans(p[0])
+  setZhTerm(hansKin)
+}
 
 export type Key = keyof typeof pairs
 
@@ -363,9 +392,9 @@ export function L(keyOrPair: Key | Pair): Node {
   const [zh, en] = typeof keyOrPair === 'string' ? pairs[keyOrPair] : keyOrPair
   if (lang !== 'both' || zh === en) return document.createTextNode(join(zh, en))
   const frag = document.createDocumentFragment()
-  frag.append(h('span', { class: 'zh', lang: 'zh-Hant' }, zh), ' ', h('span', { class: 'en', lang: 'en' }, en))
+  frag.append(h('span', { class: 'zh', lang: zhLang }, zh), ' ', h('span', { class: 'en', lang: 'en' }, en))
   return frag
 }
 
 /** BCP 47 locale for dates and times; the browser's own when showing both languages. */
-export const locale: string | undefined = lang === 'zh' ? 'zh-TW' : lang === 'en' ? 'en' : undefined
+export const locale: string | undefined = lang === 'zh' ? (script === 'Hans' ? 'zh-CN' : 'zh-TW') : lang === 'en' ? 'en' : undefined

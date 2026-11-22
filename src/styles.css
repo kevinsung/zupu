@@ -37,6 +37,7 @@
   background: var(--bg);
   -webkit-tap-highlight-color: transparent;
 }
+:root:lang(zh-Hans) { font-family: system-ui, "PingFang SC", "Noto Sans SC", "Microsoft YaHei", sans-serif; }
 :root[data-theme="light"] { color-scheme: light; }
 :root[data-theme="dark"] { color-scheme: dark; }
 * { box-sizing: border-box; }
@@ -559,6 +560,10 @@ svg.menu-icon { width: 1.25rem; height: 1.25rem; }
 .seg > button[aria-pressed="true"], .seg-option:has(input:checked) {
   background: var(--surface); color: var(--accent); font-weight: 600; box-shadow: var(--shadow);
 }
+/* The language buttons with the 繁|简 control to their right, on one line */
+.setting-lang { display: flex; align-items: center; gap: .5rem; }
+.setting-lang > .seg:first-child { flex: 1; min-width: 0; }
+.setting-lang > .seg:last-child { flex: none; }
 .seg-option { position: relative; }
 .seg-option input { position: absolute; opacity: 0; pointer-events: none; width: 1px; height: 1px; }
 .seg-option:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 1px; }
