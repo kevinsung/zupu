@@ -134,6 +134,18 @@ describe('computeStats records', () => {
     expect(ids(rec(list, 'youngest')!.people)).toEqual(['young'])
   })
 
+  it('gives a baby youngest an age in months, or days under a month', () => {
+    const youngest = (birthDate: string) => rec([person('old', { birthDate: '1950' }), person('kid', { birthDate })], 'youngest')
+    expect(youngest('2026-03-05')).toMatchObject({ n: 0, months: 8, approx: false })
+    expect(youngest('2026-03')).toMatchObject({ n: 0, months: 8, approx: true })
+    expect(youngest('2026-11-10')).toMatchObject({ months: 0, days: 9, approx: false })
+    expect(youngest('2026-10-25')).toMatchObject({ months: 0, days: 25 })
+    expect(youngest('2026-11')).toMatchObject({ months: 0, approx: true })
+    expect(youngest('2026-11')!.days).toBeUndefined()
+    expect(youngest('2026')!.months).toBeUndefined()
+    expect(youngest('2024-03-05')!.months).toBeUndefined()
+  })
+
   it('leaves out youngest when only one living person has an age', () => {
     expect(rec([person('a', { birthDate: '1990' }), person('b')], 'youngest')).toBeUndefined()
   })

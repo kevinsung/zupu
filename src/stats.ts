@@ -3,7 +3,7 @@ import { type Pair, L, both, colon, pair, prefixed, t, tn, fill as fillPair, typ
 import { icon } from './icons'
 import { personCard } from './cards'
 import {
-  type People, type Person, age, byBirth, childrenIndex, datesDecide, isDeceased, lineScore, partnerIds, rankPeople, seniorAncestor, yearsBetween,
+  type People, type Person, age, byBirth, childrenIndex, datesDecide, daysBetween, isDeceased, lineScore, monthsBetween, partnerIds, rankPeople, seniorAncestor, yearsBetween,
 } from './model'
 
 const yearOf = (p: Person): number | null => {
@@ -12,7 +12,8 @@ const yearOf = (p: Person): number | null => {
 }
 
 export type RecordId = 'mostDescendants' | 'mostChildren' | 'oldestLiving' | 'youngest' | 'longestLived' | 'longestMarriage'
-export interface SuperRecord { id: RecordId, people: Person[], n: number, approx: boolean }
+/** A youngest under a year old also gets months when every holder's birth month is known, and days under a month when every birth day is. */
+export interface SuperRecord { id: RecordId, people: Person[], n: number, approx: boolean, months?: number, days?: number }
 
 /**
  * Everything the stats page shows, as lists of people (counts are their lengths) so a bar can
@@ -102,7 +103,20 @@ export function computeStats(people: People, today = new Date()) {
     // With one living person of known age, they'd be both; oldest says it.
     if (!edge || (id === 'youngest' && aged.length === 1)) continue
     const ties = aged.filter(x => x.n === edge.n && !datesDecide(x.p, edge.p))
-    records.push({ id, people: ties.map(x => x.p), n: edge.n, approx: ties.some(x => x.approx) })
+    const r: SuperRecord = { id, people: ties.map(x => x.p), n: edge.n, approx: ties.some(x => x.approx) }
+    if (id === 'youngest' && edge.n === 0) {
+      const months = ties.map(x => monthsBetween(x.p.birthDate, today))
+      if (months.every(m => m)) {
+        r.months = Math.min(...months.map(m => m!.months))
+        r.approx = months.some(m => m!.approx)
+        const days = ties.map(x => daysBetween(x.p.birthDate, today))
+        if (r.months === 0 && days.every(d => d !== null)) {
+          r.days = Math.min(...days as number[])
+          r.approx = false
+        }
+      }
+    }
+    records.push(r)
   }
   add('longestLived', all.flatMap(p => { const a = p.deathDate ? age(p) : null; return a ? [{ p, n: a.years, approx: a.approx }] : [] }), 1)
   // A marriage runs to the earliest of the divorce and either death; with none of those it runs to
@@ -256,6 +270,9 @@ export function statsPage(people: () => People, select: (id: string) => void) {
   const yearsLabel = (n: number, approx: boolean) =>
     tn(n === 1 ? (approx ? 'yearOneApprox' : 'yearOne') : (approx ? 'yearsNApprox' : 'yearsN'), n)
 
+  const monthsLabel = (n: number, approx: boolean) =>
+    n === 0 ? t.ageUnderMonth : tn(n === 1 ? (approx ? 'ageMonthOneApprox' : 'ageMonthOne') : (approx ? 'ageMonthsNApprox' : 'ageMonthsN'), n)
+
   function recordsSection(s: Stats) {
     if (!s.records.length) return null
     const label: Record<RecordId, Key> = {
@@ -264,7 +281,11 @@ export function statsPage(people: () => People, select: (id: string) => void) {
     }
     const value = (r: SuperRecord) => {
       switch (r.id) {
-        case 'oldestLiving': case 'youngest': return tn(r.approx ? 'ageApprox' : 'age', r.n)
+        case 'youngest':
+          if (r.days !== undefined) return tn(r.days === 1 ? 'ageDayOne' : 'ageDaysN', r.days)
+          if (r.months !== undefined) return monthsLabel(r.months, r.approx)
+          return tn(r.approx ? 'ageApprox' : 'age', r.n)
+        case 'oldestLiving': return tn(r.approx ? 'ageApprox' : 'age', r.n)
         case 'longestLived': return tn(r.approx ? 'agedAtDeathApprox' : 'agedAtDeath', r.n)
         case 'longestMarriage': return yearsLabel(r.n, r.approx)
         default: return String(r.n)

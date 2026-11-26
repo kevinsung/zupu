@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 // jsdom because FamilyStore's messages come from i18n, which reads the language setting from localStorage.
 import { describe, expect, it } from 'vitest'
-import { type People, type Person, age, byBirth, datesDecide, reorderValues, childrenByCoParent, emptyFields, formatPhone, halfSiblingVia, isDeceased, isValidEmail, isValidPartialDate, isValidPhone, lifespan, normalizePerson, normalizePhone, rankPeople, rootAncestors, yearsBetween, searchPeople, seniorAncestor, siblingsOf, partnerIds, partnersOf } from '../src/model'
+import { type People, type Person, age, byBirth, datesDecide, reorderValues, childrenByCoParent, emptyFields, formatPhone, halfSiblingVia, isDeceased, isValidEmail, isValidPartialDate, isValidPhone, lifespan, normalizePerson, normalizePhone, rankPeople, rootAncestors, yearsBetween, monthsBetween, daysBetween, searchPeople, seniorAncestor, siblingsOf, partnerIds, partnersOf } from '../src/model'
 import { applyOp, simulate, type ChangeRecord, type NewChange, type Op } from '../src/ops'
 import { FamilyStore } from '../src/store'
 import { seedToPeople } from '../src/seed-format'
@@ -59,6 +59,21 @@ describe('model', () => {
     expect(yearsBetween('2000', '1990')).toBeNull()
     expect(yearsBetween('', '1990')).toBeNull()
     expect(yearsBetween('1990', 'bad')).toBeNull()
+  })
+
+  it('computes whole months and days between dates', () => {
+    const today = new Date(2026, 10, 19)
+    expect(monthsBetween('2026-03-05', today)).toEqual({ months: 8, approx: false })
+    expect(monthsBetween('2026-03-20', today)).toEqual({ months: 7, approx: false })
+    expect(monthsBetween('2025-11-25', today)).toEqual({ months: 11, approx: false })
+    expect(monthsBetween('2026-03', today)).toEqual({ months: 8, approx: true })
+    expect(monthsBetween('2026', today)).toBeNull()
+    expect(monthsBetween('2026-12', today)).toBeNull()
+    expect(daysBetween('2026-11-10', today)).toBe(9)
+    expect(daysBetween('2026-10-25', today)).toBe(25)
+    expect(daysBetween('2024-02-28', '2024-03-01')).toBe(2)
+    expect(daysBetween('2026-11', today)).toBeNull()
+    expect(daysBetween('2026-11-20', today)).toBeNull()
   })
 
   it('treats deceased with no death date as having no age', () => {

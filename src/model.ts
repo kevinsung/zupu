@@ -187,13 +187,17 @@ export interface Age {
   atDeath: boolean
 }
 
+/** Year, month and day of a partial date or a day. */
+const dayParts = (end: string | Date) =>
+  typeof end === 'string' ? parsePartialDate(end) : { y: end.getFullYear(), m: end.getMonth() + 1, d: end.getDate() }
+
 /**
  * Whole years from `start` to `end` (a partial date or a day), counting a year only once its month
  * and day have come; null when either is unparseable or the span is negative.
  */
 export function yearsBetween(start: string, end: string | Date): { years: number, approx: boolean } | null {
   const b = parsePartialDate(start)
-  const e = typeof end === 'string' ? parsePartialDate(end) : { y: end.getFullYear(), m: end.getMonth() + 1, d: end.getDate() }
+  const e = dayParts(end)
   if (!b || !e) return null
   let years = e.y - b.y
   let approx = !b.m || !e.m
@@ -206,6 +210,29 @@ export function yearsBetween(start: string, end: string | Date): { years: number
   }
   if (years < 0) return null
   return { years, approx }
+}
+
+/**
+ * Whole months from `start` to `end`, counting a month only once its day has come; null when either
+ * date lacks a month or is unparseable, or the span is negative.
+ */
+export function monthsBetween(start: string, end: string | Date): { months: number, approx: boolean } | null {
+  const b = parsePartialDate(start)
+  const e = dayParts(end)
+  if (!b?.m || !e?.m) return null
+  let months = (e.y - b.y) * 12 + (e.m - b.m)
+  const approx = !b.d || !e.d
+  if (!approx && e.d < b.d) months--
+  return months < 0 ? null : { months, approx }
+}
+
+/** Days from `start` to `end`; null unless both are full dates, or when the span is negative. */
+export function daysBetween(start: string, end: string | Date): number | null {
+  const b = parsePartialDate(start)
+  const e = dayParts(end)
+  if (!b?.d || !e?.d) return null
+  const days = Math.round((Date.UTC(e.y, e.m - 1, e.d) - Date.UTC(b.y, b.m - 1, b.d)) / 86400000)
+  return days < 0 ? null : days
 }
 
 /** Age today, or at death if a death date is recorded; null when the birth date is unknown. */

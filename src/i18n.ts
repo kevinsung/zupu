@@ -300,6 +300,13 @@ const pairs = {
   navViews: ['檢視', 'Views'],
   age: ['{n}歲', 'age {n}'],
   ageApprox: ['約{n}歲', 'about age {n}'],
+  ageMonthsN: ['{n}個月', '{n} months'],
+  ageMonthsNApprox: ['約{n}個月', 'about {n} months'],
+  ageMonthOne: ['{n}個月', '{n} month'],
+  ageMonthOneApprox: ['約{n}個月', 'about {n} month'],
+  ageUnderMonth: ['未滿1個月', 'under 1 month'],
+  ageDaysN: ['{n}天', '{n} days'],
+  ageDayOne: ['{n}天', '{n} day'],
   agedAtDeath: ['享年{n}歲', 'aged {n}'],
   agedAtDeathApprox: ['享年約{n}歲', 'aged about {n}'],
 } satisfies Record<string, [string, string]>

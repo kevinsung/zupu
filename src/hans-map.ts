@@ -50,6 +50,7 @@ export const HANS_MAP: Record<string, string> = {
   沒: '没',
   況: '况',
   淺: '浅',
+  滿: '满',
   瀏: '浏',
   為: '为',
   無: '无',
