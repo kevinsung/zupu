@@ -1,4 +1,4 @@
-import { h, wide } from './dom'
+import { h, standalone, wide } from './dom'
 import { L, lang, pair, prefixed, t, tn, type Key } from './i18n'
 import { UserError, errorText } from './errors'
 import { type Marriage, type MarriageStatus, type Person, type PersonFields, emptyFields, isDeceased, isValidEmail, isValidPartialDate, marriageWithStatus, normalizePhone, searchPeople, displayName, type People } from './model'
@@ -23,6 +23,49 @@ export interface DialogOpts {
 }
 
 let dialogSeq = 0
+
+/*
+ * Back closes the top dialog in the installed app. Firefox for Android's web-app window doesn't
+ * send Back to an open dialog (its browser tabs do); it goes back in history instead, and from the
+ * app's first page that leaves an empty gray window. So while any dialog is open the app holds a
+ * history entry of its own (same address, so no hashchange), and going back from it closes the top
+ * dialog. The entry under it is stamped with the same number, which tells a Back from a hash
+ * navigation made with a dialog open (a name in the change history), which also fires popstate.
+ * One entry serves the whole stack, and letting it go waits a tick, so a menu item that closes the
+ * menu sheet and opens a dialog keeps it. Browsers that close the dialog themselves on Back
+ * (Chrome) end up in dismiss, which lets the entry go too.
+ */
+const dialogStack: (() => void)[] = []
+let backHold = 0
+let backHoldSeq = 0
+let backRelease: ReturnType<typeof setTimeout> | undefined
+
+function holdBack() {
+  clearTimeout(backRelease)
+  if (backHold || !standalone.matches) return
+  backHold = ++backHoldSeq
+  history.replaceState({ ...history.state, dialogBase: backHold }, '')
+  history.pushState({ dialogHold: backHold }, '')
+}
+
+function releaseBack() {
+  clearTimeout(backRelease)
+  backRelease = setTimeout(() => {
+    if (dialogStack.length || !backHold) return
+    const held = backHold
+    backHold = 0
+    if (history.state?.dialogHold === held) history.back()
+  })
+}
+
+window.addEventListener('popstate', () => {
+  // Only going back to the entry under ours closes a dialog. A hash navigation buries ours, and
+  // Back then returns to it before reaching the one under it.
+  if (!backHold || history.state?.dialogBase !== backHold) return
+  backHold = 0
+  dialogStack.at(-1)?.()
+  if (dialogStack.length) holdBack()
+})
 
 /**
  * Pages that rebuild their list (so a control that had focus is destroyed) mark what to refocus:
@@ -109,6 +152,9 @@ export function openDialog(title: string | Node, body: Node, actions: DialogActi
   // button, so then fall back to the dialog underneath or the person's name.
   const opener = document.activeElement as HTMLElement | null
   const close = () => {
+    const i = dialogStack.indexOf(dismiss)
+    if (i >= 0) dialogStack.splice(i, 1)
+    releaseBack()
     dlg.close()
     // The toast may be inside this dialog (see toast); put it back before the dialog takes it along.
     const toastEl = dlg.querySelector('.toast')
@@ -134,6 +180,8 @@ export function openDialog(title: string | Node, body: Node, actions: DialogActi
   closePopover()
   document.body.append(dlg)
   dlg.showModal()
+  dialogStack.push(dismiss)
+  holdBack()
   return close
 }
 
