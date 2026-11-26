@@ -46,9 +46,12 @@ body { overscroll-behavior: none; }
 /* No viewport-fit=cover and no env(safe-area-inset-*): browsers then keep the page out of the
    system bars on their own. Firefox for Android reports the gesture bar's inset anyway, so any
    inset padding shows up there as a blank strip under the tab bar (see 7c69fde). */
-/* The app fits the screen and only its panes scroll. Clipping here keeps anything that overflows
-   anyway from making the page itself scrollable, which can't be scrolled back from the panes. */
-#app { height: 100dvh; display: flex; flex-direction: column; overflow: clip; }
+/* The app fits the screen and only its panes scroll. Fixed to the viewport rather than sized with
+   100dvh: on Android a swipe on the tab bar scrolls the page itself, which hides the URL bar, and
+   the page then scrolls by the difference between dvh and the page height, pushing the tab bar off
+   the bottom. A fixed #app leaves the page nothing to scroll, so the browser bars never move.
+   Clipping keeps anything that overflows inside it. */
+#app { position: fixed; inset: 0; display: flex; flex-direction: column; overflow: clip; }
 a { color: var(--accent); text-underline-offset: .15em; }
 button, input, select, textarea { font: inherit; color: inherit; }
 button {
